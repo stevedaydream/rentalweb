@@ -1,0 +1,370 @@
+<template>
+  <div class="max-w-7xl mx-auto space-y-6">
+    
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
+          我的帳單
+        </h1>
+        <p class="text-text-secondary-light">查看本期應繳費用與歷史繳費紀錄</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg shadow-blue-500/30 relative overflow-hidden">
+        <div class="relative z-10">
+          <p class="text-blue-100 font-medium mb-1">本期應繳總額</p>
+          <p class="text-3xl font-extrabold">NT$ {{ summary.unpaidTotal.toLocaleString() }}</p>
+          <div class="mt-4 flex items-center gap-2 text-sm text-blue-100">
+             <span class="bg-white/20 px-2 py-0.5 rounded text-xs">截止日</span>
+             {{ summary.nextDueDate || '無待繳帳單' }}
+          </div>
+        </div>
+        <span class="material-symbols-outlined absolute -right-4 -bottom-4 text-[120px] opacity-10 rotate-12">receipt_long</span>
+      </div>
+
+      <div class="bg-white dark:bg-card-dark rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col justify-center">
+        <p class="text-text-secondary-light text-sm font-bold">未繳筆數</p>
+        <div class="flex items-end gap-2 mt-2">
+           <span class="text-3xl font-bold text-red-500">{{ summary.unpaidCount }}</span>
+           <span class="text-sm text-text-secondary-light mb-1">筆</span>
+        </div>
+      </div>
+
+       <div class="bg-white dark:bg-card-dark rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col justify-center">
+        <p class="text-text-secondary-light text-sm font-bold">最後繳費日</p>
+        <div class="flex items-end gap-2 mt-2">
+           <span class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">{{ summary.lastPaymentDate }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+      <div class="flex items-center border-b border-gray-100 dark:border-gray-800 px-6 pt-2">
+        <button 
+          v-for="tab in tabs" 
+          :key="tab.value"
+          @click="currentTab = tab.value"
+          class="px-4 py-3 text-sm font-medium border-b-2 transition-colors relative top-[1px]"
+          :class="currentTab === tab.value ? 'border-primary text-primary' : 'border-transparent text-text-secondary-light hover:text-gray-600 dark:hover:text-gray-300'"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+          <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50">
+            <tr>
+              <th class="px-6 py-4">帳單月份/週期</th>
+              <th class="px-6 py-4">項目</th>
+              <th class="px-6 py-4">繳費期限</th>
+              <th class="px-6 py-4 text-right">金額</th>
+              <th class="px-6 py-4 text-center">狀態</th>
+              <th class="px-6 py-4 text-center">操作</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+            <tr v-for="bill in filteredBills" :key="bill.id" class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+              <td class="px-6 py-4">
+                <p class="font-bold text-text-primary-light">{{ bill.month }}</p>
+                <p class="text-xs text-text-secondary-light">{{ bill.period }}</p>
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex gap-2">
+                  <span v-for="(item, idx) in bill.items" :key="idx" class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-600 dark:text-gray-300">
+                    {{ item.name }}
+                  </span>
+                </div>
+              </td>
+              <td class="px-6 py-4 text-text-secondary-light">
+                 {{ bill.dueDate }}
+              </td>
+              <td class="px-6 py-4 text-right font-bold text-lg text-text-primary-light">
+                 NT$ {{ bill.totalAmount.toLocaleString() }}
+              </td>
+              <td class="px-6 py-4 text-center">
+                 <span 
+                  class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
+                  :class="statusStyles[bill.status]"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full mr-2" :class="statusDotStyles[bill.status]"></span>
+                  {{ statusLabels[bill.status] }}
+                </span>
+              </td>
+              <td class="px-6 py-4 text-center">
+                <button 
+                  @click="openModal(bill)"
+                  class="text-primary hover:bg-blue-50 dark:hover:bg-blue-900/20 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
+                >
+                  詳情
+                </button>
+              </td>
+            </tr>
+             <tr v-if="filteredBills.length === 0">
+              <td colspan="6" class="px-6 py-12 text-center text-text-secondary-light">
+                 <div class="flex flex-col items-center">
+                   <span class="material-symbols-outlined text-4xl mb-2 text-gray-300">receipt_long</span>
+                   <p>目前沒有相關帳單紀錄</p>
+                 </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div v-if="showModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showModal = false"></div>
+      
+      <div class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
+        <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+          <div>
+            <h2 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">帳單詳情</h2>
+            <p class="text-sm text-text-secondary-light">{{ selectedBill?.month }}</p>
+          </div>
+          <button @click="showModal = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+
+        <div ref="billReceiptRef" class="bg-white dark:bg-card-dark p-6 overflow-y-auto space-y-6">
+          
+          <div class="text-center">
+            <p class="text-sm text-text-secondary-light mb-1">應繳總金額</p>
+            <p class="text-4xl font-extrabold text-primary">NT$ {{ selectedBill?.totalAmount.toLocaleString() }}</p>
+            <div class="mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium" 
+                 :class="selectedBill ? statusStyles[selectedBill.status] : ''">
+               {{ selectedBill ? statusLabels[selectedBill.status] : '' }}
+            </div>
+            <p class="text-[10px] text-gray-300 mt-2">MyRental 租務管理系統</p>
+          </div>
+
+          <div v-if="selectedBill" class="space-y-4 border-t border-gray-100 dark:border-gray-700 pt-4">
+            <div v-for="(item, index) in selectedBill.items" :key="index" class="flex justify-between items-start">
+               <div>
+                 <p class="font-bold text-text-primary-light">{{ item.name }}</p>
+                 <p class="text-xs text-text-secondary-light" v-if="item.desc">{{ item.desc }}</p>
+               </div>
+               <p class="font-medium text-text-primary-light">NT$ {{ item.amount.toLocaleString() }}</p>
+            </div>
+             <div class="flex justify-between items-center pt-2 border-t border-dashed border-gray-200">
+               <p class="text-sm font-bold text-text-secondary-light">合計</p>
+               <p class="font-bold">NT$ {{ selectedBill.totalAmount.toLocaleString() }}</p>
+            </div>
+          </div>
+
+          <div v-if="selectedBill?.status !== 'paid'" class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl text-sm space-y-2">
+            <p class="font-bold text-gray-700 dark:text-gray-200 border-b border-gray-200 dark:border-gray-600 pb-2 mb-2">匯款資訊</p>
+            <div class="flex justify-between">
+              <span class="text-gray-500">銀行代碼</span>
+              <span class="font-mono font-bold">812 (台新銀行)</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">轉帳帳號</span>
+              <div class="flex items-center gap-2">
+                <span class="font-mono font-bold">2888-1002-9988-77</span>
+              </div>
+            </div>
+          </div>
+          
+           <div v-if="selectedBill?.status === 'paid'" class="bg-green-50 dark:bg-green-900/10 p-4 rounded-xl text-center border border-green-100">
+             <span class="material-symbols-outlined text-green-500 text-3xl mb-1">check_circle</span>
+             <p class="text-green-700 font-bold text-sm">此帳單已於 {{ selectedBill.paymentDate }} 完成繳費</p>
+          </div>
+
+        </div>
+
+        <div class="p-6 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3 bg-gray-50 dark:bg-gray-800/50 rounded-b-2xl">
+          <button 
+            @click="downloadImage"
+            class="flex items-center gap-2 px-5 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium transition-colors shadow-sm"
+          >
+            <span v-if="!isGenerating" class="material-symbols-outlined text-lg">image</span>
+            <span v-else class="material-symbols-outlined text-lg animate-spin">refresh</span>
+            {{ isGenerating ? '處理中...' : '下載圖片' }}
+          </button>
+          
+          <button 
+             v-if="selectedBill?.status !== 'paid'"
+             @click="handlePay(selectedBill!)"
+             class="px-5 py-2 rounded-xl bg-primary text-white font-bold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors"
+          >
+             前往繳費
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed } from 'vue';
+import html2canvas from 'html2canvas'; // [新增] 引入截圖套件
+
+// --- Type Definitions ---
+interface BillItem {
+  name: string;
+  amount: number;
+  desc?: string;
+}
+
+interface Bill {
+  id: number;
+  month: string;
+  period: string;
+  dueDate: string;
+  status: 'paid' | 'unpaid' | 'overdue';
+  items: BillItem[];
+  totalAmount: number;
+  paymentDate?: string;
+}
+
+// --- Mock Data ---
+const bills = ref<Bill[]>([
+  {
+    id: 101,
+    month: '2025年 10月',
+    period: '2025/10/01 - 2025/10/31',
+    dueDate: '2025/11/05',
+    status: 'unpaid',
+    totalAmount: 13150,
+    items: [
+      { name: '房屋租金', amount: 12000, desc: '10月份月租金' },
+      { name: '電費', amount: 1150, desc: '用電 230度 x 5.0' }
+    ]
+  },
+  {
+    id: 100,
+    month: '2025年 09月',
+    period: '2025/09/01 - 2025/09/30',
+    dueDate: '2025/10/05',
+    status: 'paid',
+    totalAmount: 12800,
+    paymentDate: '2025/10/03',
+    items: [
+      { name: '房屋租金', amount: 12000 },
+      { name: '電費', amount: 800, desc: '用電 160度 x 5.0' }
+    ]
+  },
+  {
+    id: 99,
+    month: '2025年 08月',
+    period: '2025/08/01 - 2025/08/31',
+    dueDate: '2025/09/05',
+    status: 'paid',
+    totalAmount: 14500,
+    paymentDate: '2025/09/04',
+    items: [
+      { name: '房屋租金', amount: 12000 },
+      { name: '電費', amount: 2500, desc: '用電 500度 x 5.0 (夏季)' }
+    ]
+  }
+]);
+
+// --- State ---
+const currentTab = ref('unpaid');
+const showModal = ref(false);
+const selectedBill = ref<Bill | null>(null);
+const billReceiptRef = ref<HTMLElement | null>(null); // [新增] 用於綁定截圖區域
+const isGenerating = ref(false);
+
+const tabs = [
+  { label: '未繳帳單', value: 'unpaid' },
+  { label: '已繳/歷史', value: 'history' },
+  { label: '全部', value: 'all' }
+];
+
+// --- Computed ---
+const filteredBills = computed(() => {
+  return bills.value.filter(bill => {
+    if (currentTab.value === 'all') return true;
+    if (currentTab.value === 'unpaid') return bill.status === 'unpaid' || bill.status === 'overdue';
+    if (currentTab.value === 'history') return bill.status === 'paid';
+    return true;
+  });
+});
+
+const summary = computed(() => {
+  const unpaidBills = bills.value.filter(b => b.status === 'unpaid' || b.status === 'overdue');
+  const lastPaid = bills.value.find(b => b.status === 'paid');
+  const lastUnpaid = unpaidBills.length > 0 ? unpaidBills[unpaidBills.length - 1] : null;
+ return {
+    unpaidCount: unpaidBills.length,
+    unpaidTotal: unpaidBills.reduce((sum, b) => sum + b.totalAmount, 0),
+    nextDueDate: lastUnpaid?.dueDate || null,
+    lastPaymentDate: lastPaid?.paymentDate || '無紀錄'
+  };
+});
+
+// --- UI Helpers ---
+const statusLabels = {
+  paid: '已繳費',
+  unpaid: '未繳費',
+  overdue: '已逾期'
+};
+
+const statusStyles = {
+  paid: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+  unpaid: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  overdue: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+};
+
+const statusDotStyles = {
+  paid: 'bg-green-500',
+  unpaid: 'bg-blue-500',
+  overdue: 'bg-red-500'
+};
+
+// --- Actions ---
+const openModal = (bill: Bill) => {
+  selectedBill.value = bill;
+  showModal.value = true;
+};
+
+const handlePay = (bill: Bill) => {
+  if (confirm(`確定要繳納 ${bill.month} 的帳單 NT$${bill.totalAmount} 嗎？`)) {
+     alert('已發送繳費通知給房東！');
+     bill.status = 'paid';
+     bill.paymentDate = new Date().toISOString().split('T')[0];
+     // showModal.value = false; // 繳費完可以不關閉，讓使用者下載收據
+  }
+};
+
+// [新增] 下載圖片功能
+const downloadImage = async () => {
+  if (!billReceiptRef.value) return;
+  
+  isGenerating.value = true;
+  
+  try {
+    // 1. 等待一下讓 UI 渲染完成 (預防萬一)
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // 2. 使用 html2canvas 截圖
+    const canvas = await html2canvas(billReceiptRef.value, {
+      backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff', // 處理深色模式背景
+      scale: 2, // 提高解析度 (Retina 螢幕)
+      logging: false
+    });
+
+    // 3. 轉換為圖片連結
+    const image = canvas.toDataURL("image/png");
+
+    // 4. 建立下載連結並自動點擊
+    const link = document.createElement('a');
+    link.href = image;
+    link.download = `帳單_${selectedBill.value?.month || 'receipt'}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+  } catch (error) {
+    console.error('截圖失敗:', error);
+    alert('截圖失敗，請稍後再試');
+  } finally {
+    isGenerating.value = false;
+  }
+};
+</script>

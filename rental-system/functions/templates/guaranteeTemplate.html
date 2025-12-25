@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>收據 | 押金</title>
+  <style>
+    body {
+      font-family: 'Noto Sans TC', '微軟正黑體', Arial, sans-serif;
+      background: #f8fafc;
+      margin: 0; padding: 0;
+    }
+    .receipt-container {
+      max-width: 580px;
+      margin: 32px auto;
+      background: #fff;
+      border: 2.5px solid #32b8a1;
+      border-radius: 14px;
+      box-shadow: 0 4px 32px #b2c7e6cc;
+      padding: 32px 36px 24px 36px;
+    }
+    .receipt-title {
+      text-align: center;
+      color: #188c70;
+      font-size: 2.1em;
+      font-weight: 900;
+      letter-spacing: 4px;
+      margin-bottom: 18px;
+    }
+    .info-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 18px;
+    }
+    .info-table th, .info-table td {
+      padding: 8px 10px;
+      font-size: 1.07em;
+      text-align: left;
+    }
+    .info-table th {
+      color: #206c57;
+      width: 120px;
+      background: #e1f6f1;
+      font-weight: 700;
+    }
+    .info-table td {
+      background: #f8fbfa;
+      color: #314360;
+    }
+    .amount {
+      color: #087870;
+      font-size: 1.3em;
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+    .description {
+      background: #ecf9f5;
+      border-left: 4px solid #40bb9a;
+      padding: 11px 17px;
+      font-size: 1em;
+      color: #35606a;
+      margin-bottom: 22px;
+      border-radius: 7px;
+    }
+    .sign-row {
+      margin-top: 26px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 1.05em;
+    }
+    .sign-box {
+      width: 46%;
+      border-top: 1px solid #97e1ce;
+      padding-top: 6px;
+      text-align: center;
+    }
+    .roc-date {
+      text-align: right;
+      margin-top: 24px;
+      color: #676767;
+      font-size: 1.01em;
+    }
+    .footer {
+      text-align: center;
+      color: #acacac;
+      font-size: .92em;
+      margin-top: 22px;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div class="receipt-container">
+    <div class="receipt-title">押金收據</div>
+    <table class="info-table">
+      <tr>
+        <th>承租人</th>
+        <td>{{tenant}}</td>
+      </tr>
+      <tr>
+        <th>房號</th>
+        <td>{{roomNo}}</td>
+      </tr>
+      <tr>
+        <th>地址</th>
+        <td>{{address}}</td>
+      </tr>
+      <tr>
+        <th>月租金</th>
+        <td>NT$ {{rentfee}}</td>
+      </tr>
+      <tr>
+        <th>押金金額</th>
+        <td class="amount">NT$ {{deposit}}</td>
+      </tr>
+      <tr>
+        <th>租期</th>
+        <td>{{startDate}} ～ {{endDate}}（{{duration}} 年）</td>
+      </tr>
+      <tr>
+        <th>出租人</th>
+        <td>{{landlord}}</td>
+      </tr>
+    </table>
+    <div class="description">
+      本收據為押金繳納憑證，承租人依約繳付押金。<br>
+      租約期滿且承租人無違約、房屋設備無損毀，出租人應於租約終止後無息退還全額押金。<br>
+      若有損壞或違約，得自押金中扣抵相關費用。
+    </div>
+    <div class="sign-row">
+      <div class="sign-box">承租人：{{tenant}} <p>承租人簽名：</p>
+<img src="{{signature}}" alt="signature" style="width: 200px; height: 60px;" />
+</div>
+      <div class="sign-box">出租人：{{landlord}} (簽章)</div>
+    </div>
+    <div class="roc-date">
+      中華民國 {{today}}
+    </div>
+    <div class="footer">
+      房屋租賃押金收據 &nbsp;|&nbsp; 系統自動產生，無需手寫
+    </div>
+  </div>
+</body>
+</html>

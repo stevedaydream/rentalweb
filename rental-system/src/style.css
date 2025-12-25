@@ -1,0 +1,16 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+@layer base {
+  body {
+    min-height: 100dvh;
+    @apply bg-background-light dark:bg-background-dark font-display text-text-primary-light dark:text-text-primary-dark;
+  }
+}
+
+/* 新增這個區塊 */
+@layer components {
+  .form-input {
+    @apply w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all;
+  }
+}

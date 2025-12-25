@@ -1,0 +1,18 @@
+# netlify.toml
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # 確保不會阻擋 Firebase 的跨網域登入
+    Cross-Origin-Opener-Policy = "same-origin-allow-popups"
+    # 如果還是不行，可以暫時嘗試設為 unsafe-none 測試
+    # Cross-Origin-Opener-Policy = "unsafe-none"
