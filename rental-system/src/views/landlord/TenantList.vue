@@ -280,7 +280,7 @@ import {
   serverTimestamp,
   where,
   getDocs,
-  setDoc // [新增]
+  // setDoc // [新增]
 } from 'firebase/firestore';
 
 // --- Type Definitions ---
@@ -455,18 +455,19 @@ const saveTenant = async () => {
     delete tenantData.uid; // 雖然我們需要它來建合約，但不需要存在 tenant 集合內 (或可選擇保留)
 
     // 1. 處理 Tenants Collection (租客檔案)
-    let tenantDocId = form.value.id;
+    // let tenantDocId = form.value.id;
     
     if (isEditing.value && form.value.id) {
        if (isOnlineProfile) {
          // 線上用戶首次轉正：建立 Tenant 文件
-         const docRef = await addDoc(collection(db, 'tenants'), {
+         // [修正] 移除未使用的 const docRef = 賦值
+         await addDoc(collection(db, 'tenants'), {
             ...tenantData,
             createdAt: serverTimestamp(),
             paymentStatus: 'normal',
             uid: targetUid // 綁定 UID 方便未來查詢
          });
-         tenantDocId = docRef.id;
+        //  tenantDocId = docRef.id;
          alert('已建立租客檔案與合約');
        } else {
          // 更新現有 Tenant
@@ -475,12 +476,12 @@ const saveTenant = async () => {
        }
     } else {
       // 純手動新增
-      const docRef = await addDoc(collection(db, 'tenants'), {
+      await addDoc(collection(db, 'tenants'), {
         ...tenantData,
         createdAt: serverTimestamp(),
         paymentStatus: 'normal'
       });
-      tenantDocId = docRef.id;
+      // tenantDocId = docRef.id;
     }
 
     // 2. 處理 Rooms Collection (房源狀態同步)
@@ -522,7 +523,8 @@ const saveTenant = async () => {
        };
 
        if (!contractSnap.empty) {
-         const contractId = contractSnap.docs[0].id;
+         // [修改] 使用非空斷言或安全存取
+         const contractId = contractSnap.docs[0]!.id;
          await updateDoc(doc(db, 'contracts', contractId), contractData);
        } else {
          await addDoc(collection(db, 'contracts'), {

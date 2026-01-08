@@ -6,11 +6,12 @@
       :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'"
     >
       <div class="h-full flex flex-col">
-        <div class="h-16 flex items-center px-6 border-b border-gray-100 dark:border-gray-800">
-          <span class="material-symbols-outlined text-primary mr-2">home_work</span>
-          <span class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">租屋管家 <span class="text-xs px-2 py-0.5 bg-orange-100 text-orange-600 rounded-full">房東版</span></span>
+        <div class="h-20 flex items-center px-6 border-b border-gray-100 dark:border-gray-800">
+          <div class="flex flex-col gap-1">
+            <img :src="logoSrc" alt="Logo" class="h-10 w-auto" />
+            <span class="text-[10px] w-fit px-2 py-0.5 bg-orange-100 text-orange-600 rounded-full font-bold ml-1">房東管理版</span>
+          </div>
         </div>
-
         <nav class="flex-1 overflow-y-auto p-4 space-y-1">
           <router-link 
             v-for="item in menuItems" 
@@ -24,11 +25,11 @@
             <span class="flex-1">{{ item.name }}</span>
 
             <span 
-              v-if="notifications[item.id] > 0" 
+              v-if="getBadgeCount(item.id) > 0" 
               class="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm transition-transform transform scale-100"
               :class="item.badgeColor || 'bg-red-500 text-white'"
             >
-              {{ notifications[item.id] > 99 ? '99+' : notifications[item.id] }}
+              {{ getBadgeCount(item.id) > 99 ? '99+' : getBadgeCount(item.id) }}
             </span>
             <span 
               v-else-if="notifications[item.id] === true" 
@@ -58,7 +59,7 @@
 
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
       <header class="lg:hidden flex items-center justify-between p-4 bg-white dark:bg-card-dark border-b border-gray-200 dark:border-gray-800">
-        <span class="font-bold text-lg">Dashboard</span>
+        <img :src="logoSrc" alt="Logo" class="h-8 w-auto" />
         <button @click="isSidebarOpen = true" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
           <span class="material-symbols-outlined">menu</span>
         </button>
@@ -77,6 +78,9 @@ import { ref, reactive, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useRoute } from 'vue-router';
 import { db } from '../firebase/config';
+// [修改開始]：引入 Logo 路徑
+import logoSrc from '../assets/logo.svg';
+// [修改結束]
 import { 
   collection, 
   query, 
@@ -90,14 +94,12 @@ const authStore = useAuthStore();
 const route = useRoute();
 const isSidebarOpen = ref(false);
 
-// [新增] 通知狀態
 const notifications = reactive<Record<string, number | boolean>>({
   messages: 0,
   tenants: 0,
-  financials: false // Boolean for electricity bill warning
+  financials: false 
 });
 
-// 定義選單結構，加入 id 以便對應通知
 const menuItems = [
   { id: 'dashboard', name: '儀表板', to: { name: 'LandlordDashboard' }, icon: 'dashboard' },
   { id: 'rooms', name: '房源管理', to: { name: 'RoomManagement' }, icon: 'bedroom_parent' },
@@ -121,7 +123,6 @@ onMounted(() => {
   if (!authStore.user) return;
   const uid = authStore.user.uid;
 
-  // 1. 監聽未讀訊息 (訊息中心)
   const qMessages = query(
     collection(db, 'messages'),
     where('landlordId', '==', uid),
@@ -131,7 +132,6 @@ onMounted(() => {
     notifications.messages = snap.size;
   });
 
-  // 2. 監聽租約到期 (租客列表) - 90天內
   const qTenants = query(
     collection(db, 'tenants'),
     where('landlordId', '==', uid)
@@ -146,7 +146,6 @@ onMounted(() => {
       const data = doc.data();
       if (data.leaseEnd) {
         const endDate = new Date(data.leaseEnd);
-        // 檢查是否在今天之後且90天內 (即將到期)
         if (endDate >= today && endDate <= threeMonthsLater) {
           count++;
         }
@@ -155,19 +154,15 @@ onMounted(() => {
     notifications.tenants = count;
   });
 
-  // 3. 檢查本期電費是否已登錄 (帳務管理)
-  // 邏輯：檢查 taipower_bills 是否有當月(YYYY-MM)的紀錄
   const qBills = query(
     collection(db, 'taipower_bills'),
     orderBy('month', 'desc'),
-    limit(5) // 抓最近幾筆即可
+    limit(5)
   );
   
   unsubBills = onSnapshot(qBills, (snap) => {
-    const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const currentMonth = new Date().toISOString().slice(0, 7);
     const hasCurrentMonth = snap.docs.some(doc => doc.data().month === currentMonth);
-    
-    // 如果沒有當月帳單，顯示紅點提醒 (true)
     notifications.financials = !hasCurrentMonth;
   });
 });
@@ -186,5 +181,10 @@ const handleLogout = () => {
   if (confirm('確定要登出嗎？')) {
     authStore.logout();
   }
+};
+
+const getBadgeCount = (id: string): number => {
+  const val = notifications[id];
+  return typeof val === 'number' ? val : 0;
 };
 </script>

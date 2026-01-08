@@ -79,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted,  } from 'vue';
 import DatabaseManagement from './DatabaseManagement.vue'; // 引入剛做好的元件
 
 const leftFrame = ref<HTMLIFrameElement | null>(null);

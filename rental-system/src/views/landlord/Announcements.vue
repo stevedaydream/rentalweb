@@ -259,12 +259,18 @@ let unsubscribe: (() => void) | null = null;
 // --- Lifecycle ---
 onMounted(() => {
   const q = query(collection(db, 'announcements'), orderBy('createdAt', 'desc'));
+  
   unsubscribe = onSnapshot(q, (snapshot) => {
     list.value = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     } as Announcement));
     loading.value = false;
+  }, (error) => {
+    // [修改開始] 加入錯誤處理，確保沒資料或報錯時不會一直轉圈
+    console.error("讀取公告失敗 (可能是缺少索引或權限問題):", error);
+    loading.value = false; // 強制關閉載入狀態，讓畫面顯示「無資料」區域
+    // [修改結束]
   });
 });
 
@@ -346,38 +352,59 @@ const openModal = (item?: Announcement) => {
   showModal.value = true;
 };
 
+// ... 前面 import 保持不變
+
+// [修改開始] saveItem 函式：確保資料格式乾淨，修復 400 錯誤
 const saveItem = async () => {
+  // 1. 基本驗證
   if (!form.value.title || !form.value.content) return alert('請填寫完整內容');
   
   submitting.value = true;
 
   try {
+    // 2. 建立乾淨的 Payload (關鍵步驟)
+    // 直接從 form.value 取值，而不是使用 ...spread 語法，避免將 undefined 或 Vue Proxy 傳入 Firestore
+    const payload = {
+      title: form.value.title,
+      category: form.value.category || '一般通知', // 確保有預設值
+      content: form.value.content,
+      isPinned: form.value.isPinned || false      // 確保是 boolean
+    };
+
     if (isEditing.value && form.value.id) {
-      // Update
+      // --- 更新模式 (Update) ---
       const docRef = doc(db, 'announcements', form.value.id);
-      await updateDoc(docRef, {
-        title: form.value.title,
-        category: form.value.category,
-        content: form.value.content,
-        isPinned: form.value.isPinned
-        // Do not update createdAt or views
-      });
+      
+      // 更新時只傳送 payload，不更動 createdAt 或 views
+      await updateDoc(docRef, payload);
+
     } else {
-      // Create
+      // --- 新增模式 (Create) ---
+      // 這裡不包含 id (Firestore 會自動產生)
+      // 確保所有欄位都有值，沒有 undefined
       await addDoc(collection(db, 'announcements'), {
-        ...form.value,
+        ...payload,
         createdAt: serverTimestamp(),
         views: 0
       });
     }
+    
+    // 3. 成功後關閉視窗
     showModal.value = false;
-  } catch (error) {
-    console.error("Error saving announcement:", error);
-    alert("儲存失敗，請稍後再試");
+
+  } catch (error: any) {
+    console.error("儲存失敗 (詳細錯誤):", error);
+    // 顯示更易懂的錯誤提示
+    if (error.code === 'invalid-argument') {
+        alert("儲存失敗：資料格式錯誤 (400)。請檢查是否有欄位為 undefined。");
+    } else {
+        alert(`儲存失敗：${error.message}`);
+    }
   } finally {
     submitting.value = false;
   }
 };
+// [修改結束]
 
 const deleteItem = async (id: string) => {
   if (confirm('確定要刪除此公告嗎？此操作無法復原。')) {

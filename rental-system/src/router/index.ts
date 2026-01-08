@@ -1,48 +1,51 @@
-import { createRouter, createWebHistory } from 'vue-router'
+// [修改開始]：src/router/index.ts
+import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
+import { auth } from '../firebase/config';
 
-// 基礎頁面
-const Identity = () => import('../views/auth/Identity.vue')
-const Login = () => import('../views/auth/Login.vue')
-const Register = () => import('../views/auth/Register.vue')
-const Onboarding = () => import('../views/auth/Onboarding.vue')
+// 輔助函式：確保 Firebase Auth 初始化完成
+const getCurrentUser = () => {
+  return new Promise((resolve, reject) => {
+    const removeListener = auth.onAuthStateChanged((user) => {
+      removeListener();
+      resolve(user);
+    }, reject);
+  });
+};
 
-// Layouts
-const LandlordLayout = () => import('../layouts/LandlordLayout.vue')
-const TenantLayout = () => import('../layouts/TenantLayout.vue')
-const SuperAdminLayout = () => import('../layouts/SuperAdminLayout.vue')
+// 視圖組件導入
+const Identity = () => import('../views/auth/Identity.vue');
+const Login = () => import('../views/auth/Login.vue');
+const Register = () => import('../views/auth/Register.vue');
+const Onboarding = () => import('../views/auth/Onboarding.vue');
 
-// 房東端視圖
-const LandlordDashboard = () => import('../views/landlord/Dashboard.vue')
-const RoomManagement = () => import('../views/landlord/RoomManagement.vue')
-const TenantList = () => import('../views/landlord/TenantList.vue')
-const Financials = () => import('../views/landlord/Financials.vue')
-const MeterReading = () => import('../views/landlord/MeterReading.vue')
-const MeterReadingHistory = () => import('../views/landlord/MeterReadingHistory.vue') 
-const RepairRequests = () => import('../views/landlord/RepairRequests.vue')
-const LandlordAnnouncements = () => import('../views/landlord/Announcements.vue')
-const Contract = () => import('../views/landlord/Contract.vue')
-const Receipts = () => import('../views/landlord/Receipts.vue')
-const LandlordSettings = () => import('../views/landlord/Settings.vue')
-const LandlordMessages = () => import('../views/landlord/Messages.vue')
+const LandlordLayout = () => import('../layouts/LandlordLayout.vue');
+const TenantLayout = () => import('../layouts/TenantLayout.vue');
+const SuperAdminLayout = () => import('../layouts/SuperAdminLayout.vue');
 
-// 租客端視圖
-const TenantDashboard = () => import('../views/tenant/Dashboard.vue')
-const TenantBills = () => import('../views/tenant/Bills.vue')
-const TenantAnnouncements = () => import('../views/tenant/Announcements.vue')
-const TenantRepairs = () => import('../views/tenant/Repairs.vue')
-const TenantContact = () => import('../views/tenant/Contact.vue')
+const LandlordDashboard = () => import('../views/landlord/Dashboard.vue');
+const RoomManagement = () => import('../views/landlord/RoomManagement.vue');
+const TenantList = () => import('../views/landlord/TenantList.vue');
+const Financials = () => import('../views/landlord/Financials.vue');
+const MeterReading = () => import('../views/landlord/MeterReading.vue');
+const MeterReadingHistory = () => import('../views/landlord/MeterReadingHistory.vue');
+const RepairRequests = () => import('../views/landlord/RepairRequests.vue');
+const LandlordAnnouncements = () => import('../views/landlord/Announcements.vue');
+const Contract = () => import('../views/landlord/Contract.vue');
+const Receipts = () => import('../views/landlord/Receipts.vue');
+const LandlordSettings = () => import('../views/landlord/Settings.vue');
+const LandlordMessages = () => import('../views/landlord/Messages.vue');
 
-// 管理員視圖
-const AdminDashboard = () => import('../views/admin/Dashboard.vue')
-const AdminLandlords = () => import('../views/admin/LandlordManagement.vue')
-const AdminDatabase = () => import('../views/admin/DatabaseManagement.vue')
-const SystemSimulator = () => import('../views/admin/SystemSimulator.vue')
-// [新增] 引入租客管理頁面
-const AdminTenants = () => import('../views/admin/TenantManagement.vue')
+const TenantDashboard = () => import('../views/tenant/Dashboard.vue');
+const TenantBills = () => import('../views/tenant/Bills.vue');
+const TenantAnnouncements = () => import('../views/tenant/Announcements.vue');
+const TenantRepairs = () => import('../views/tenant/Repairs.vue');
+const TenantContact = () => import('../views/tenant/Contact.vue');
 
-// 暫位元件
-const PlaceholderPage = { template: '<div class="p-8 text-center text-gray-500">此功能開發中...</div>' }
+const AdminDashboard = () => import('../views/admin/Dashboard.vue');
+const AdminLandlords = () => import('../views/admin/LandlordManagement.vue');
+const AdminDatabase = () => import('../views/admin/DatabaseManagement.vue');
+const AdminTenants = () => import('../views/admin/TenantManagement.vue');
 
 const routes = [
   { path: '/', name: 'Identity', component: Identity },
@@ -85,7 +88,7 @@ const routes = [
     ]
   },
 
-  // 超級管理員系統
+  // 管理員系統
   {
     path: '/admin',
     component: SuperAdminLayout,
@@ -93,67 +96,81 @@ const routes = [
     children: [
       { path: 'dashboard', name: 'AdminDashboard', component: AdminDashboard },
       { path: 'landlords', name: 'AdminLandlords', component: AdminLandlords },
-      // [修改] 對接真實頁面
       { path: 'tenants', name: 'AdminTenants', component: AdminTenants },
       { path: 'database', name: 'AdminDatabase', component: AdminDatabase },
-      // { path: 'simulator', name: 'SystemSimulator', component: SystemSimulator, meta: { layout: 'fullscreen' } },
+      {
+        path: 'simulator',
+        name: 'SystemSimulator',
+        component: () => import('../views/admin/SystemSimulator.vue')
+      },
     ]
   },
-{
-  path: '/admin/simulator',
-  name: 'SystemSimulator',
-  component: () => import('../views/admin/SystemSimulator.vue'),
-  meta: { requiresAuth: true, role: 'admin' }
-},
 
-  // 通用導向
+  // 自動分流導向
   {
     path: '/dashboard',
     name: 'Dashboard',
     redirect: () => {
-       const authStore = useAuthStore();
-       const role = authStore.userProfile?.role;
-       
-       if (role === 'landlord') return { name: 'LandlordDashboard' };
-       if (role === 'tenant') return { name: 'TenantDashboard' };
-       if (role === 'admin') return { name: 'AdminDashboard' };
-       
-       if (authStore.user) {
-         return { name: 'Onboarding' };
-       }
-
-       return { name: 'Identity' };
+      const authStore = useAuthStore();
+      const role = authStore.userProfile?.role;
+      if (role === 'landlord') return { name: 'LandlordDashboard' };
+      if (role === 'tenant') return { name: 'TenantDashboard' };
+      if (role === 'admin') return { name: 'AdminDashboard' };
+      return authStore.user ? { name: 'Onboarding' } : { name: 'Identity' };
     }
   }
-]
+];
 
 const router = createRouter({
   history: createWebHistory(),
   routes
-})
+});
 
-router.beforeEach(async (to, _, next) => {
+// 路由守衛核心
+router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore();
-  
-  if (authStore.loading) {
+
+  // 1. 初始化狀態檢查
+  if (!authStore.isInitialized) {
     await authStore.init();
   }
 
-  if (to.meta.requiresAuth && !authStore.user) {
-    next({ name: 'Login' });
-  } else {
+  // 2. 獲取最即時的 Firebase 用戶狀態
+  const firebaseUser = await getCurrentUser();
+  const isAuthenticated = !!firebaseUser;
+
+  // 3. 處理已登入用戶嘗試訪問 Auth 頁面
+  const isAuthPage = ['Identity', 'Login', 'Register'].includes(to.name as string);
+  if (isAuthenticated && isAuthPage) {
+    const userRole = authStore.userProfile?.role;
+    if (userRole === 'landlord') return next({ name: 'LandlordDashboard' });
+    if (userRole === 'tenant') return next({ name: 'TenantDashboard' });
+    if (userRole === 'admin') return next({ name: 'AdminDashboard' });
+    return next({ name: 'Onboarding' });
+  }
+
+  // 4. 權限檢查
+  if (to.meta.requiresAuth && !isAuthenticated) {
+    console.warn('[Guard] 未登入，導向 Login');
+    return next({ name: 'Login' });
+  }
+
+  // 5. 角色訪問限制
+  if (isAuthenticated && to.meta.role) {
     const userRole = authStore.userProfile?.role;
     const requiredRole = to.meta.role as string;
 
-    if (requiredRole && userRole !== requiredRole) {
-      if (userRole === 'landlord') next({ name: 'LandlordDashboard' });
-      else if (userRole === 'tenant') next({ name: 'TenantDashboard' });
-      else if (userRole === 'admin') next({ name: 'AdminDashboard' });
-      else next({ name: 'Identity' });
-    } else {
-      next();
+    if (userRole !== requiredRole) {
+      console.warn(`[Guard] 角色不符，目前是: ${userRole}`);
+      if (userRole === 'landlord') return next({ name: 'LandlordDashboard' });
+      if (userRole === 'tenant') return next({ name: 'TenantDashboard' });
+      if (userRole === 'admin') return next({ name: 'AdminDashboard' });
+      return next({ name: 'Identity' });
     }
   }
+
+  next();
 });
 
-export default router
+export default router;
+// [修改結束]

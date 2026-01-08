@@ -376,7 +376,7 @@ const fetchDashboardData = async () => {
     financial.overdueCount = 0;
     financial.overdueAmount = 0;
 
-    const todayStr = new Date().toISOString().split('T')[0];
+   const todayStr = new Date().toISOString().split('T')[0] || '';
 
     billsSnap.forEach(doc => {
       const data = doc.data();

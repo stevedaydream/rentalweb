@@ -318,7 +318,8 @@ const submitAssignment = async () => {
     // 更新本地狀態
     const idx = tenants.value.findIndex(t => t.id === selectedTenant.value?.id);
     if (idx !== -1) {
-      tenants.value[idx].boundLandlordCode = targetLandlordCode.value;
+      // [修改] 加入非空斷言 !
+      tenants.value[idx]!.boundLandlordCode = targetLandlordCode.value;
     }
 
     alert(`配對成功！\n已將 ${selectedTenant.value.name} 指派給 ${getLandlordName(targetLandlordCode.value)}`);

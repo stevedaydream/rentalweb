@@ -1,0 +1,100 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- 輔助函式 (Functions) ---
+    
+    // 檢查目前用戶是否登入
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // 取得用戶資料並檢查角色是否為房東 (landlord)
+    // 注意：這需要你的 users 集合中，房東的 document 有 role: 'landlord' 欄位
+    function isLandlord() {
+      return isSignedIn() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'landlord';
+    }
+
+    // 檢查資料是否屬於當前用戶
+    // 用於讀取/更新/刪除 (檢查現有資料 resource.data)
+    function isOwner(userIdField) {
+      return isSignedIn() && resource.data[userIdField] == request.auth.uid;
+    }
+
+    // 檢查新建的資料是否屬於當前用戶
+    // 用於新增 (檢查請求資料 request.resource.data)
+    function isCreatingOwn(userIdField) {
+      return isSignedIn() && request.resource.data[userIdField] == request.auth.uid;
+    }
+
+    // --- 集合規則 ---
+
+    // 1. 用戶資料 (Users)
+    match /users/{userId} {
+      allow read: if isSignedIn(); // 登入後可讀取 (為了顯示頭像/名稱)
+      allow write: if request.auth.uid == userId || isLandlord(); // 自己或房東可修改
+    }
+
+    // 2. 公告系統 (Announcements) - 延續之前的設定
+    match /announcements/{announcementId} {
+      allow read: if true; // 公開讀取
+      allow write: if isLandlord(); // 只有房東能發布
+    }
+
+    // 3. 訊息中心 (Messages)
+    // 假設每則訊息都有 'tenantId' 欄位標記屬於哪個租客的對話
+    match /messages/{messageId} {
+      // 房東可讀寫所有；租客只能讀寫標記為自己 ID 的訊息
+      allow read: if isLandlord() || isOwner('tenantId');
+      allow create: if isLandlord() || isCreatingOwn('tenantId');
+      // 禁止租客修改已發送的訊息，只允許房東或刪除操作(視需求而定)
+      allow update, delete: if isLandlord(); 
+    }
+       match /settings/{docId} {
+      allow read, write: if true;
+    }
+    
+    // 房間資料
+    match /rooms/{roomId} {
+      allow read, write: if true;
+    }
+    
+    // 抄表紀錄
+    match /meter_readings/{readingId} {
+      allow read, write: if true;
+    }
+
+    // 4. 報修管理 (Maintenance)
+    match /maintenance/{ticketId} {
+      // 房東可看所有；租客只能看自己的報修單
+      allow read: if isLandlord() || isOwner('tenantId');
+      
+      // 租客可以「新增」報修單 (必須標記 tenantId 為自己)
+      allow create: if isLandlord() || isCreatingOwn('tenantId');
+      
+      // 租客只能「更新」自己的報修單 (例如補充內容)，但不能改狀態(通常狀態由房東改)
+      // 這裡簡化為：房東全權，租客可改自己的
+      allow update: if isLandlord() || isOwner('tenantId');
+      
+      allow delete: if isLandlord(); // 只有房東能刪除紀錄
+    }
+
+    // 5. 帳務管理 (Billing)
+    match /billing/{billId} {
+      // 房東可看所有；租客只能看自己的帳單
+      allow read: if isLandlord() || isOwner('tenantId');
+      
+      // 只有房東可以「開立」或「修改」帳單金額
+      // 租客完全禁止寫入 (除了付款狀態更新，若前端是透過 API 更新則不需開啟 write)
+      allow write: if isLandlord();
+    }
+
+    // 6. 租客列表 (Tenants)
+    // 如果你除了 users 還有獨立的 tenants 集合記錄租約詳情
+    match /tenants/{tenantDocId} {
+      allow read: if isLandlord() || isOwner('uid'); // 假設欄位名稱是 uid
+      allow write: if isLandlord(); // 只有房東能管理租客名單
+    }
+  }
+}

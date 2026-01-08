@@ -6,11 +6,12 @@
       :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'"
     >
       <div class="h-full flex flex-col">
-        <div class="h-16 flex items-center px-6 border-b border-gray-100 dark:border-gray-800">
-          <span class="material-symbols-outlined text-primary mr-2">home_work</span>
-          <span class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">租屋管家 <span class="text-xs px-2 py-0.5 bg-green-100 text-green-600 rounded-full">租客版</span></span>
+        <div class="h-20 flex items-center px-6 border-b border-gray-100 dark:border-gray-800">
+          <div class="flex flex-col gap-1">
+            <img :src="logoSrc" alt="Logo" class="h-10 w-auto" />
+            <span class="text-[10px] w-fit px-2 py-0.5 bg-green-100 text-green-600 rounded-full font-bold ml-1">租客專用版</span>
+          </div>
         </div>
-
         <nav class="flex-1 overflow-y-auto p-4 space-y-1">
           <router-link 
             v-for="item in menuItems" 
@@ -49,7 +50,7 @@
 
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
       <header class="lg:hidden flex items-center justify-between p-4 bg-white dark:bg-card-dark border-b border-gray-200 dark:border-gray-800">
-        <span class="font-bold text-lg">Dashboard</span>
+        <img :src="logoSrc" alt="Logo" class="h-8 w-auto" />
         <button @click="isSidebarOpen = true" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
           <span class="material-symbols-outlined">menu</span>
         </button>
@@ -69,13 +70,15 @@ import { useAuthStore } from '../stores/auth';
 import { useRoute } from 'vue-router';
 import { db } from '../firebase/config';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+// [修改開始]：引入 Logo 路徑
+import logoSrc from '../assets/logo.svg';
+// [修改結束]
 
 const authStore = useAuthStore();
 const route = useRoute();
 const isSidebarOpen = ref(false);
-const hasNewReply = ref(false); // 控制紅點狀態
+const hasNewReply = ref(false);
 
-// 監聽器
 let unsubscribe: (() => void) | null = null;
 
 const menuItems = computed(() => [
@@ -83,7 +86,6 @@ const menuItems = computed(() => [
   { name: '我的帳單', to: { name: 'TenantBills' }, icon: 'receipt_long', hasNotification: false },
   { name: '社區公告', to: { name: 'TenantAnnouncements' }, icon: 'campaign', hasNotification: false },
   { name: '報修申請', to: { name: 'TenantRepairs' }, icon: 'build_circle', hasNotification: false },
-  // 綁定紅點狀態到「聯繫房東」
   { name: '聯繫房東', to: { name: 'ContactLandlord' }, icon: 'support_agent', hasNotification: hasNewReply.value },
 ]);
 
@@ -97,33 +99,24 @@ const handleLogout = () => {
   }
 };
 
-// --- 通知邏輯 ---
-// 當用戶在 Contact 頁面時，我們會收到 'messages-read' 事件，此時應清除紅點
 const handleMessageReadEvent = () => {
   hasNewReply.value = false;
 };
 
 onMounted(() => {
-  // 監聽來自 Contact.vue 的已讀事件
   window.addEventListener('messages-read', handleMessageReadEvent);
 
   if (authStore.user) {
-    // 監聽訊息集合，只抓取屬於當前租客的訊息
     const q = query(
       collection(db, 'messages'),
       where('tenantId', '==', authStore.user.uid)
     );
 
     unsubscribe = onSnapshot(q, (snapshot) => {
-      // 1. 計算目前有多少則訊息有「房東回覆」
       const totalReplies = snapshot.docs.filter(doc => doc.data().reply).length;
-      
-      // 2. 讀取 LocalStorage 中上次記錄的已讀回覆數量
       const readCount = parseInt(localStorage.getItem('tenant_read_reply_count') || '0');
 
-      // 3. 如果現在的回覆總數 > 上次看過的數量，且使用者目前不在 Contact 頁面，顯示紅點
       if (totalReplies > readCount) {
-        // 如果當前路由正好是 ContactLandlord，直接視為已讀
         if (route.name === 'ContactLandlord') {
            localStorage.setItem('tenant_read_reply_count', totalReplies.toString());
            hasNewReply.value = false;

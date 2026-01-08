@@ -1,8 +1,11 @@
+
 import { createApp } from 'vue'
 import { createPinia } from 'pinia' // 新增
 import './style.css'
 import App from './App.vue'
-import router from './router'
+import router from './router'// src/main.ts
+
+
 
 const app = createApp(App)
 const pinia = createPinia() // 新增

@@ -1,3 +1,4 @@
+// [修改開始]：src/stores/auth.ts
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { auth, db } from '../firebase/config';
@@ -20,11 +21,16 @@ export const useAuthStore = defineStore('auth', () => {
   const userProfile = ref<any>(null);
   const selectedRole = ref<string | null>(localStorage.getItem('selectedRole'));
   const loading = ref(true);
+  const isInitialized = ref(false);
   const router = useRouter();
 
-  // === 修改開始：更強力的登入後跳轉邏輯 ===
+  const setRole = (role: string) => {
+    selectedRole.value = role;
+    localStorage.setItem('selectedRole', role);
+  };
+
   const handleAuthSuccess = async (firebaseUser: User) => {
-    console.log('[Debug] 進入 handleAuthSuccess, UID:', firebaseUser.uid);
+    console.log('[Debug] 登入成功:', firebaseUser.uid);
     try {
       const docRef = doc(db, 'users', firebaseUser.uid);
       const docSnap = await getDoc(docRef);
@@ -32,96 +38,61 @@ export const useAuthStore = defineStore('auth', () => {
       if (docSnap.exists()) {
         const profile = docSnap.data();
         userProfile.value = profile;
-        console.log('[Debug] 資料讀取成功，角色:', profile.role);
-        
-        // 定義目標 URL
         const targetPath = profile.role === 'landlord' ? '/landlord/dashboard' : '/tenant/dashboard';
-
-        // 嘗試 Vue Router 跳轉
-        router.push({ name: 'Dashboard' }).catch(() => {
-          console.warn('[Debug] Router 被瀏覽器阻擋，執行強制轉址');
-          // [關鍵] 手機版 Redirect 最穩定的跳轉方式
+        router.replace(targetPath).catch(() => {
           window.location.replace(targetPath);
         });
-
-        // 如果 1 秒後還在原位，執行強制轉址
-        setTimeout(() => {
-          if (window.location.pathname.includes('login')) {
-            window.location.replace(targetPath);
-          }
-        }, 1000);
-
       } else {
-        console.log('[Debug] 新使用者，導向 Onboarding');
-        userProfile.value = null;
         router.push({ name: 'Onboarding' });
       }
     } catch (error) {
-      console.error('[Debug] handleAuthSuccess 失敗:', error);
+      console.error('handleAuthSuccess 讀取 Profile 失敗:', error);
+      router.push({ name: 'Onboarding' });
     }
   };
 
   const init = () => {
-    console.log('[Debug] Init 開始');
+    if (isInitialized.value) return Promise.resolve();
+    
     return new Promise<void>((resolve) => {
-      // 1. 優先處理轉址結果
-      getRedirectResult(auth)
-        .then(async (result) => {
-          if (result?.user) {
-            console.log('[Debug] 偵測到手機轉址登入成功:', result.user.email);
-            await handleAuthSuccess(result.user);
-          }
-        })
-        .catch((err) => {
-          console.error('[Debug] Redirect Error:', err);
-        })
-        .finally(() => {
-          // 2. 啟動監聽器
-          onAuthStateChanged(auth, async (currentUser) => {
-            user.value = currentUser;
-            if (currentUser) {
-              const docRef = doc(db, 'users', currentUser.uid);
-              const docSnap = await getDoc(docRef);
-              if (docSnap.exists()) {
-                userProfile.value = docSnap.data();
-              }
-            } else {
-              userProfile.value = null;
-            }
-            loading.value = false;
-            console.log('[Debug] Init 完畢');
-            resolve();
-          });
-        });
-    });
-  };
+      // 處理手機版 Redirect 回來的結果
+      getRedirectResult(auth).then(async (result) => {
+        if (result?.user) await handleAuthSuccess(result.user);
+      }).catch(console.error);
 
-  const setRole = (role: string) => {
-    selectedRole.value = role;
-    localStorage.setItem('selectedRole', role);
+      // 監聽登入狀態改變
+      onAuthStateChanged(auth, async (currentUser) => {
+        user.value = currentUser;
+        if (currentUser) {
+          try {
+            const docRef = doc(db, 'users', currentUser.uid);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              userProfile.value = docSnap.data();
+            }
+          } catch (e) {
+            console.warn('初始化時讀取用戶資料受阻:', e);
+          }
+        }
+        loading.value = false;
+        isInitialized.value = true;
+        resolve();
+      });
+    });
   };
 
   const loginWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
-    
     const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
     
-    try {
-      if (isMobile) {
-        console.log('[Debug] 手機端：執行轉址登入');
-        await signInWithRedirect(auth, provider);
-      } else {
-        console.log('[Debug] 電腦端：執行彈窗登入');
-        const result = await signInWithPopup(auth, provider);
-        await handleAuthSuccess(result.user);
-      }
-    } catch (error) {
-      console.error('[Debug] Google Login Error:', error);
-      throw error;
+    if (isMobile) {
+      await signInWithRedirect(auth, provider);
+    } else {
+      const result = await signInWithPopup(auth, provider);
+      await handleAuthSuccess(result.user);
     }
   };
-  // === 修改結束 ===
 
   const loginEmail = async (email: string, pass: string) => {
     const result = await signInWithEmailAndPassword(auth, email, pass);
@@ -138,19 +109,21 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null;
     userProfile.value = null;
     localStorage.removeItem('selectedRole');
-    router.push({ name: 'Identity' });
+    router.replace({ name: 'Identity' });
   };
 
-  return {
-    user,
-    userProfile,
-    selectedRole,
-    loading,
-    init,
-    setRole,
-    loginWithGoogle,
-    loginEmail,
-    registerEmail,
-    logout
+  return { 
+    user, 
+    userProfile, 
+    selectedRole, 
+    loading, 
+    isInitialized, 
+    init, 
+    setRole, 
+    loginWithGoogle, 
+    loginEmail, 
+    registerEmail, 
+    logout 
   };
 });
+// [修改結束]

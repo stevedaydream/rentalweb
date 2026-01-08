@@ -119,6 +119,9 @@
 <script setup>
 import { ref, computed } from 'vue'
 import axios from 'axios'
+// [修改開始]：引入共用的 PDF 下載工具
+import { downloadPdfFromBlob } from '../pdfHelper.js'
+// [修改結束]
 
 const downloading = ref(false)
 const roomList = ref([401, 402, 403, 501, 502, 503, 504])
@@ -150,7 +153,12 @@ function formatROCDate(date) {
 
 const apiBase = import.meta.env.VITE_API_BASE
 
+/**
+ * 修改後的 PDF 產生函式
+ * 增加了對回傳資料型態的檢查，避免下載到 Firebase 的 HTML 頁面
+ */
 const generatePDF = async () => {
+  // [修改開始]
   downloading.value = true
   
   if (form.value.address && !addressList.value.includes(form.value.address)) {
@@ -158,7 +166,6 @@ const generatePDF = async () => {
   }
 
   try {
-    // 1. 路徑修正為 generatePdf
     const res = await axios.post(
       `${apiBase}/generatePdf`, 
       {
@@ -168,37 +175,28 @@ const generatePDF = async () => {
         templateType: 'Deposit',
       },
       { 
-        responseType: 'arraybuffer',
+        // 使用 blob 接收資料，方便 pdfHelper 處理
+        responseType: 'blob', 
         headers: { 'Content-Type': 'application/json' }
       }
     )
 
-    let finalData = res.data;
-
-    // 2. 加入 Mock.js 亂碼資料修復邏輯
-    if (finalData && typeof finalData === 'object' && !(finalData instanceof ArrayBuffer)) {
-        console.warn('檢測到 Mock.js 干擾，正在修復 PDF 資料...');
-        const keys = Object.keys(finalData);
-        const len = keys.length;
-        const uint8Arr = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-            uint8Arr[i] = finalData[i];
-        }
-        finalData = uint8Arr.buffer;
+    // 關鍵檢查：如果回傳的資料類型是 text/html，代表請求被 Firebase 導向了 index.html (通常是 API 路徑錯誤)
+    if (res.data.type === 'text/html') {
+      console.error('[PDF Error] 接收到 HTML 資料，而非 PDF 二進位檔。請檢查 VITE_API_BASE 是否設定正確。');
+      throw new Error('伺服器設定錯誤：無法取得 PDF 檔案（接收到 HTML）。');
     }
 
-    // 3. 使用修復後的 finalData 建立 Blob
-    const blob = new Blob([finalData], { type: 'application/pdf' })
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `訂金收據_${form.value.tenant}.pdf`
-    link.click()
-    window.URL.revokeObjectURL(url)
+    // 調用工具函式進行下載
+    downloadPdfFromBlob(res.data, `訂金收據_${form.value.tenant}.pdf`);
+
   } catch (err) {
-    alert('PDF 下載失敗，請確認後端服務是否啟動')
-    console.error(err)
+    const errorMsg = err.message || 'PDF 下載失敗，請確認後端服務是否啟動';
+    alert(errorMsg);
+    console.error('[PDF Helper Error]', err);
+  } finally {
+    downloading.value = false
   }
-  downloading.value = false
+  // [修改結束]
 }
 </script>

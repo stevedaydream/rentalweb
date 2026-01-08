@@ -2,11 +2,25 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>租賃管家 | 專業房源管理系統</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>rental-system</title>
+    <meta name="description" content="租賃管家是一款專業的房源管理系統，幫助房東輕鬆管理租賃物業、租客資料和租金收取，提升租賃效率與收益。" />
+    <meta name="keywords" content="租賃管家, 房源管理系統, 房東工具, 租客管理, 租金收取, 物業管理, 租賃效率, 房東助手" />
+    <meta name="author" content="Stevedaydream" />   
+    <link rel="manifest" href="/manifest.json">
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then(reg => console.log('SW Registered!', reg))
+        .catch(err => console.log('SW Registration failed', err));
+    });
+  }
+</script>
   </head>
   <body>
     <div id="app"></div>

@@ -6,14 +6,15 @@ import { getStorage } from 'firebase/storage'; // [新增] 引入 Storage
 
 // 請替換為您的 Firebase 專案設定
 const firebaseConfig = {
-  apiKey: "AIzaSyAyxbZQWGHISHK-gumMQuHnzhOTQoS5hgA",
-  authDomain: "device-streaming-e921c475.firebaseapp.com",
-  projectId: "device-streaming-e921c475",
-  storageBucket: "device-streaming-e921c475.firebasestorage.app",
-  messagingSenderId: "303515436841",
-  appId: "1:303515436841:web:72e3288e9e463ecfa5d938",
-  measurementId: "G-TG69P8TGHF"
+  apiKey: "AIzaSyAVRqlmXqHpY5zSWjHgYbESTdXPBPSsg8w",
+  authDomain: "rental-8897a.firebaseapp.com",
+  projectId: "rental-8897a",
+  storageBucket: "rental-8897a.firebasestorage.app",
+  messagingSenderId: "594733001884",
+  appId: "1:594733001884:web:c5f938075873db45fb9159",
+  measurementId: "G-NC6MHSWKEW"
 };
+
 
 const app = initializeApp(firebaseConfig);
 

@@ -13,6 +13,7 @@
   },
   "main": "index.js",
   "dependencies": {
+    "@dataconnect/admin-generated": "file:src/dataconnect-admin-generated",
     "@sparticuz/chromium": "^143.0.0",
     "cors": "^2.8.5",
     "firebase-admin": "^13.6.0",

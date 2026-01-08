@@ -437,13 +437,13 @@ const deleteTestData = async () => {
   }
 };
 
-const clearLocalCache = () => {
-  if(confirm('這將清除 localStorage 並登出，確定嗎？')) {
-    localStorage.clear();
-    sessionStorage.clear();
-    window.location.href = '/login';
-  }
-};
+// const clearLocalCache = () => {
+//   if(confirm('這將清除 localStorage 並登出，確定嗎？')) {
+//     localStorage.clear();
+//     sessionStorage.clear();
+//     window.location.href = '/login';
+//   }
+// };
 
 // [修改] 重置整個資料庫 (但保留 Admin)
 const nukeDatabase = async () => {

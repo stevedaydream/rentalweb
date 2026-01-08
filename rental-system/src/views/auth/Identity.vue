@@ -61,10 +61,11 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '../../stores/auth';
 
 const router = useRouter();
-const authStore = useAuthStore();
+const authStore = useAuthStore() as any; // 使用 any 斷言解決 Pinia 複雜類型的 TS 報錯
 
 const selectRole = (role: string) => {
-  // 儲存選擇的角色狀態
+  console.log('[Debug] 使用者選擇身分:', role);
+  // 呼叫 Store 函式儲存身分
   authStore.setRole(role);
   // 導向登入頁面
   router.push({ name: 'Login' });

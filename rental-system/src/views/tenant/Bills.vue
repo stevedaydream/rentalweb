@@ -271,18 +271,19 @@ onMounted(async () => {
     const snapByUid = await getDocs(qByUid);
 
     if (!snapByUid.empty) {
-      tenantId = snapByUid.docs[0].id;
+      // [修改]
+      tenantId = snapByUid.docs[0]!.id;
     } else {
-      // Fallback: 嘗試用電話號碼查找 (舊資料相容)
       if (authStore.userProfile?.phone) {
         const qByPhone = query(tenantsRef, where('phone', '==', authStore.userProfile.phone));
         const snapByPhone = await getDocs(qByPhone);
         if (!snapByPhone.empty) {
-          tenantId = snapByPhone.docs[0].id;
+          // [修改]
+          tenantId = snapByPhone.docs[0]!.id;
         }
       }
     }
-
+    
     if (!tenantId) {
       console.warn("找不到對應的租客檔案 (Tenants Collection)");
       loading.value = false;

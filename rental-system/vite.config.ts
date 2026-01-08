@@ -1,8 +1,29 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [vue(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      manifest: {
+        name: '租賃管家系統',
+        short_name: '租賃管家',
+        theme_color: '#2563EB',
+        icons: [
+          {
+            src: 'pwa-192x192.png', // 檔案需放在 public/ 下
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png'
+          }
+        ]
+      }
+    })],
   build: {
     rollupOptions: {
       output: {

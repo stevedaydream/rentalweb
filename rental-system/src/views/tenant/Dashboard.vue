@@ -327,7 +327,7 @@ import {
   orderBy, 
   limit, 
   getDoc,
-  Timestamp // [修改] 新增 Timestamp 引用
+  // Timestamp // [修改] 新增 Timestamp 引用
 } from 'firebase/firestore';
 
 const authStore = useAuthStore();
@@ -370,7 +370,8 @@ const handleBindLandlord = async () => {
       return;
     }
 
-    const landlordDoc = querySnapshot.docs[0];
+    // [修正] 加入 ! 非空斷言，確保 landlordDoc 存在
+    const landlordDoc = querySnapshot.docs[0]!;
     const landlordData = landlordDoc.data();
     
     // 2. 更新當前租客的 users 文件
@@ -501,7 +502,9 @@ const fetchDashboardData = async () => {
     if (userProfile.landlordId) {
       const landlordSnap = await getDoc(doc(db, 'users', userProfile.landlordId));
       if (landlordSnap.exists()) {
-        userProfile.landlordName = landlordSnap.data().name;
+        // [修改] 確保 data() 存在
+        const data = landlordSnap.data();
+        if (data) userProfile.landlordName = data.name;
       }
     }
   }
@@ -517,7 +520,7 @@ const fetchDashboardData = async () => {
     const contractSnap = await getDocs(contractsQ);
     
     if (!contractSnap.empty) {
-      const data = contractSnap.docs[0].data();
+      const data = contractSnap.docs[0]!.data();
       rentalInfo.hasData = true;
       rentalInfo.roomNumber = data.roomNumber;
       rentalInfo.leaseStart = data.startDate;
@@ -553,7 +556,7 @@ const fetchDashboardData = async () => {
     const billSnap = await getDocs(billsQ);
     
     if (!billSnap.empty) {
-      const data = billSnap.docs[0].data();
+      const data = billSnap.docs[0]!.data();
       currentBill.hasData = true;
       currentBill.period = data.period;
       currentBill.rentAmount = Number(data.rentAmount);

@@ -97,7 +97,7 @@ import {
   where, 
   deleteDoc, 
   doc, 
-  orderBy 
+  // orderBy 
 } from 'firebase/firestore';
 
 interface Landlord {

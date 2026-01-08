@@ -145,8 +145,8 @@ onMounted(async () => {
     );
     const contractSnap = await getDocs(contractQ);
     if (!contractSnap.empty) {
-      const data = contractSnap.docs[0].data();
-      roomNumber.value = data.roomNumber || ''; // 儲存房號
+     const data = contractSnap.docs[0]!.data();
+      roomNumber.value = data.roomNumber || ''; 
     }
   } catch (err) {
     console.error('無法讀取合約資訊:', err);

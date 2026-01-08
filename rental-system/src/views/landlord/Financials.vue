@@ -761,7 +761,7 @@ const filteredTransactions = computed(() => {
 const isEvenMonth = computed(() => {
   const parts = currentMonth.value.split('-');
   if (parts.length < 2) return false;
-  return parseInt(parts[1]) % 2 === 0;
+  return parseInt(parts[1] || '0') % 2 === 0;
 });
 
 const electricityStats = computed(() => {
@@ -773,9 +773,9 @@ const electricityStats = computed(() => {
   if (!isEvenMonth.value) return defaultStats;
 
   const parts = currentMonth.value.split('-');
-  const year = parseInt(parts[0]);
-  const month = parseInt(parts[1]);
-  
+  const year = parseInt(parts[0] || '0');
+  const month = parseInt(parts[1] || '0');
+  // 本月
   const currentStr = currentMonth.value;
   // 前一個月 (處理跨年)
   const prevDate = new Date(year, month - 2, 1); 

@@ -6,11 +6,12 @@
       :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'"
     >
       <div class="h-full flex flex-col">
-        <div class="h-16 flex items-center px-6 border-b border-gray-800 bg-gray-950">
-          <span class="material-symbols-outlined text-red-500 mr-2">admin_panel_settings</span>
-          <span class="text-lg font-bold">超級管理員</span>
+        <div class="h-20 flex items-center px-6 border-b border-gray-800 bg-gray-950">
+          <div class="flex flex-col gap-1">
+            <img :src="logoSrc" alt="Logo" class="h-10 w-auto brightness-200 grayscale contrast-200" />
+            <span class="text-[10px] w-fit px-2 py-0.5 bg-red-600 text-white rounded-full font-bold">系統核心管理</span>
+          </div>
         </div>
-
         <nav class="flex-1 overflow-y-auto p-4 space-y-1">
           <router-link 
             v-for="item in menuItems" 
@@ -52,10 +53,7 @@
 
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
       <header class="lg:hidden flex items-center justify-between p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <span class="font-bold text-lg flex items-center gap-2">
-          <span class="material-symbols-outlined text-red-600">admin_panel_settings</span>
-          Admin Panel
-        </span>
+        <img :src="logoSrc" alt="Logo" class="h-8 w-auto" />
         <button @click="isSidebarOpen = true" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
           <span class="material-symbols-outlined">menu</span>
         </button>
@@ -73,6 +71,9 @@
 import { ref } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useRoute } from 'vue-router';
+// [修改開始]
+import logoSrc from '../assets/logo.svg';
+// [修改結束]
 
 const authStore = useAuthStore();
 const route = useRoute();
@@ -81,7 +82,7 @@ const isSidebarOpen = ref(false);
 const menuItems = [
   { name: '系統總覽', to: { name: 'AdminDashboard' }, icon: 'dashboard' },
   { name: '房東管理', to: { name: 'AdminLandlords' }, icon: 'supervisor_account' },
-  { name: '租客與配對', to: { name: 'AdminTenants' }, icon: 'manage_accounts' }, // 包含未登記房東之租客
+  { name: '租客與配對', to: { name: 'AdminTenants' }, icon: 'manage_accounts' }, 
   { name: '資料庫操作', to: { name: 'AdminDatabase' }, icon: 'database' },
   { name: '系統模擬器', to: { name: 'SystemSimulator' }, icon: 'settings_remote' },
 ];

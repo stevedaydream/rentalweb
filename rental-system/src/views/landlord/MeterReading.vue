@@ -316,10 +316,10 @@ import {
   getDocs, 
   query, 
   orderBy, 
-  addDoc, 
+  // addDoc, 
   writeBatch, 
   serverTimestamp, 
-  Timestamp 
+  // Timestamp 
 } from 'firebase/firestore';
 
 // --- Interfaces ---
@@ -411,8 +411,8 @@ const loadData = async () => {
   const roomsQ = query(collection(db, 'rooms'), orderBy('name', 'asc'));
   const roomsSnap = await getDocs(roomsQ);
   
-  const today = new Date().toISOString().split('T')[0];
-  
+  const today = new Date().toISOString().split('T')[0] || '';
+
   meterData.value = roomsSnap.docs.map(doc => {
     const data = doc.data();
     return {
@@ -566,7 +566,9 @@ const calculateElectricity = (room: MeterEntry) => {
     return { cost, log: `固定費率: ${usage}度 x $${settings.value.fixedRate} = $${cost}` };
   }
 
-  const group = meterGroups.value[0]; // Assume default group for now
+  // [修改] 增加 group 存在的檢查
+  const group = meterGroups.value[0]; 
+  if (!group) return { cost: 0, log: '錯誤: 無群組設定' };
 
   // Bill Share
   if (settings.value.mode === 'bill_share') {

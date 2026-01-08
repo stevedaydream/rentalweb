@@ -230,7 +230,7 @@ onMounted(() => {
     // [Alert 整合]：偵測是否有新的 pending 案件
     if (!loading.value && newTickets.length > tickets.value.length) {
       const latest = newTickets[0];
-      if (latest.status === 'pending') {
+      if (latest && latest.status === 'pending') {
         alert(`🔔 收到新報修申請！\n房號：${latest.room}\n內容：${latest.description}`);
       }
     }

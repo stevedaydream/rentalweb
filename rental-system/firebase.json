@@ -19,5 +19,29 @@
         "*.local"
       ]
     }
-  ]
+  ],
+  "firestore": {
+    "database": "(default)",
+    "location": "nam5",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/generatePdf",
+        "function": "generatePdf" 
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
 }
