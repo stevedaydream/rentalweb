@@ -1,8 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth';
 
-// === 修改開始：將靜態匯入改為動態匯入 (Lazy Loading) ===
-
 // 基礎頁面
 const Identity = () => import('../views/auth/Identity.vue')
 const Login = () => import('../views/auth/Login.vue')
@@ -20,10 +18,13 @@ const RoomManagement = () => import('../views/landlord/RoomManagement.vue')
 const TenantList = () => import('../views/landlord/TenantList.vue')
 const Financials = () => import('../views/landlord/Financials.vue')
 const MeterReading = () => import('../views/landlord/MeterReading.vue')
+const MeterReadingHistory = () => import('../views/landlord/MeterReadingHistory.vue') 
 const RepairRequests = () => import('../views/landlord/RepairRequests.vue')
 const LandlordAnnouncements = () => import('../views/landlord/Announcements.vue')
 const Contract = () => import('../views/landlord/Contract.vue')
 const Receipts = () => import('../views/landlord/Receipts.vue')
+const LandlordSettings = () => import('../views/landlord/Settings.vue')
+const LandlordMessages = () => import('../views/landlord/Messages.vue')
 
 // 租客端視圖
 const TenantDashboard = () => import('../views/tenant/Dashboard.vue')
@@ -34,8 +35,11 @@ const TenantContact = () => import('../views/tenant/Contact.vue')
 
 // 管理員視圖
 const AdminDashboard = () => import('../views/admin/Dashboard.vue')
-
-// === 修改結束 ===
+const AdminLandlords = () => import('../views/admin/LandlordManagement.vue')
+const AdminDatabase = () => import('../views/admin/DatabaseManagement.vue')
+const SystemSimulator = () => import('../views/admin/SystemSimulator.vue')
+// [新增] 引入租客管理頁面
+const AdminTenants = () => import('../views/admin/TenantManagement.vue')
 
 // 暫位元件
 const PlaceholderPage = { template: '<div class="p-8 text-center text-gray-500">此功能開發中...</div>' }
@@ -53,13 +57,15 @@ const routes = [
     meta: { requiresAuth: true, role: 'landlord' },
     children: [
       { path: 'dashboard', name: 'LandlordDashboard', component: LandlordDashboard },
+      { path: 'messages', name: 'LandlordMessages', component: LandlordMessages },
       { path: 'rooms', name: 'RoomManagement', component: RoomManagement },
       { path: 'tenants', name: 'TenantList', component: TenantList },
       { path: 'announcements', name: 'LandlordAnnouncements', component: LandlordAnnouncements },
       { path: 'financials', name: 'Financials', component: Financials },
       { path: 'meter-reading', name: 'MeterReading', component: MeterReading },
+      { path: 'meter-history', name: 'MeterReadingHistory', component: MeterReadingHistory },
       { path: 'repairs', name: 'RepairRequests', component: RepairRequests },
-      { path: 'settings', name: 'Settings', component: PlaceholderPage },
+      { path: 'settings', name: 'Settings', component: LandlordSettings },
       { path: 'contract', name: 'Contract', component: Contract },
       { path: 'receipts', name: 'Receipts', component: Receipts },
     ]
@@ -86,11 +92,19 @@ const routes = [
     meta: { requiresAuth: true, role: 'admin' },
     children: [
       { path: 'dashboard', name: 'AdminDashboard', component: AdminDashboard },
-      { path: 'landlords', name: 'AdminLandlords', component: PlaceholderPage },
-      { path: 'tenants', name: 'AdminTenants', component: PlaceholderPage },
-      { path: 'database', name: 'AdminDatabase', component: PlaceholderPage },
+      { path: 'landlords', name: 'AdminLandlords', component: AdminLandlords },
+      // [修改] 對接真實頁面
+      { path: 'tenants', name: 'AdminTenants', component: AdminTenants },
+      { path: 'database', name: 'AdminDatabase', component: AdminDatabase },
+      // { path: 'simulator', name: 'SystemSimulator', component: SystemSimulator, meta: { layout: 'fullscreen' } },
     ]
   },
+{
+  path: '/admin/simulator',
+  name: 'SystemSimulator',
+  component: () => import('../views/admin/SystemSimulator.vue'),
+  meta: { requiresAuth: true, role: 'admin' }
+},
 
   // 通用導向
   {

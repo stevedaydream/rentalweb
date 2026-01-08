@@ -19,7 +19,11 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6">
+    <div v-if="isLoading" class="flex justify-center py-12">
+      <span class="material-symbols-outlined animate-spin text-4xl text-gray-300">progress_activity</span>
+    </div>
+
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6">
 
       <div class="lg:col-span-4 bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col justify-between">
         <div>
@@ -30,14 +34,37 @@
               </div>
               <div class="ml-3">
                 <h3 class="font-bold text-lg">{{ authStore.userProfile?.name }}</h3>
-                <p class="text-xs text-text-secondary-light bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full inline-block mt-1">
-                  ID: {{ authStore.userProfile?.landlordCode || 'Loading...' }}
-                </p>
+                
+                <button 
+                  @click="copyLandlordCode"
+                  class="group flex items-center gap-1 text-xs text-text-secondary-light bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full mt-1 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                  title="點擊複製房東 ID"
+                >
+                  <span>ID: {{ authStore.userProfile?.landlordCode || 'Loading...' }}</span>
+                  <span class="material-symbols-outlined text-[10px] text-gray-400 group-hover:text-gray-600 transition-colors">content_copy</span>
+                </button>
               </div>
             </div>
           </div>
           
           <div class="space-y-4">
+            <div 
+              v-if="stats.pendingTenants > 0"
+              @click="$router.push({ name: 'TenantList' })"
+              class="cursor-pointer p-3 bg-purple-50 dark:bg-purple-900/20 rounded-xl border border-purple-100 dark:border-purple-800/50 flex items-center justify-between hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+            >
+               <div class="flex items-center gap-2 text-purple-700 dark:text-purple-300">
+                 <span class="material-symbols-outlined animate-pulse">person_add</span>
+                 <div class="flex flex-col">
+                   <span class="text-sm font-bold">新租客綁定通知</span>
+                   <span class="text-[10px] opacity-80">有人綁定了您的 ID</span>
+                 </div>
+               </div>
+               <span class="bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-100 text-xs font-bold px-2 py-1 rounded-full">
+                 {{ stats.pendingTenants }} 人
+               </span>
+            </div>
+
              <div 
               @click="$router.push({ name: 'RoomManagement' })"
               class="group cursor-pointer p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
@@ -73,7 +100,7 @@
         <div class="flex justify-between items-center mb-6">
           <h3 class="font-bold text-lg flex items-center">
             <span class="material-symbols-outlined mr-2 text-yellow-500">payments</span>
-            本月帳務概況
+            帳務概況 (全覽)
           </h3>
           <button class="text-sm text-primary hover:underline" @click="$router.push({ name: 'Financials' })">查看詳細報表</button>
         </div>
@@ -106,8 +133,7 @@
 
         <div class="mt-6 flex flex-wrap gap-2">
            <span class="text-sm text-text-secondary-light self-center mr-2">快捷篩選:</span>
-           <button class="px-3 py-1 text-xs rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600">台北市 (3)</button>
-           <button class="px-3 py-1 text-xs rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600">基隆市 (2)</button>
+           <button class="px-3 py-1 text-xs rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600">全部房源</button>
         </div>
       </div>
 
@@ -117,10 +143,7 @@
             <span class="material-symbols-outlined mr-2 text-blue-500">electric_bolt</span>
             電表快速登錄
           </h3>
-          <select class="px-3 py-1 rounded-lg border border-gray-200 text-sm bg-transparent">
-            <option>2025年 10月</option>
-            <option>2025年 9月</option>
-          </select>
+          <span class="text-xs text-text-secondary-light">顯示前 5 筆</span>
         </div>
 
         <div class="overflow-x-auto">
@@ -139,14 +162,25 @@
                 <td class="px-4 py-3 text-text-secondary-light">{{ room.lastReading }}</td>
                 <td class="px-4 py-3">
                   <input 
+                    v-model.number="room.newReading"
                     type="number" 
                     placeholder="輸入度數" 
                     class="w-24 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    :min="room.lastReading"
                   >
                 </td>
                 <td class="px-4 py-3">
-                  <button class="text-blue-600 hover:text-blue-800 font-medium">儲存</button>
+                  <button 
+                    @click="saveMeterReading(room)"
+                    :disabled="!room.newReading || room.newReading < room.lastReading"
+                    class="text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    儲存
+                  </button>
                 </td>
+              </tr>
+              <tr v-if="meterRooms.length === 0">
+                 <td colspan="4" class="px-4 py-4 text-center text-gray-400">暫無房源資料</td>
               </tr>
             </tbody>
           </table>
@@ -165,11 +199,18 @@
             <span class="material-symbols-outlined mr-2 text-orange-500">build_circle</span>
             最新報修
           </h3>
-          <span class="bg-red-100 text-red-600 text-xs font-bold px-2 py-1 rounded-full">3 未處理</span>
+          <span class="bg-red-100 text-red-600 text-xs font-bold px-2 py-1 rounded-full">
+            {{ repairTickets.length }} 未處理
+          </span>
         </div>
 
         <div class="space-y-3">
-          <div v-for="ticket in repairTickets" :key="ticket.id" class="p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-primary transition-colors cursor-pointer group">
+          <div 
+             v-for="ticket in repairTickets" 
+             :key="ticket.id" 
+             class="p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-primary transition-colors cursor-pointer group"
+             @click="$router.push({ name: 'RepairRequests' })"
+          >
             <div class="flex justify-between items-start">
               <div>
                 <span class="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded mr-2">{{ ticket.room }}</span>
@@ -178,13 +219,20 @@
               <span class="text-xs text-text-secondary-light">{{ ticket.date }}</span>
             </div>
             <p class="mt-2 text-sm text-text-secondary-light line-clamp-1 group-hover:text-text-primary-light">
-              <span class="font-bold mr-1" :class="ticket.priorityColor">{{ ticket.type }}:</span>
+              <span class="font-bold mr-1" :class="getPriorityColor(ticket.priority)">{{ ticket.type }}:</span>
               {{ ticket.desc }}
             </p>
           </div>
+
+          <div v-if="repairTickets.length === 0" class="text-center py-6 text-gray-400 text-sm">
+             目前沒有待處理的報修
+          </div>
         </div>
         
-        <button class="mt-4 w-full py-2 border border-dashed border-gray-300 rounded-lg text-sm text-text-secondary-light hover:text-primary hover:border-primary transition-colors">
+        <button 
+          @click="$router.push({ name: 'RepairRequests' })"
+          class="mt-4 w-full py-2 border border-dashed border-gray-300 rounded-lg text-sm text-text-secondary-light hover:text-primary hover:border-primary transition-colors"
+        >
           查看所有報修紀錄
         </button>
       </div>
@@ -194,38 +242,252 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { useAuthStore } from '../../stores/auth';
+import { db } from '../../firebase/config';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  orderBy, 
+  limit, 
+  doc, 
+  updateDoc, 
+  addDoc
+} from 'firebase/firestore';
 
 const authStore = useAuthStore();
+const isLoading = ref(true);
 
-// --- Mock Data (之後替換為 Firebase 資料) ---
-const stats = ref({
-  totalRooms: 12,
-  occupied: 8,
-  vacant: 3,
-  maintenance: 1
+// --- 狀態資料 ---
+const stats = reactive({
+  totalRooms: 0,
+  occupied: 0,
+  vacant: 0,
+  maintenance: 0,
+  pendingTenants: 0 // [新增]
 });
 
-const financial = ref({
-  unpaidCount: 5,
-  unpaidAmount: 45000,
-  paidCount: 15,
-  paidAmount: 180000,
-  overdueCount: 2,
-  overdueAmount: 24000
+const financial = reactive({
+  unpaidCount: 0,
+  unpaidAmount: 0,
+  paidCount: 0,
+  paidAmount: 0,
+  overdueCount: 0,
+  overdueAmount: 0
 });
 
-const meterRooms = ref([
-  { id: 1, name: '201室', lastReading: 1450 },
-  { id: 2, name: '202室', lastReading: 2100 },
-  { id: 3, name: '301室', lastReading: 3050 },
-]);
+interface MeterRoom {
+  id: string;
+  name: string;
+  lastReading: number;
+  newReading?: number;
+}
+const meterRooms = ref<MeterRoom[]>([]);
 
-const repairTickets = ref([
-  { id: 1, room: '201室', tenant: '陳小明', type: '漏水', desc: '浴室洗手台下方一直在漏水，地板都濕了', date: '今天 10:30', priorityColor: 'text-red-500' },
-  { id: 2, room: '305室', tenant: '王阿姨', type: '家電', desc: '冷氣不冷，而且有怪聲音', date: '昨天 15:20', priorityColor: 'text-orange-500' },
-  { id: 3, room: '402室', tenant: '李大同', type: '網路', desc: 'Wi-Fi 連不上，重開機也沒用', date: '10/22', priorityColor: 'text-blue-500' },
-]);
+interface RepairTicket {
+  id: string;
+  room: string;
+  tenant: string;
+  type: string;
+  desc: string;
+  date: string;
+  priority: string;
+}
+const repairTickets = ref<RepairTicket[]>([]);
 
+// --- 複製房東 ID 功能 ---
+const copyLandlordCode = async () => {
+  const code = authStore.userProfile?.landlordCode;
+  
+  if (!code) {
+    alert('房東 ID 載入中，請稍後再試。');
+    return;
+  }
+  
+  try {
+    await navigator.clipboard.writeText(code);
+    alert(`已複製房東 ID: ${code}\n您可以將此 ID 分享給租客，讓他們綁定您的帳號。`);
+  } catch (err) {
+    console.error('複製失敗:', err);
+    alert('複製失敗，請手動選取複製。');
+  }
+};
+
+// --- 資料讀取與處理 (Firebase) ---
+
+const fetchDashboardData = async () => {
+  if (!authStore.user) return;
+  const uid = authStore.user.uid;
+  // 確保取得房東代碼
+  const myLandlordCode = authStore.userProfile?.landlordCode;
+
+  isLoading.value = true;
+
+  try {
+    // 1. 讀取房源統計 & 電表資料
+    // [重點] 確保使用 landlordId 篩選，這樣新建立的房源才會出現
+    const roomsQuery = query(collection(db, 'rooms'), where('landlordId', '==', uid));
+    const roomsSnap = await getDocs(roomsQuery);
+    
+    stats.totalRooms = roomsSnap.size;
+    stats.occupied = 0;
+    stats.vacant = 0;
+    stats.maintenance = 0;
+    
+    const tempMeterRooms: MeterRoom[] = [];
+
+    roomsSnap.forEach(doc => {
+      const data = doc.data();
+      if (data.status === 'occupied') stats.occupied++;
+      else if (data.status === 'maintenance') stats.maintenance++;
+      else stats.vacant++;
+
+      if (tempMeterRooms.length < 5) {
+        tempMeterRooms.push({
+          id: doc.id,
+          name: data.roomName || data.name || data.roomNumber || '未命名',
+          lastReading: Number(data.currentMeter) || 0,
+          newReading: undefined
+        });
+      }
+    });
+    meterRooms.value = tempMeterRooms.sort((a, b) => a.name.localeCompare(b.name));
+
+    // [新增] 2. 讀取「新綁定」的線上租客
+    if (myLandlordCode) {
+      const usersQuery = query(collection(db, 'users'), where('boundLandlordCode', '==', myLandlordCode));
+      const usersSnap = await getDocs(usersQuery);
+      // 這裡簡單計算所有綁定的用戶數量，實務上您可以進一步比對是否已在 tenants 列表中
+      // 目前為了讓您直接看到效果，直接顯示總連結人數
+      // 如果您希望只顯示「未處理」的，通常需要比對 tenants collection
+      stats.pendingTenants = usersSnap.size; 
+    }
+
+    // 3. 讀取帳務概況
+    const billsQuery = query(collection(db, 'bills'), where('landlordId', '==', uid));
+    const billsSnap = await getDocs(billsQuery);
+
+    financial.unpaidCount = 0;
+    financial.unpaidAmount = 0;
+    financial.paidCount = 0;
+    financial.paidAmount = 0;
+    financial.overdueCount = 0;
+    financial.overdueAmount = 0;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    billsSnap.forEach(doc => {
+      const data = doc.data();
+      const amount = Number(data.totalAmount) || 0;
+      
+      if (data.status === 'paid') {
+        financial.paidCount++;
+        financial.paidAmount += amount;
+      } else {
+        if (data.dueDate && data.dueDate < todayStr) {
+          financial.overdueCount++;
+          financial.overdueAmount += amount;
+        } else {
+          financial.unpaidCount++;
+          financial.unpaidAmount += amount;
+        }
+      }
+    });
+
+    // 4. 讀取最新報修
+    const repairsQuery = query(
+      collection(db, 'repairs'),
+      where('landlordId', '==', uid),
+      where('status', 'in', ['pending', 'processing']),
+      orderBy('createdAt', 'desc'),
+      limit(3)
+    );
+    
+    try {
+      const repairsSnap = await getDocs(repairsQuery);
+      repairTickets.value = repairsSnap.docs.map(doc => {
+        const data = doc.data();
+        let dateStr = '';
+        if (data.createdAt && data.createdAt.toDate) {
+            const d = data.createdAt.toDate();
+            dateStr = `${d.getMonth()+1}/${d.getDate()}`;
+        }
+        
+        return {
+          id: doc.id,
+          room: data.roomNumber || '未知',
+          tenant: data.tenantName || '未知',
+          type: data.type || '維修',
+          desc: data.description || '',
+          date: dateStr,
+          priority: data.priority || 'medium'
+        };
+      });
+    } catch (err) {
+      console.warn('Repairs query error (check indexes):', err);
+    }
+
+  } catch (error) {
+    console.error('Fetch dashboard data error:', error);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+// --- 操作函式 ---
+
+const saveMeterReading = async (room: MeterRoom) => {
+  if (!room.newReading || !authStore.user) return;
+  
+  if (!confirm(`確定要將 ${room.name} 的度數更新為 ${room.newReading} 嗎？`)) return;
+
+  try {
+    const roomRef = doc(db, 'rooms', room.id);
+    
+    await updateDoc(roomRef, {
+      currentMeter: room.newReading,
+      lastMeterUpdate: new Date().toISOString()
+    });
+
+    await addDoc(collection(db, 'meter_readings'), {
+      roomId: room.id,
+      landlordId: authStore.user.uid,
+      roomName: room.name,
+      reading: room.newReading,
+      date: new Date().toISOString(),
+      type: 'manual_quick'
+    });
+
+    room.lastReading = room.newReading;
+    room.newReading = undefined;
+    alert('儲存成功！');
+
+  } catch (error) {
+    console.error('Save meter reading error:', error);
+    alert('儲存失敗，請稍後再試。');
+  }
+};
+
+const getPriorityColor = (priority: string) => {
+  switch (priority) {
+    case 'high': return 'text-red-500';
+    case 'medium': return 'text-orange-500';
+    case 'low': return 'text-blue-500';
+    default: return 'text-gray-500';
+  }
+};
+
+onMounted(() => {
+  // 等待 authStore 初始化完成再讀取資料
+  if (authStore.user) {
+    fetchDashboardData();
+  } else {
+    // 簡單的 retry 機制，確保重整頁面時也能讀到
+    setTimeout(() => {
+        if (authStore.user) fetchDashboardData();
+    }, 1000);
+  }
+});
 </script>

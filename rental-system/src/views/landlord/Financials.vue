@@ -8,7 +8,7 @@
         </h1>
         <p class="text-text-secondary-light">查看您的收支報表與電費盈虧分析</p>
       </div>
-      <div class="flex gap-3">
+      <div class="flex gap-3 flex-wrap">
         <div class="relative">
           <input 
             type="month" 
@@ -17,6 +17,15 @@
           >
         </div>
         
+        <button 
+          @click="generateMonthlyBills"
+          :disabled="loading"
+          class="px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition-colors text-sm font-medium flex items-center disabled:opacity-50"
+        >
+          <span class="material-symbols-outlined text-[18px] mr-2">magic_button</span>
+          一鍵生成帳單
+        </button>
+
         <button 
           @click="openTaipowerModal()"
           class="px-4 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center"
@@ -156,23 +165,13 @@
               </td>
               <td class="px-6 py-4 text-center">
                 <span 
-                  v-if="item.status === 'completed'" 
-                  class="inline-flex items-center gap-1 text-xs text-green-600 font-medium"
+                  class="inline-flex items-center gap-1 text-xs font-medium"
+                  :class="statusStyles[item.status]"
                 >
-                  <span class="material-symbols-outlined text-[14px]">check_circle</span> 已結清
+                  <span class="material-symbols-outlined text-[14px]">{{ statusIcons[item.status] }}</span> 
+                  {{ statusLabels[item.status] }}
                 </span>
-                <span 
-                  v-else-if="item.status === 'pending'" 
-                  class="inline-flex items-center gap-1 text-xs text-orange-500 font-medium"
-                >
-                  <span class="material-symbols-outlined text-[14px]">schedule</span> 待收款
-                </span>
-                 <span 
-                  v-else 
-                  class="inline-flex items-center gap-1 text-xs text-red-500 font-medium"
-                >
-                  <span class="material-symbols-outlined text-[14px]">warning</span> 逾期
-                </span>
+                <div v-if="!item.tenantId && item.category === '租金收入'" class="text-[10px] text-gray-400 mt-1">(手動帳單)</div>
               </td>
               
               <td class="px-6 py-4 text-center relative">
@@ -207,8 +206,7 @@
               <td colspan="7" class="px-6 py-12 text-center text-text-secondary-light">
                  <div class="flex flex-col items-center">
                    <span class="material-symbols-outlined text-4xl mb-2 text-gray-300">calendar_month</span>
-                   <p v-if="transactions.length > 0">本月 ({{ currentMonth }}) 尚無交易紀錄</p>
-                   <p v-else>目前沒有相關紀錄</p>
+                   <p>本月 ({{ currentMonth }}) 尚無交易紀錄</p>
                  </div>
               </td>
             </tr>
@@ -291,22 +289,21 @@
              <label class="block text-sm font-medium text-text-secondary-light mb-1">摘要備註</label>
              <textarea v-model="form.description" class="form-input min-h-[80px]" placeholder="輸入備註說明..."></textarea>
           </div>
+          
+          <div v-if="isEditing">
+             <label class="block text-sm font-medium text-text-secondary-light mb-1">狀態</label>
+             <select v-model="form.status" class="form-input">
+                <option value="pending">待收款/待付款</option>
+                <option value="completed">已結清</option>
+                <option value="overdue">逾期</option>
+             </select>
+          </div>
 
         </div>
 
         <div class="p-6 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
-          <button 
-            @click="showModal = false"
-            class="px-5 py-2 rounded-xl text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 font-medium transition-colors"
-          >
-            取消
-          </button>
-          <button 
-            @click="saveTransaction"
-            class="px-5 py-2 rounded-xl bg-primary text-white font-bold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors"
-          >
-            儲存紀錄
-          </button>
+          <button @click="showModal = false" class="px-5 py-2 rounded-xl text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 font-medium transition-colors">取消</button>
+          <button @click="saveTransaction" class="px-5 py-2 rounded-xl bg-primary text-white font-bold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors">儲存紀錄</button>
         </div>
       </div>
     </div>
@@ -316,9 +313,7 @@
       
       <div class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-md shadow-2xl flex flex-col">
         <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-          <h2 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">
-            登錄台電帳單
-          </h2>
+          <h2 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">登錄台電帳單</h2>
           <button @click="showTaipowerModal = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
             <span class="material-symbols-outlined">close</span>
           </button>
@@ -333,7 +328,6 @@
           <div>
             <label class="block text-sm font-medium text-text-secondary-light mb-1">計費月份 (迄月)</label>
             <input v-model="taipowerForm.month" type="month" class="form-input">
-            <p class="text-xs text-gray-400 mt-1">* 系統將自動關聯該月與前一個月的租客電費收入。</p>
           </div>
 
           <div>
@@ -364,7 +358,7 @@
         <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
           <div>
             <h2 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">修改紀錄</h2>
-            <p class="text-xs text-text-secondary-light">僅保留最近 90 天內的變更</p>
+            <p class="text-xs text-text-secondary-light">系統自動保留變更前的資料快照</p>
           </div>
           <button @click="showHistoryModal = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
             <span class="material-symbols-outlined">close</span>
@@ -382,7 +376,7 @@
               <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-white dark:bg-gray-800 border-2 border-blue-500"></div>
               
               <div class="text-xs text-text-secondary-light mb-1">
-                {{ new Date(record.modifiedAt).toLocaleString() }}
+                {{ record.modifiedAt ? new Date(record.modifiedAt).toLocaleString() : '未知時間' }}
               </div>
               
               <div class="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-100 dark:border-gray-700 text-sm">
@@ -392,6 +386,7 @@
                    <p>日期: {{ record.data.date }}</p>
                    <p>對象: {{ record.data.target }}</p>
                    <p>備註: {{ record.data.description }}</p>
+                   <p>狀態: {{ statusLabels[record.data.status] }}</p>
                 </div>
               </div>
             </div>
@@ -404,16 +399,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import { db } from '../../firebase/config';
+import { useAuthStore } from '../../stores/auth'; // [修正] 引入 Auth
+import { 
+  collection, 
+  onSnapshot, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  serverTimestamp, 
+  getDocs,
+  query,
+  orderBy,
+  where // [修正] 引入 where
+} from 'firebase/firestore';
 
 // --- Types ---
 interface TransactionHistory {
   modifiedAt: string;
-  data: Omit<Transaction, 'history'>;
+  data: any;
 }
 
+// [修改] 擴充 Transaction 介面，加入 relatedUsageId
 interface Transaction {
-  id: number;
+  id: string; 
   date: string;
   type: 'income' | 'expense';
   category: string;
@@ -422,56 +433,299 @@ interface Transaction {
   amount: number;
   status: 'completed' | 'pending' | 'overdue';
   history?: TransactionHistory[];
+  tenantId?: string; 
+  landlordId?: string; 
+  relatedUsageId?: string; // [新增] 用於關聯抄表紀錄 ID，防止重複
+  createdAt?: any;
 }
 
 interface TaipowerBill {
-  id: number;
-  month: string; // YYYY-MM
+  id: string;
+  month: string; 
   amount: number;
   usage: number;
+  landlordId?: string; // [新增]
 }
 
-// --- Mock Data ---
-const transactions = ref<Transaction[]>([
-  { id: 1, date: '2025-10-05', type: 'income', category: '租金收入', target: 'A-101 陳小明', description: '10月份房租', amount: 12000, status: 'completed', history: [] },
-  { id: 2, date: '2025-10-05', type: 'income', category: '電費', target: 'A-101 陳小明', description: '8-9月電費', amount: 1500, status: 'completed', history: [] },
-  { id: 3, date: '2025-10-05', type: 'income', category: '電費', target: 'A-102 張志豪', description: '8-9月電費', amount: 1200, status: 'pending', history: [] },
-  { id: 4, date: '2025-10-05', type: 'income', category: '電費', target: 'B-201 林美麗', description: '8-9月電費', amount: 2000, status: 'completed', history: [] },
-  { id: 5, date: '2025-09-05', type: 'income', category: '租金收入', target: 'A-101', description: '9月房租', amount: 12000, status: 'completed', history: [] },
-]);
-
-const taipowerBills = ref<TaipowerBill[]>([
-  { id: 1, month: '2025-10', amount: 4800, usage: 1200 }
-]);
-
 // --- State ---
-const currentMonth = ref('2025-10'); // YYYY-MM
+const authStore = useAuthStore(); // [新增]
+const transactions = ref<Transaction[]>([]);
+const taipowerBills = ref<TaipowerBill[]>([]);
+const loading = ref(true);
+
+const currentMonth = ref(new Date().toISOString().slice(0, 7));
 const currentTab = ref('all');
 const showModal = ref(false);
 const showTaipowerModal = ref(false);
 const showHistoryModal = ref(false);
 const isEditing = ref(false);
-const editingId = ref<number | null>(null);
-const activeMenuId = ref<number | null>(null);
+const editingId = ref<string | null>(null);
+const activeMenuId = ref<string | null>(null);
 const selectedHistory = ref<TransactionHistory[]>([]);
 
 // --- Forms ---
-const form = ref({
-  type: 'income' as 'income' | 'expense',
-  amount: undefined as number | undefined,
-  date: new Date().toISOString().split('T')[0],
+const form = ref<any>({
+  type: 'income',
+  amount: undefined,
+  date: '',
   category: '租金收入',
   target: '',
-  description: ''
+  description: '',
+  status: 'pending'
 });
 
 const taipowerForm = ref({
-  month: '2025-10',
+  month: currentMonth.value,
   amount: undefined as number | undefined,
   usage: undefined as number | undefined
 });
 
-// --- Computed ---
+// --- Firestore Integration ---
+
+onMounted(() => {
+  if (!authStore.user) return; // 安全檢查
+  const uid = authStore.user.uid;
+
+  // 1. 監聽帳務集合 (Bills) - [修正] 增加 landlordId 篩選
+  const qBills = query(
+    collection(db, 'bills'), 
+    where('landlordId', '==', uid),
+    orderBy('date', 'desc')
+  );
+  
+  onSnapshot(qBills, (snapshot) => {
+    transactions.value = snapshot.docs.map(d => ({ 
+      id: d.id, 
+      ...d.data() 
+    } as Transaction));
+    loading.value = false;
+  });
+
+  // 2. 監聽台電帳單集合 - [修正] 增加 landlordId 篩選
+  const qTaipower = query(
+    collection(db, 'taipower_bills'), 
+    where('landlordId', '==', uid),
+    orderBy('month', 'desc')
+  );
+  
+  onSnapshot(qTaipower, (snapshot) => {
+    taipowerBills.value = snapshot.docs.map(d => ({ 
+      id: d.id, 
+      ...d.data() 
+    } as TaipowerBill));
+  });
+});
+
+// --- Logic: 一鍵生成本月帳單 ---
+// [修改開頭] - 修改 generateMonthlyBills 函式以包含電費歷史整合
+const generateMonthlyBills = async () => {
+  if (!authStore.user) return;
+  if (!confirm(`確定要為所有在租房客產生 ${currentMonth.value} 月份的租金與電費帳單嗎？`)) return;
+  
+  loading.value = true;
+  try {
+    const uid = authStore.user.uid;
+    const dueDate = `${currentMonth.value}-05`; // 預設每月5號繳費
+
+    // --- 步驟 1: 準備資料來源 (房客 + 電費抄表紀錄) ---
+    
+    // A. 獲取房客資料 (用於租金與比對電費歸屬)
+    const qTenants = query(collection(db, 'tenants'), where('landlordId', '==', uid));
+    
+    // B. 獲取本月電費抄表紀錄 (用於電費)
+    // 假設抄表紀錄集合為 'meter_readings'，且我們抓取 "計費迄日 (periodEnd)" 落在本月的紀錄
+    const startOfMonth = `${currentMonth.value}-01`;
+    const endOfMonth = `${currentMonth.value}-31`;
+    
+    const qReadings = query(
+      collection(db, 'meter_readings'), 
+      where('periodEnd', '>=', startOfMonth),
+      where('periodEnd', '<=', endOfMonth)
+    );
+
+    // 平行讀取兩份資料
+    const [tenantsSnap, readingsSnap] = await Promise.all([
+      getDocs(qTenants),
+      getDocs(qReadings)
+    ]);
+    
+    // 轉換資料方便後續操作
+    const tenants = tenantsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const readings = readingsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    let count = 0;
+    const batchPromises: Promise<any>[] = [];
+
+    // --- 步驟 2: 處理租金帳單 (原有邏輯) ---
+    tenants.forEach((tenant: any) => {
+      // 檢查是否已存在「租金」帳單
+      const exists = transactions.value.some(t => 
+        (t.tenantId === tenant.uid || t.target.includes(tenant.name)) && 
+        t.date.startsWith(currentMonth.value) && 
+        t.category === '租金收入'
+      );
+      
+      if (!exists) {
+        count++;
+        batchPromises.push(addDoc(collection(db, 'bills'), {
+          tenantId: tenant.uid || null,
+          relatedTenantDocId: tenant.id,
+          landlordId: uid,
+          date: `${currentMonth.value}-01`,
+          type: 'income',
+          category: '租金收入',
+          target: `${tenant.room} ${tenant.name}`,
+          description: `${currentMonth.value} 月份房租`,
+          amount: Number(tenant.rent) || Number(tenant.monthlyRent) || 0,
+          status: 'pending',
+          dueDate: dueDate,
+          history: [],
+          createdAt: serverTimestamp()
+        }));
+      }
+    });
+
+    // --- 步驟 3: 處理電費帳單 (新增邏輯) ---
+    readings.forEach((reading: any) => {
+      // 1. 檢查是否已存在這筆「電費」帳單 (透過 relatedUsageId 絕對比對)
+      const exists = transactions.value.some(t => 
+        t.relatedUsageId === reading.id
+      );
+
+      // 2. 為了安全，確保這筆抄表的房間屬於目前房東的房客 (比對房號)
+      // 若您的 meter_readings 沒存 landlordId，這步很重要
+      const matchedTenant: any = tenants.find((t: any) => t.room === reading.roomName);
+
+      if (!exists && reading.cost > 0) { // 金額大於 0 才產生
+        count++;
+        batchPromises.push(addDoc(collection(db, 'bills'), {
+          tenantId: matchedTenant ? matchedTenant.uid : null, // 若比對到租客，寫入 ID
+          relatedTenantDocId: matchedTenant ? matchedTenant.id : null,
+          relatedUsageId: reading.id, // 關鍵：標記來源抄表 ID，防止重複
+          landlordId: uid,
+          date: reading.periodEnd, // 帳單日期設為抄表截止日
+          type: 'income',
+          category: '電費', // 分類設為電費
+          target: matchedTenant ? `${reading.roomName} ${matchedTenant.name}` : reading.roomName,
+          description: `${currentMonth.value} 電費 (${reading.periodStart}~${reading.periodEnd} 用電 ${reading.usage}度)`,
+          amount: Number(reading.cost) || 0,
+          status: 'pending',
+          dueDate: dueDate,
+          history: [],
+          createdAt: serverTimestamp()
+        }));
+      }
+    });
+
+    await Promise.all(batchPromises);
+    
+    if (count > 0) {
+      alert(`成功產生 ${count} 筆帳單（含租金與電費）！`);
+    } else {
+      alert('本月租金與電費帳單皆已存在，無須新增。');
+    }
+
+  } catch (error) {
+    console.error('Generate bills error:', error);
+    alert('產生失敗，請確認網路連線或稍後再試');
+  } finally {
+    loading.value = false;
+  }
+};
+
+// --- Logic: CRUD Operations ---
+
+const saveTransaction = async () => {
+  if (!authStore.user) return;
+  if (!form.value.amount && form.value.amount !== 0) return alert('請填寫金額'); // 允許 0
+  if (!form.value.target || !form.value.date) return alert('請填寫完整資訊');
+  
+  try {
+    const payload = {
+       ...form.value,
+       landlordId: authStore.user.uid, // [修正] 強制寫入房東 ID
+       updatedAt: serverTimestamp()
+    };
+
+    if (isEditing.value && editingId.value) {
+      // 編輯模式：備份舊資料
+      const oldDoc = transactions.value.find(t => t.id === editingId.value);
+      const historyRecord = {
+        modifiedAt: new Date().toISOString(),
+        data: { ...oldDoc }
+      };
+      
+      delete historyRecord.data.history;
+      delete historyRecord.data.id;
+
+      const docRef = doc(db, 'bills', editingId.value);
+      const newHistory = [historyRecord, ...(oldDoc?.history || [])];
+
+      await updateDoc(docRef, {
+        ...payload,
+        history: newHistory
+      });
+    } else {
+      // 新增模式
+      await addDoc(collection(db, 'bills'), {
+        ...payload,
+        history: [],
+        createdAt: serverTimestamp()
+      });
+    }
+    showModal.value = false;
+  } catch (e) {
+    console.error(e);
+    alert('儲存失敗');
+  }
+};
+
+const handleDelete = async (id: string) => {
+  closeDropdown();
+  if (confirm('確定要刪除此筆紀錄？此操作無法復原。')) {
+    try {
+      await deleteDoc(doc(db, 'bills', id));
+    } catch (e) {
+      alert('刪除失敗');
+    }
+  }
+};
+
+const saveTaipowerBill = async () => {
+  if (!authStore.user) return;
+  if (!taipowerForm.value.amount) return alert('請輸入金額');
+  
+  try {
+    // 1. 儲存台電帳單資料
+    await addDoc(collection(db, 'taipower_bills'), {
+      ...taipowerForm.value,
+      landlordId: authStore.user.uid, // [修正]
+      createdAt: serverTimestamp()
+    });
+
+    // 2. 自動記一筆支出
+    await addDoc(collection(db, 'bills'), {
+      date: `${taipowerForm.value.month}-15`,
+      type: 'expense',
+      category: '台電帳單',
+      target: '台灣電力公司',
+      description: `${taipowerForm.value.month} 電費帳單`,
+      amount: taipowerForm.value.amount,
+      landlordId: authStore.user.uid, // [修正]
+      status: 'completed',
+      history: [],
+      createdAt: serverTimestamp()
+    });
+
+    showTaipowerModal.value = false;
+    alert('台電帳單登錄成功');
+  } catch (e) {
+    alert('操作失敗');
+  }
+};
+
+// --- Computed & Helpers ---
+
 const monthlyTransactions = computed(() => {
   return transactions.value.filter(t => t.date.startsWith(currentMonth.value));
 });
@@ -498,47 +752,39 @@ const filteredTransactions = computed(() => {
     if (currentTab.value === 'all') return true;
     if (currentTab.value === 'income') return t.type === 'income';
     if (currentTab.value === 'expense') return t.type === 'expense';
-    if (currentTab.value === 'pending') return t.status === 'pending' || t.status === 'overdue';
+    if (currentTab.value === 'pending') return ['pending', 'overdue'].includes(t.status);
     return true;
-  }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  });
 });
 
+// 電費雙月分析邏輯
 const isEvenMonth = computed(() => {
   const parts = currentMonth.value.split('-');
   if (parts.length < 2) return false;
-  // [修復] 加入 ! 告訴 TS 這裡一定有值 (因為前面檢查過長度了)
-  const month = parseInt(parts[1]!);
-  return month % 2 === 0;
+  return parseInt(parts[1]) % 2 === 0;
 });
 
 const electricityStats = computed(() => {
   const defaultStats = {
-    periodStr: '',
-    estimated: 0,
-    collected: 0,
-    collectionRate: 0,
-    taipowerBill: undefined as TaipowerBill | undefined,
-    profit: 0,
-    billCount: 0,
-    statusLabel: ''
+    periodStr: '', estimated: 0, collected: 0, collectionRate: 0,
+    taipowerBill: undefined as TaipowerBill | undefined, profit: 0, billCount: 0, statusLabel: ''
   };
 
   if (!isEvenMonth.value) return defaultStats;
 
   const parts = currentMonth.value.split('-');
-  if (parts.length < 2) return defaultStats;
-
-  // [修復] 加入 ! 告訴 TS 這裡一定有值
-  const year = parseInt(parts[0]!);
-  const month = parseInt(parts[1]!);
+  const year = parseInt(parts[0]);
+  const month = parseInt(parts[1]);
   
   const currentStr = currentMonth.value;
-  const prevMonth = month - 1;
-  const prevStr = `${year}-${prevMonth.toString().padStart(2, '0')}`;
+  // 前一個月 (處理跨年)
+  const prevDate = new Date(year, month - 2, 1); 
+  const prevStr = prevDate.toISOString().slice(0, 7);
 
+  // 篩選這兩個月的所有「電費」收入
   const elecTrans = transactions.value.filter(t => 
     (t.date.startsWith(currentStr) || t.date.startsWith(prevStr)) && 
-    t.category === '電費'
+    t.category === '電費' && t.type === 'income'
   );
 
   const estimated = elecTrans.reduce((sum, t) => sum + t.amount, 0);
@@ -559,7 +805,7 @@ const electricityStats = computed(() => {
   };
 });
 
-// --- Tabs ---
+// --- UI Actions ---
 const tabs = [
   { label: '全部交易', value: 'all' },
   { label: '收入', value: 'income' },
@@ -567,10 +813,15 @@ const tabs = [
   { label: '欠費/待收', value: 'pending' }
 ];
 
-// --- Operations ---
-const toggleMenu = (id: number) => {
-  activeMenuId.value = activeMenuId.value === id ? null : id;
+const statusLabels: any = { completed: '已結清', pending: '待收款', overdue: '逾期' };
+const statusStyles: any = {
+  completed: 'text-green-600 bg-green-50 dark:bg-green-900/20',
+  pending: 'text-orange-600 bg-orange-50 dark:bg-orange-900/20',
+  overdue: 'text-red-600 bg-red-50 dark:bg-red-900/20'
 };
+const statusIcons: any = { completed: 'check_circle', pending: 'schedule', overdue: 'warning' };
+
+const toggleMenu = (id: string) => { activeMenuId.value = activeMenuId.value === id ? null : id; };
 const closeDropdown = () => { activeMenuId.value = null; };
 
 const openModal = () => {
@@ -582,7 +833,8 @@ const openModal = () => {
     date: `${currentMonth.value}-01`,
     category: '租金收入',
     target: '',
-    description: ''
+    description: '',
+    status: 'pending'
   };
   showModal.value = true;
 };
@@ -591,80 +843,8 @@ const handleEdit = (item: Transaction) => {
   closeDropdown();
   isEditing.value = true;
   editingId.value = item.id;
-  form.value = { ...item };
+  form.value = { ...item }; // Copy data
   showModal.value = true;
-};
-
-const handleDelete = (id: number) => {
-  closeDropdown();
-  if (confirm('確定要刪除？')) {
-    const idx = transactions.value.findIndex(t => t.id === id);
-    if (idx !== -1) transactions.value.splice(idx, 1);
-  }
-};
-
-const saveTransaction = () => {
-  if (!form.value.amount || !form.value.target) return alert('請填寫完整資訊');
-  
-  const newRecord = {
-    id: editingId.value || Date.now(),
-    ...form.value,
-    status: isEditing.value ? transactions.value.find(t=>t.id===editingId.value)?.status : 'completed',
-    history: isEditing.value ? [] : []
-  } as Transaction;
-
-  if (isEditing.value && editingId.value) {
-    const idx = transactions.value.findIndex(t => t.id === editingId.value);
-    if (idx !== -1) transactions.value[idx] = newRecord;
-  } else {
-    transactions.value.unshift(newRecord);
-  }
-  showModal.value = false;
-};
-
-// --- Taipower Operations ---
-const openTaipowerModal = () => {
-  taipowerForm.value.month = currentMonth.value;
-  showTaipowerModal.value = true;
-};
-
-const saveTaipowerBill = () => {
-  if (!taipowerForm.value.amount) return alert('請輸入金額');
-  
-  const existingIdx = taipowerBills.value.findIndex(b => b.month === taipowerForm.value.month);
-  
-  if (existingIdx !== -1) {
-    const existingBill = taipowerBills.value[existingIdx];
-    if (existingBill) {
-      taipowerBills.value[existingIdx] = { 
-        id: existingBill.id,
-        month: taipowerForm.value.month,
-        amount: taipowerForm.value.amount,
-        usage: taipowerForm.value.usage || 0
-      };
-    }
-  } else {
-    taipowerBills.value.push({
-      id: Date.now(),
-      month: taipowerForm.value.month,
-      amount: taipowerForm.value.amount,
-      usage: taipowerForm.value.usage || 0
-    });
-  }
-  
-  transactions.value.unshift({
-    id: Date.now() + 1,
-    date: `${taipowerForm.value.month}-15`,
-    type: 'expense',
-    category: '台電帳單',
-    target: '台灣電力公司',
-    description: `${taipowerForm.value.month} 電費帳單`,
-    amount: taipowerForm.value.amount,
-    status: 'completed',
-    history: []
-  });
-
-  showTaipowerModal.value = false;
 };
 
 const openHistory = (item: Transaction) => {
@@ -672,9 +852,19 @@ const openHistory = (item: Transaction) => {
   selectedHistory.value = item.history || [];
   showHistoryModal.value = true;
 };
+
+const openTaipowerModal = () => {
+  taipowerForm.value.month = currentMonth.value;
+  showTaipowerModal.value = true;
+};
 </script>
 
 <style scoped>
-.animation-fade-in { animation: fadeIn 0.1s ease-out; }
-@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+.animation-fade-in {
+  animation: fadeIn 0.15s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
 </style>

@@ -53,10 +53,15 @@
       </div>
 
       <div class="overflow-x-auto">
-        <table class="w-full text-sm text-left">
+        <div v-if="loading" class="p-12 text-center text-text-secondary-light">
+          <span class="material-symbols-outlined animate-spin text-3xl mb-2">sync</span>
+          <p>載入帳單資料中...</p>
+        </div>
+
+        <table v-else class="w-full text-sm text-left">
           <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50">
             <tr>
-              <th class="px-6 py-4">帳單月份/週期</th>
+              <th class="px-6 py-4">帳單月份</th>
               <th class="px-6 py-4">項目</th>
               <th class="px-6 py-4">繳費期限</th>
               <th class="px-6 py-4 text-right">金額</th>
@@ -67,21 +72,20 @@
           <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
             <tr v-for="bill in filteredBills" :key="bill.id" class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
               <td class="px-6 py-4">
-                <p class="font-bold text-text-primary-light">{{ bill.month }}</p>
-                <p class="text-xs text-text-secondary-light">{{ bill.period }}</p>
-              </td>
+                <p class="font-bold text-text-primary-light">{{ bill.monthStr }}</p>
+                </td>
               <td class="px-6 py-4">
-                <div class="flex gap-2">
-                  <span v-for="(item, idx) in bill.items" :key="idx" class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-600 dark:text-gray-300">
-                    {{ item.name }}
+                <div class="flex flex-wrap gap-2">
+                  <span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-600 dark:text-gray-300">
+                    {{ bill.category }}
                   </span>
                 </div>
               </td>
               <td class="px-6 py-4 text-text-secondary-light">
-                 {{ bill.dueDate }}
+                 {{ bill.dueDate || '無期限' }}
               </td>
               <td class="px-6 py-4 text-right font-bold text-lg text-text-primary-light">
-                 NT$ {{ bill.totalAmount.toLocaleString() }}
+                 NT$ {{ bill.amount.toLocaleString() }}
               </td>
               <td class="px-6 py-4 text-center">
                  <span 
@@ -121,7 +125,7 @@
         <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
           <div>
             <h2 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">帳單詳情</h2>
-            <p class="text-sm text-text-secondary-light">{{ selectedBill?.month }}</p>
+            <p class="text-sm text-text-secondary-light">{{ selectedBill?.monthStr }}</p>
           </div>
           <button @click="showModal = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
             <span class="material-symbols-outlined">close</span>
@@ -132,7 +136,7 @@
           
           <div class="text-center">
             <p class="text-sm text-text-secondary-light mb-1">應繳總金額</p>
-            <p class="text-4xl font-extrabold text-primary">NT$ {{ selectedBill?.totalAmount.toLocaleString() }}</p>
+            <p class="text-4xl font-extrabold text-primary">NT$ {{ selectedBill?.amount.toLocaleString() }}</p>
             <div class="mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium" 
                  :class="selectedBill ? statusStyles[selectedBill.status] : ''">
                {{ selectedBill ? statusLabels[selectedBill.status] : '' }}
@@ -141,20 +145,20 @@
           </div>
 
           <div v-if="selectedBill" class="space-y-4 border-t border-gray-100 dark:border-gray-700 pt-4">
-            <div v-for="(item, index) in selectedBill.items" :key="index" class="flex justify-between items-start">
+            <div class="flex justify-between items-start">
                <div>
-                 <p class="font-bold text-text-primary-light">{{ item.name }}</p>
-                 <p class="text-xs text-text-secondary-light" v-if="item.desc">{{ item.desc }}</p>
+                 <p class="font-bold text-text-primary-light">{{ selectedBill.category }}</p>
+                 <p class="text-xs text-text-secondary-light">{{ selectedBill.description }}</p>
                </div>
-               <p class="font-medium text-text-primary-light">NT$ {{ item.amount.toLocaleString() }}</p>
+               <p class="font-medium text-text-primary-light">NT$ {{ selectedBill.amount.toLocaleString() }}</p>
             </div>
              <div class="flex justify-between items-center pt-2 border-t border-dashed border-gray-200">
                <p class="text-sm font-bold text-text-secondary-light">合計</p>
-               <p class="font-bold">NT$ {{ selectedBill.totalAmount.toLocaleString() }}</p>
+               <p class="font-bold">NT$ {{ selectedBill.amount.toLocaleString() }}</p>
             </div>
           </div>
 
-          <div v-if="selectedBill?.status !== 'paid'" class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl text-sm space-y-2">
+          <div v-if="selectedBill?.status !== 'completed'" class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl text-sm space-y-2">
             <p class="font-bold text-gray-700 dark:text-gray-200 border-b border-gray-200 dark:border-gray-600 pb-2 mb-2">匯款資訊</p>
             <div class="flex justify-between">
               <span class="text-gray-500">銀行代碼</span>
@@ -168,9 +172,9 @@
             </div>
           </div>
           
-           <div v-if="selectedBill?.status === 'paid'" class="bg-green-50 dark:bg-green-900/10 p-4 rounded-xl text-center border border-green-100">
+           <div v-if="selectedBill?.status === 'completed'" class="bg-green-50 dark:bg-green-900/10 p-4 rounded-xl text-center border border-green-100">
              <span class="material-symbols-outlined text-green-500 text-3xl mb-1">check_circle</span>
-             <p class="text-green-700 font-bold text-sm">此帳單已於 {{ selectedBill.paymentDate }} 完成繳費</p>
+             <p class="text-green-700 font-bold text-sm">此帳單已於 {{ selectedBill.paymentDate || '日前' }} 完成繳費</p>
           </div>
 
         </div>
@@ -186,7 +190,7 @@
           </button>
           
           <button 
-             v-if="selectedBill?.status !== 'paid'"
+             v-if="selectedBill?.status !== 'completed'"
              @click="handlePay(selectedBill!)"
              class="px-5 py-2 rounded-xl bg-primary text-white font-bold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors"
           >
@@ -200,74 +204,49 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import html2canvas from 'html2canvas'; // [新增] 引入截圖套件
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useAuthStore } from '../../stores/auth'; // 確保路徑正確
+import { db } from '../../firebase/config';
+import { 
+  collection, 
+  query, 
+  where, 
+  onSnapshot, 
+  doc, 
+  updateDoc, 
+  getDocs,
+  serverTimestamp,
+  orderBy
+} from 'firebase/firestore';
+import html2canvas from 'html2canvas';
 
 // --- Type Definitions ---
-interface BillItem {
-  name: string;
-  amount: number;
-  desc?: string;
-}
-
+// 對應 Firebase 'bills' collection 結構
 interface Bill {
-  id: number;
-  month: string;
-  period: string;
-  dueDate: string;
-  status: 'paid' | 'unpaid' | 'overdue';
-  items: BillItem[];
-  totalAmount: number;
+  id: string;
+  tenantId: string;
+  date: string; // YYYY-MM-DD
+  monthStr?: string; // Derived: YYYY年 MM月
+  type: 'income' | 'expense';
+  category: string;
+  target: string;
+  description: string;
+  amount: number;
+  status: 'completed' | 'pending' | 'overdue';
+  dueDate?: string;
   paymentDate?: string;
 }
 
-// --- Mock Data ---
-const bills = ref<Bill[]>([
-  {
-    id: 101,
-    month: '2025年 10月',
-    period: '2025/10/01 - 2025/10/31',
-    dueDate: '2025/11/05',
-    status: 'unpaid',
-    totalAmount: 13150,
-    items: [
-      { name: '房屋租金', amount: 12000, desc: '10月份月租金' },
-      { name: '電費', amount: 1150, desc: '用電 230度 x 5.0' }
-    ]
-  },
-  {
-    id: 100,
-    month: '2025年 09月',
-    period: '2025/09/01 - 2025/09/30',
-    dueDate: '2025/10/05',
-    status: 'paid',
-    totalAmount: 12800,
-    paymentDate: '2025/10/03',
-    items: [
-      { name: '房屋租金', amount: 12000 },
-      { name: '電費', amount: 800, desc: '用電 160度 x 5.0' }
-    ]
-  },
-  {
-    id: 99,
-    month: '2025年 08月',
-    period: '2025/08/01 - 2025/08/31',
-    dueDate: '2025/09/05',
-    status: 'paid',
-    totalAmount: 14500,
-    paymentDate: '2025/09/04',
-    items: [
-      { name: '房屋租金', amount: 12000 },
-      { name: '電費', amount: 2500, desc: '用電 500度 x 5.0 (夏季)' }
-    ]
-  }
-]);
-
 // --- State ---
+const authStore = useAuthStore();
+const bills = ref<Bill[]>([]);
+const loading = ref(true);
+let unsubscribe: any = null;
+
 const currentTab = ref('unpaid');
 const showModal = ref(false);
 const selectedBill = ref<Bill | null>(null);
-const billReceiptRef = ref<HTMLElement | null>(null); // [新增] 用於綁定截圖區域
+const billReceiptRef = ref<HTMLElement | null>(null);
 const isGenerating = ref(false);
 
 const tabs = [
@@ -276,44 +255,114 @@ const tabs = [
   { label: '全部', value: 'all' }
 ];
 
+// --- Data Fetching ---
+onMounted(async () => {
+  if (!authStore.user) return;
+  
+  try {
+    const uid = authStore.user.uid;
+    
+    // 1. 先找到該使用者的 Tenant ID (對應 tenants collection 的 document ID)
+    // 優先使用 uid 查找 (如果 TenantList 支援線上綁定並寫入 uid)
+    let tenantId = '';
+    
+    const tenantsRef = collection(db, 'tenants');
+    const qByUid = query(tenantsRef, where('uid', '==', uid));
+    const snapByUid = await getDocs(qByUid);
+
+    if (!snapByUid.empty) {
+      tenantId = snapByUid.docs[0].id;
+    } else {
+      // Fallback: 嘗試用電話號碼查找 (舊資料相容)
+      if (authStore.userProfile?.phone) {
+        const qByPhone = query(tenantsRef, where('phone', '==', authStore.userProfile.phone));
+        const snapByPhone = await getDocs(qByPhone);
+        if (!snapByPhone.empty) {
+          tenantId = snapByPhone.docs[0].id;
+        }
+      }
+    }
+
+    if (!tenantId) {
+      console.warn("找不到對應的租客檔案 (Tenants Collection)");
+      loading.value = false;
+      return;
+    }
+
+    // 2. 監聽該 Tenant 的 Bills
+    const billsRef = collection(db, 'bills');
+    // 只抓取該房客的帳單，且為 'income' 類型 (房東的收入 = 房客的應繳)
+    const qBills = query(
+      billsRef, 
+      where('tenantId', '==', tenantId), 
+      where('type', '==', 'income'),
+      orderBy('date', 'desc')
+    );
+
+    unsubscribe = onSnapshot(qBills, (snapshot) => {
+      bills.value = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          // 格式化月份顯示
+          monthStr: data.date ? data.date.slice(0, 7).replace('-', '年 ') + '月' : '未知月份'
+        } as Bill;
+      });
+      loading.value = false;
+    });
+
+  } catch (error) {
+    console.error("Error fetching bills:", error);
+    loading.value = false;
+  }
+});
+
+onUnmounted(() => {
+  if (unsubscribe) unsubscribe();
+});
+
 // --- Computed ---
 const filteredBills = computed(() => {
   return bills.value.filter(bill => {
     if (currentTab.value === 'all') return true;
-    if (currentTab.value === 'unpaid') return bill.status === 'unpaid' || bill.status === 'overdue';
-    if (currentTab.value === 'history') return bill.status === 'paid';
+    if (currentTab.value === 'unpaid') return bill.status === 'pending' || bill.status === 'overdue';
+    if (currentTab.value === 'history') return bill.status === 'completed';
     return true;
   });
 });
 
 const summary = computed(() => {
-  const unpaidBills = bills.value.filter(b => b.status === 'unpaid' || b.status === 'overdue');
-  const lastPaid = bills.value.find(b => b.status === 'paid');
-  const lastUnpaid = unpaidBills.length > 0 ? unpaidBills[unpaidBills.length - 1] : null;
- return {
+  const unpaidBills = bills.value.filter(b => b.status === 'pending' || b.status === 'overdue');
+  const lastPaid = bills.value.find(b => b.status === 'completed');
+  // 找出最近的一筆未繳帳單的到期日
+  const nextDue = unpaidBills.sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))[0];
+
+  return {
     unpaidCount: unpaidBills.length,
-    unpaidTotal: unpaidBills.reduce((sum, b) => sum + b.totalAmount, 0),
-    nextDueDate: lastUnpaid?.dueDate || null,
-    lastPaymentDate: lastPaid?.paymentDate || '無紀錄'
+    unpaidTotal: unpaidBills.reduce((sum, b) => sum + b.amount, 0),
+    nextDueDate: nextDue?.dueDate || null,
+    lastPaymentDate: lastPaid?.paymentDate || lastPaid?.date || '尚無紀錄'
   };
 });
 
 // --- UI Helpers ---
+// 狀態對應 (DB Status -> UI Label)
 const statusLabels = {
-  paid: '已繳費',
-  unpaid: '未繳費',
+  completed: '已繳費',
+  pending: '未繳費',
   overdue: '已逾期'
 };
 
 const statusStyles = {
-  paid: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
-  unpaid: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  completed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+  pending: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   overdue: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
 };
 
 const statusDotStyles = {
-  paid: 'bg-green-500',
-  unpaid: 'bg-blue-500',
+  completed: 'bg-green-500',
+  pending: 'bg-blue-500',
   overdue: 'bg-red-500'
 };
 
@@ -323,39 +372,46 @@ const openModal = (bill: Bill) => {
   showModal.value = true;
 };
 
-const handlePay = (bill: Bill) => {
-  if (confirm(`確定要繳納 ${bill.month} 的帳單 NT$${bill.totalAmount} 嗎？`)) {
-     alert('已發送繳費通知給房東！');
-     bill.status = 'paid';
-     bill.paymentDate = new Date().toISOString().split('T')[0];
-     // showModal.value = false; // 繳費完可以不關閉，讓使用者下載收據
+const handlePay = async (bill: Bill) => {
+  if (confirm(`確定要繳納 ${bill.monthStr} 的帳單 NT$${bill.amount.toLocaleString()} 嗎？`)) {
+     try {
+       const billRef = doc(db, 'bills', bill.id);
+       const today = new Date().toISOString().split('T')[0];
+       
+       await updateDoc(billRef, {
+         status: 'completed',
+         paymentDate: today,
+         updatedAt: serverTimestamp()
+       });
+       
+       alert('繳費成功！系統已更新狀態。');
+       // selectedBill.value.status = 'completed'; // Snapshot 會自動更新，不需手動設
+     } catch (e) {
+       console.error(e);
+       alert('繳費失敗，請檢查網路連線');
+     }
   }
 };
 
-// [新增] 下載圖片功能
+// 下載圖片功能
 const downloadImage = async () => {
   if (!billReceiptRef.value) return;
   
   isGenerating.value = true;
   
   try {
-    // 1. 等待一下讓 UI 渲染完成 (預防萬一)
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    // 2. 使用 html2canvas 截圖
     const canvas = await html2canvas(billReceiptRef.value, {
-      backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff', // 處理深色模式背景
-      scale: 2, // 提高解析度 (Retina 螢幕)
+      backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff',
+      scale: 2, 
       logging: false
     });
 
-    // 3. 轉換為圖片連結
     const image = canvas.toDataURL("image/png");
-
-    // 4. 建立下載連結並自動點擊
     const link = document.createElement('a');
     link.href = image;
-    link.download = `帳單_${selectedBill.value?.month || 'receipt'}.png`;
+    link.download = `帳單_${selectedBill.value?.monthStr || 'receipt'}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

@@ -6,9 +6,13 @@
         <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
           智慧電表登錄
         </h1>
-        <p class="text-text-secondary-light">
-          目前模式：<span class="font-bold text-blue-600">{{ currentModeLabel }}</span>
-        </p>
+        <div class="flex items-center gap-2 text-text-secondary-light mt-1">
+          <span>目前模式：</span>
+          <span class="font-bold text-blue-600 px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 rounded text-sm">
+            {{ currentModeLabel }}
+          </span>
+          <span v-if="loading" class="text-xs animate-pulse ml-2">資料載入中...</span>
+        </div>
       </div>
       <div class="flex gap-3">
         <button 
@@ -20,10 +24,12 @@
         </button>
         <button 
           @click="saveAllReadings"
-          class="px-4 py-2 bg-primary text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors text-sm font-medium flex items-center"
+          :disabled="saving || !hasValidChanges"
+          class="px-4 py-2 bg-primary text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors text-sm font-medium flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <span class="material-symbols-outlined text-[18px] mr-2">save</span>
-          儲存紀錄
+          <span v-if="saving" class="material-symbols-outlined text-[18px] mr-2 animate-spin">progress_activity</span>
+          <span v-else class="material-symbols-outlined text-[18px] mr-2">save</span>
+          {{ saving ? '儲存中...' : '儲存紀錄' }}
         </button>
       </div>
     </div>
@@ -32,8 +38,8 @@
       <div v-for="group in meterGroups" :key="group.id" class="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800 rounded-xl p-5 shadow-sm">
         <div class="flex flex-col md:flex-row justify-between items-center gap-4">
           <div>
-            <h3 class="font-bold text-lg text-blue-900 dark:text-blue-100">{{ group.name }} (總表)</h3>
-            <p class="text-xs text-blue-700">{{ group.address }}</p>
+            <h3 class="font-bold text-lg text-blue-900 dark:text-blue-100">{{ group.name || '主建物總表' }}</h3>
+            <p class="text-xs text-blue-700">用於計算平均分攤單價</p>
           </div>
           <div class="flex items-center gap-4">
              <div class="text-right">
@@ -67,13 +73,14 @@
           <div class="flex items-center gap-2">
             <span class="material-symbols-outlined text-orange-500" v-if="settings.tieredConfig.season === 'summer'">sunny</span>
             <span class="material-symbols-outlined text-blue-500" v-if="settings.tieredConfig.season === 'non-summer'">ac_unit</span>
-            <span class="material-symbols-outlined text-purple-500" v-if="settings.tieredConfig.season === 'average'">balance</span> <span class="material-symbols-outlined text-green-500" v-if="settings.tieredConfig.season === 'auto'">event_repeat</span>
+            <span class="material-symbols-outlined text-purple-500" v-if="settings.tieredConfig.season === 'average'">balance</span> 
+            <span class="material-symbols-outlined text-green-500" v-if="settings.tieredConfig.season === 'auto'">event_repeat</span>
             <p class="text-lg font-bold">{{ seasonLabel }}</p>
           </div>
        </div>
        <div class="p-4 bg-white dark:bg-card-dark border border-gray-100 dark:border-gray-800 rounded-xl shadow-sm flex justify-between items-center">
           <div>
-            <p class="text-xs text-gray-500 uppercase font-bold">預估總收</p>
+            <p class="text-xs text-gray-500 uppercase font-bold">本期預估總收</p>
             <p class="text-xl font-bold">NT$ {{ totalEstimatedCost.toLocaleString() }}</p>
           </div>
           <span class="text-xs text-gray-400">總用量: {{ totalUsage }} 度</span>
@@ -81,32 +88,37 @@
     </div>
 
     <div class="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
-      <div class="overflow-x-auto">
+      <div class="overflow-x-auto relative min-h-[300px]">
+        
+        <div v-if="loading" class="absolute inset-0 z-10 bg-white/50 dark:bg-card-dark/50 flex items-center justify-center">
+           <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+        </div>
+
         <table class="w-full text-sm text-left">
           <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50">
             <tr>
               <th class="px-6 py-4 w-24">房號</th>
               <th class="px-6 py-4" v-if="settings.mode !== 'fixed'">計費期間</th>
-              <th class="px-6 py-4 text-right">上期</th>
-              <th class="px-6 py-4 text-center w-32">本期</th>
+              <th class="px-6 py-4 text-right">上期 ({{ lastPeriodLabel }})</th>
+              <th class="px-6 py-4 text-center w-32">本期讀數</th>
               <th class="px-6 py-4 text-right">用量</th>
-              <th class="px-6 py-4 text-right">費用</th>
-              <th class="px-6 py-4 text-center">操作</th>
+              <th class="px-6 py-4 text-right">預估費用</th>
+              <th class="px-6 py-4 text-center">詳情</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
-            <tr v-for="room in meterData" :key="room.id" class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+            <tr v-for="room in meterData" :key="room.roomId" class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
               <td class="px-6 py-4 font-bold text-lg">{{ room.name }}</td>
               
               <td class="px-6 py-4" v-if="settings.mode !== 'fixed'">
                 <div class="flex flex-col gap-1">
                    <div class="flex items-center text-xs text-gray-500">
-                     <span class="w-6">起</span>
-                     <input type="date" v-model="room.lastReadingDate" class="bg-transparent border-0 p-0 text-xs focus:ring-0">
+                     <span class="w-6 text-center text-[10px] bg-gray-200 rounded mr-1">起</span>
+                     <span class="font-mono">{{ room.lastReadingDate }}</span>
                    </div>
                    <div class="flex items-center text-xs text-gray-800 dark:text-gray-200">
-                     <span class="w-6">迄</span>
-                     <input type="date" v-model="room.currentReadingDate" class="bg-transparent border-b border-gray-300 dark:border-gray-600 p-0 text-xs focus:ring-0 w-24">
+                     <span class="w-6 text-center text-[10px] bg-primary text-white rounded mr-1">迄</span>
+                     <input type="date" v-model="room.currentReadingDate" class="bg-transparent border-b border-gray-300 dark:border-gray-600 p-0 text-xs focus:ring-0 w-24 font-mono">
                    </div>
                 </div>
               </td>
@@ -119,11 +131,12 @@
                   v-model.number="room.currentReading" 
                   class="w-full px-3 py-2 text-center font-bold border rounded-lg focus:ring-2 focus:ring-primary outline-none transition-colors"
                   :class="validateReading(room) ? 'border-gray-300 dark:border-gray-600' : 'border-red-300 bg-red-50 text-red-600'"
+                  placeholder="輸入"
                 >
               </td>
 
               <td class="px-6 py-4 text-right font-mono font-bold">
-                {{ calculateUsage(room) }}
+                <span :class="{'text-red-500': calculateUsage(room) < 0}">{{ calculateUsage(room) }}</span>
               </td>
 
               <td class="px-6 py-4 text-right font-bold text-primary text-lg">
@@ -131,13 +144,22 @@
               </td>
 
               <td class="px-6 py-4 text-center">
-                <button @click="showDetails(room)" class="text-blue-600 hover:bg-blue-50 p-2 rounded-full transition-colors" title="查看詳情">
+                <button 
+                  @click="showDetails(room)" 
+                  class="text-blue-600 hover:bg-blue-50 p-2 rounded-full transition-colors disabled:opacity-30"
+                  :disabled="!room.currentReading"
+                  title="查看計算詳情"
+                >
                   <span class="material-symbols-outlined text-[20px]">calculate</span>
                 </button>
               </td>
             </tr>
           </tbody>
         </table>
+      </div>
+      
+      <div v-if="!loading && meterData.length === 0" class="p-12 text-center text-text-secondary-light">
+         <p>目前沒有房源資料，請先至「房源管理」新增房源。</p>
       </div>
     </div>
 
@@ -222,14 +244,15 @@
                <h3 class="text-sm font-bold text-gray-500 uppercase mb-3">步驟 3：夏月設定</h3>
                <select v-model="settings.tieredConfig.season" class="form-input">
                  <option value="auto">自動判斷 (依日期比例拆分)</option>
-                 <option value="average">平均費率 (夏月+非夏月各半)</option> <option value="summer">強制夏月費率</option>
+                 <option value="average">平均費率 (夏月+非夏月各半)</option> 
+                 <option value="summer">強制夏月費率</option>
                  <option value="non-summer">強制非夏月費率</option>
                </select>
              </div>
 
              <div class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
                 <div class="grid grid-cols-3 gap-2 text-xs font-bold text-center mb-2">
-                   <div>級距上限</div>
+                   <div>級距上限 (度)</div>
                    <div>非夏月單價</div>
                    <div>夏月單價</div>
                 </div>
@@ -256,23 +279,25 @@
 
         </div>
         <div class="p-6 border-t border-gray-100 dark:border-gray-700">
-          <button @click="showSettingsModal = false" class="w-full btn-primary py-2.5 rounded-xl bg-blue-600 text-white font-bold">完成設定</button>
+          <button @click="saveSettings" class="w-full btn-primary py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors">
+            儲存設定並關閉
+          </button>
         </div>
       </div>
     </div>
 
     <div v-if="showDetailModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showDetailModal = false"></div>
-      <div class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-lg shadow-2xl flex flex-col">
-        <div class="p-6 border-b border-gray-100 flex justify-between items-center">
-          <h2 class="text-xl font-bold">計算詳情</h2>
-          <button @click="showDetailModal = false"><span class="material-symbols-outlined">close</span></button>
+      <div class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-lg shadow-2xl flex flex-col animate-scale-in">
+        <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+          <h2 class="text-xl font-bold dark:text-gray-100">計算詳情</h2>
+          <button @click="showDetailModal = false" class="dark:text-gray-300"><span class="material-symbols-outlined">close</span></button>
         </div>
         <div class="p-6 overflow-y-auto max-h-[60vh]">
-           <pre class="bg-gray-50 p-4 rounded-lg text-sm whitespace-pre-wrap font-mono text-gray-700">{{ detailLog }}</pre>
+           <pre class="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg text-sm whitespace-pre-wrap font-mono text-gray-700 dark:text-gray-300 overflow-x-auto">{{ detailLog }}</pre>
         </div>
-        <div class="p-6 border-t border-gray-100 text-right">
-           <p class="text-lg font-bold">總計: NT$ {{ detailTotal }}</p>
+        <div class="p-6 border-t border-gray-100 dark:border-gray-700 text-right">
+           <p class="text-lg font-bold dark:text-white">總計: NT$ {{ detailTotal }}</p>
         </div>
       </div>
     </div>
@@ -281,23 +306,35 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import { db } from '../../firebase/config';
+import { 
+  collection, 
+  doc, 
+  getDoc, 
+  setDoc, 
+  getDocs, 
+  query, 
+  orderBy, 
+  addDoc, 
+  writeBatch, 
+  serverTimestamp, 
+  Timestamp 
+} from 'firebase/firestore';
 
 // --- Interfaces ---
 interface MeterGroup {
-  id: number;
+  id: string; // Use string for Firestore IDs
   name: string;
-  address: string;
   officialMetersCount: number; // 台電表數
-  roomCount: number;           // 分房數
+  roomCount: number;           // 分房數 (Computed dynamically usually)
   masterLastReading?: number;
   masterCurrentReading?: number;
   masterBillAmount?: number;
 }
 
 interface MeterEntry {
-  id: number;
-  groupId: number;
+  roomId: string; // ID from Rooms collection
   name: string;
   lastReading: number;
   lastReadingDate: string;
@@ -305,16 +342,24 @@ interface MeterEntry {
   currentReadingDate: string;
 }
 
-// interface Tier { limit: number; nonSummerRate: number; summerRate: number; }
-
-// --- Settings State ---
-const settings = ref({
-  mode: 'tiered', // 'fixed' | 'tiered' | 'bill_share'
+interface Settings {
+  mode: string;
+  fixedRate: number;
   tieredConfig: {
-    strategy: 'split', // 'standard' | 'split'
-    season: 'auto',    // 'auto' | 'summer' | 'non-summer' | 'average'
-  },
+    strategy: string;
+    season: string;
+  };
+  tiers: Array<{ limit: number; nonSummerRate: number; summerRate: number; }>;
+}
+
+// --- Default Settings ---
+const defaultSettings: Settings = {
+  mode: 'tiered', 
   fixedRate: 5.0,
+  tieredConfig: {
+    strategy: 'split', 
+    season: 'auto',    
+  },
   tiers: [
     { limit: 120, nonSummerRate: 1.63, summerRate: 1.63 },
     { limit: 330, nonSummerRate: 2.10, summerRate: 2.38 },
@@ -323,17 +368,14 @@ const settings = ref({
     { limit: 1000, nonSummerRate: 4.60, summerRate: 5.83 },
     { limit: 99999, nonSummerRate: 5.03, summerRate: 6.41 }
   ]
-});
+};
 
-// --- Mock Data ---
-const meterGroups = ref<MeterGroup[]>([
-  { id: 1, name: '復興路透天', address: '復興路112號', officialMetersCount: 1, roomCount: 2, masterLastReading: 12500, masterCurrentReading: undefined, masterBillAmount: undefined }
-]);
-
-const meterData = ref<MeterEntry[]>([
-  { id: 1, groupId: 1, name: 'A房', lastReading: 1450, lastReadingDate: '2025-09-01', currentReading: undefined, currentReadingDate: '2025-10-01' },
-  { id: 2, groupId: 1, name: 'B房', lastReading: 2100, lastReadingDate: '2025-09-01', currentReading: undefined, currentReadingDate: '2025-10-01' },
-]);
+// --- State ---
+const loading = ref(true);
+const saving = ref(false);
+const settings = ref<Settings>(JSON.parse(JSON.stringify(defaultSettings)));
+const meterGroups = ref<MeterGroup[]>([]);
+const meterData = ref<MeterEntry[]>([]);
 
 // --- Modal State ---
 const showSettingsModal = ref(false);
@@ -341,7 +383,62 @@ const showDetailModal = ref(false);
 const detailLog = ref('');
 const detailTotal = ref(0);
 
-// --- Helpers ---
+// --- Initialization ---
+onMounted(async () => {
+  try {
+    await Promise.all([loadSettings(), loadData()]);
+  } catch (e) {
+    console.error("Init Error", e);
+    alert('資料載入失敗，請檢查網路連線');
+  } finally {
+    loading.value = false;
+  }
+});
+
+const loadSettings = async () => {
+  const docRef = doc(db, 'settings', 'electricity');
+  const snap = await getDoc(docRef);
+  if (snap.exists()) {
+    settings.value = { ...defaultSettings, ...snap.data() } as Settings;
+  } else {
+    // Save defaults if not exists
+    await setDoc(docRef, defaultSettings);
+  }
+};
+
+const loadData = async () => {
+  // 1. Fetch Rooms
+  const roomsQ = query(collection(db, 'rooms'), orderBy('name', 'asc'));
+  const roomsSnap = await getDocs(roomsQ);
+  
+  const today = new Date().toISOString().split('T')[0];
+  
+  meterData.value = roomsSnap.docs.map(doc => {
+    const data = doc.data();
+    return {
+      roomId: doc.id,
+      name: data.name,
+      lastReading: data.lastMeterReading || 0,
+      lastReadingDate: data.lastMeterDate || '2025-01-01', // Default start
+      currentReading: undefined, // User inputs this
+      currentReadingDate: today
+    };
+  });
+
+  // 2. Mock Group (Or fetch from Firestore if you have multiple properties)
+  // For now, we simulate one main group for the loaded rooms
+  meterGroups.value = [{
+    id: 'default_group',
+    name: '本棟總表',
+    officialMetersCount: 1,
+    roomCount: meterData.value.length,
+    masterLastReading: 0,
+    masterCurrentReading: undefined,
+    masterBillAmount: undefined
+  }];
+};
+
+// --- Logic Helpers ---
 const getDaysDiff = (start: string, end: string) => {
   const diffTime = Math.abs(new Date(end).getTime() - new Date(start).getTime());
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
@@ -359,11 +456,8 @@ const countSummerDays = (start: string, end: string) => {
   return count;
 };
 
-const getGroup = (id: number) => meterGroups.value.find(g => g.id === id);
+// --- Core Calculation ---
 
-// --- Core Calculation Logic ---
-
-// Bill Share Rate
 const calculateGroupAvgRate = (group: MeterGroup) => {
   if (!group.masterCurrentReading || !group.masterBillAmount) return 0;
   const usage = Math.max(0, group.masterCurrentReading - (group.masterLastReading || 0));
@@ -371,7 +465,6 @@ const calculateGroupAvgRate = (group: MeterGroup) => {
   return group.masterBillAmount / usage;
 };
 
-// Tiered Calculator (Supports Season & Split)
 const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup) => {
   let totalCost = 0;
   let log = '';
@@ -384,7 +477,6 @@ const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup
   let useAverageRate = false;
   
   if (settings.value.tieredConfig.season === 'average') {
-    // [NEW] Average Mode: Don't split usage, use avg rate
     useAverageRate = true;
     log += `季節判定: 採用平均費率 (夏月+非夏月)/2\n`;
   } else if (settings.value.tieredConfig.season === 'summer') {
@@ -410,7 +502,7 @@ const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup
   }
   log += `級距調整係數: ${scaleFactor.toFixed(3)}\n`;
 
-  // 3. Calculate Function
+  // 3. Calculation Inner Function
   const calcPart = (amount: number, type: 'summer' | 'non-summer' | 'average') => {
     let remaining = amount;
     let cost = 0;
@@ -431,7 +523,7 @@ const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup
         let rate = 0;
         if (type === 'summer') rate = tier.summerRate;
         else if (type === 'non-summer') rate = tier.nonSummerRate;
-        else rate = (tier.summerRate + tier.nonSummerRate) / 2; // Average Logic
+        else rate = (tier.summerRate + tier.nonSummerRate) / 2;
 
         const tierCost = inTier * rate;
         cost += tierCost;
@@ -445,12 +537,10 @@ const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup
 
   // 4. Run Calculation
   if (useAverageRate) {
-     // [NEW] Run single pass with Average Rate
      const res = calcPart(usage, 'average');
      totalCost += res.cost;
      log += res.log;
   } else {
-     // Run split pass
      if (usageSummer > 0) {
        const res = calcPart(usageSummer, 'summer');
        totalCost += res.cost;
@@ -466,19 +556,19 @@ const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup
   return { cost: Math.round(totalCost), log };
 };
 
-// Main Entry Point
 const calculateElectricity = (room: MeterEntry) => {
   const usage = Math.max(0, (room.currentReading || 0) - room.lastReading);
   if (usage === 0) return { cost: 0, log: '無用量' };
 
+  // Fixed
   if (settings.value.mode === 'fixed') {
     const cost = Math.round(usage * settings.value.fixedRate);
     return { cost, log: `固定費率: ${usage}度 x $${settings.value.fixedRate} = $${cost}` };
   }
 
-  const group = getGroup(room.groupId);
-  if (!group) return { cost: 0, log: 'Error: Group not found' };
+  const group = meterGroups.value[0]; // Assume default group for now
 
+  // Bill Share
   if (settings.value.mode === 'bill_share') {
     const rate = calculateGroupAvgRate(group);
     const cost = Math.round(usage * rate);
@@ -489,15 +579,90 @@ const calculateElectricity = (room: MeterEntry) => {
   return calculateTieredLogic(usage, room, group);
 };
 
-// --- UI Display Helpers ---
+// --- Actions ---
+
+const saveSettings = async () => {
+  try {
+    await setDoc(doc(db, 'settings', 'electricity'), settings.value);
+    showSettingsModal.value = false;
+  } catch (e) {
+    alert('設定儲存失敗');
+  }
+};
+
+const saveAllReadings = async () => {
+  // Filter valid entries
+  const validEntries = meterData.value.filter(r => 
+    r.currentReading !== undefined && 
+    r.currentReading >= r.lastReading
+  );
+
+  if (validEntries.length === 0) return;
+  if (!confirm(`確定要儲存 ${validEntries.length} 筆抄表紀錄嗎？\n儲存後，該筆資料將作為下期計算基準。`)) return;
+
+  saving.value = true;
+  const batch = writeBatch(db);
+
+  try {
+    // 1. Create History Records & Update Rooms
+    for (const entry of validEntries) {
+      const usage = (entry.currentReading || 0) - entry.lastReading;
+      const { cost, log } = calculateElectricity(entry);
+
+      // A. Add to 'meter_readings' collection
+      const historyRef = doc(collection(db, 'meter_readings'));
+      batch.set(historyRef, {
+        roomId: entry.roomId,
+        roomName: entry.name,
+        lastReading: entry.lastReading,
+        currentReading: entry.currentReading,
+        usage: usage,
+        cost: cost,
+        periodStart: entry.lastReadingDate,
+        periodEnd: entry.currentReadingDate,
+        calcLog: log,
+        mode: settings.value.mode,
+        createdAt: serverTimestamp()
+      });
+
+      // B. Update 'rooms' doc (Snapshot for next time)
+      const roomRef = doc(db, 'rooms', entry.roomId);
+      batch.update(roomRef, {
+        lastMeterReading: entry.currentReading,
+        lastMeterDate: entry.currentReadingDate
+      });
+    }
+
+    // 2. Commit Batch
+    await batch.commit();
+    
+    alert('儲存成功！');
+    
+    // 3. Reload Data
+    await loadData();
+    
+  } catch (e) {
+    console.error(e);
+    alert('儲存失敗，請重試');
+  } finally {
+    saving.value = false;
+  }
+};
+
+// --- UI Helpers ---
 const currentModeLabel = computed(() => {
   const map: Record<string, string> = { fixed: '固定費率', tiered: '獨立累進費率', bill_share: '帳單分攤制' };
-  return map[settings.value.mode];
+  return map[settings.value.mode] || settings.value.mode;
 });
 
 const seasonLabel = computed(() => {
   const map: Record<string, string> = { auto: '自動判斷', average: '平均費率', summer: '強制夏月', 'non-summer': '強制非夏月' };
   return map[settings.value.tieredConfig.season];
+});
+
+const lastPeriodLabel = computed(() => {
+  // Find the most common last reading date to show in header or just generic
+  return '上次抄表日'; 
 });
 
 const calculateUsage = (room: MeterEntry) => Math.max(0, (room.currentReading || 0) - room.lastReading);
@@ -513,11 +678,13 @@ const showDetails = (room: MeterEntry) => {
 
 const totalEstimatedCost = computed(() => meterData.value.reduce((sum, r) => sum + calculateResult(r).cost, 0));
 const totalUsage = computed(() => meterData.value.reduce((sum, r) => sum + calculateUsage(r), 0));
-const saveAllReadings = () => alert('儲存成功！');
+const hasValidChanges = computed(() => meterData.value.some(r => r.currentReading !== undefined && r.currentReading >= r.lastReading));
 
 </script>
 
 <style scoped>
 .animation-fade-in { animation: fadeIn 0.3s ease-out; }
+.animate-scale-in { animation: scaleIn 0.2s ease-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
 </style>

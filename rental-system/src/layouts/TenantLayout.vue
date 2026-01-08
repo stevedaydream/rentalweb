@@ -16,12 +16,16 @@
             v-for="item in menuItems" 
             :key="item.name"
             :to="item.to"
-            class="flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-colors group"
+            class="flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl transition-colors group relative"
             :class="isActive(item.to) ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-200' : 'text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800'"
             @click="isSidebarOpen = false"
           >
-            <span class="material-symbols-outlined mr-3 text-[20px]">{{ item.icon }}</span>
-            {{ item.name }}
+            <div class="flex items-center">
+              <span class="material-symbols-outlined mr-3 text-[20px]">{{ item.icon }}</span>
+              {{ item.name }}
+            </div>
+            
+            <span v-if="item.hasNotification" class="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-sm shadow-red-500/50"></span>
           </router-link>
         </nav>
 
@@ -60,21 +64,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useRoute } from 'vue-router';
+import { db } from '../firebase/config';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 const authStore = useAuthStore();
 const route = useRoute();
 const isSidebarOpen = ref(false);
+const hasNewReply = ref(false); // 控制紅點狀態
 
-const menuItems = [
-  { name: '儀表板', to: { name: 'TenantDashboard' }, icon: 'dashboard' },
-  { name: '我的帳單', to: { name: 'TenantBills' }, icon: 'receipt_long' }, // 待開發
-  { name: '社區公告', to: { name: 'TenantAnnouncements' }, icon: 'campaign' }, // 待開發
-  { name: '報修申請', to: { name: 'TenantRepairs' }, icon: 'build_circle' }, // 待開發
-  { name: '聯繫房東', to: { name: 'ContactLandlord' }, icon: 'support_agent' }, // 待開發
-];
+// 監聽器
+let unsubscribe: (() => void) | null = null;
+
+const menuItems = computed(() => [
+  { name: '儀表板', to: { name: 'TenantDashboard' }, icon: 'dashboard', hasNotification: false },
+  { name: '我的帳單', to: { name: 'TenantBills' }, icon: 'receipt_long', hasNotification: false },
+  { name: '社區公告', to: { name: 'TenantAnnouncements' }, icon: 'campaign', hasNotification: false },
+  { name: '報修申請', to: { name: 'TenantRepairs' }, icon: 'build_circle', hasNotification: false },
+  // 綁定紅點狀態到「聯繫房東」
+  { name: '聯繫房東', to: { name: 'ContactLandlord' }, icon: 'support_agent', hasNotification: hasNewReply.value },
+]);
 
 const isActive = (to: any) => {
   return route.name === to.name;
@@ -85,4 +96,51 @@ const handleLogout = () => {
     authStore.logout();
   }
 };
+
+// --- 通知邏輯 ---
+// 當用戶在 Contact 頁面時，我們會收到 'messages-read' 事件，此時應清除紅點
+const handleMessageReadEvent = () => {
+  hasNewReply.value = false;
+};
+
+onMounted(() => {
+  // 監聽來自 Contact.vue 的已讀事件
+  window.addEventListener('messages-read', handleMessageReadEvent);
+
+  if (authStore.user) {
+    // 監聽訊息集合，只抓取屬於當前租客的訊息
+    const q = query(
+      collection(db, 'messages'),
+      where('tenantId', '==', authStore.user.uid)
+    );
+
+    unsubscribe = onSnapshot(q, (snapshot) => {
+      // 1. 計算目前有多少則訊息有「房東回覆」
+      const totalReplies = snapshot.docs.filter(doc => doc.data().reply).length;
+      
+      // 2. 讀取 LocalStorage 中上次記錄的已讀回覆數量
+      const readCount = parseInt(localStorage.getItem('tenant_read_reply_count') || '0');
+
+      // 3. 如果現在的回覆總數 > 上次看過的數量，且使用者目前不在 Contact 頁面，顯示紅點
+      if (totalReplies > readCount) {
+        // 如果當前路由正好是 ContactLandlord，直接視為已讀
+        if (route.name === 'ContactLandlord') {
+           localStorage.setItem('tenant_read_reply_count', totalReplies.toString());
+           hasNewReply.value = false;
+        } else {
+           hasNewReply.value = true;
+        }
+      } else {
+        hasNewReply.value = false;
+      }
+    }, (error) => {
+      console.error("Layout 監聽訊息錯誤:", error);
+    });
+  }
+});
+
+onUnmounted(() => {
+  if (unsubscribe) unsubscribe();
+  window.removeEventListener('messages-read', handleMessageReadEvent);
+});
 </script>

@@ -29,7 +29,11 @@
       </select>
     </div>
 
-    <div class="space-y-4">
+    <div v-if="loading" class="flex justify-center py-12">
+      <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+    </div>
+
+    <div v-else class="space-y-4">
       <div 
         v-for="item in filteredList" 
         :key="item.id"
@@ -48,9 +52,9 @@
              <span class="inline-block px-2 py-0.5 rounded text-xs font-medium" :class="categoryStyles[item.category]">
                {{ item.category }}
              </span>
-             <span v-if="!item.isRead" class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+             <span v-if="!isRead(item.id)" class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
            </div>
-           <span class="text-xs text-text-secondary-light">{{ item.date }}</span>
+           <span class="text-xs text-text-secondary-light">{{ formatDate(item.createdAt) }}</span>
         </div>
 
         <h3 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark mb-2 group-hover:text-primary transition-colors relative z-10">
@@ -61,8 +65,14 @@
           {{ item.content }}
         </p>
 
-        <div class="mt-4 flex items-center text-xs text-text-secondary-light font-medium group-hover:text-primary transition-colors relative z-10">
-          閱讀更多 <span class="material-symbols-outlined text-[16px] ml-1">arrow_forward</span>
+        <div class="mt-4 flex items-center justify-between text-xs text-text-secondary-light font-medium relative z-10">
+          <div class="group-hover:text-primary transition-colors flex items-center">
+            閱讀更多 <span class="material-symbols-outlined text-[16px] ml-1">arrow_forward</span>
+          </div>
+          <div class="flex items-center gap-1 opacity-60">
+            <span class="material-symbols-outlined text-[14px]">visibility</span>
+            {{ item.views || 0 }}
+          </div>
         </div>
       </div>
 
@@ -82,7 +92,7 @@
             <span class="px-3 py-1 rounded-full text-sm font-bold" :class="categoryStyles[selectedItem.category]">
                {{ selectedItem.category }}
             </span>
-            <span class="text-sm text-text-secondary-light">{{ selectedItem.date }}</span>
+            <span class="text-sm text-text-secondary-light">{{ formatDate(selectedItem.createdAt) }}</span>
           </div>
 
           <h2 class="text-2xl md:text-3xl font-extrabold text-text-primary-light dark:text-text-primary-dark mb-6 leading-tight">
@@ -112,32 +122,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { db } from '../../firebase/config';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, increment, Timestamp } from 'firebase/firestore';
 
 // --- Types ---
 interface Announcement {
-  id: number;
+  id: string;
   title: string;
   category: string;
   content: string;
-  date: string;
+  createdAt: Timestamp; // Firestore Timestamp
   isPinned: boolean;
-  isRead: boolean;
+  views: number;
 }
 
-// --- Mock Data ---
-const list = ref<Announcement[]>([
-  { id: 1, title: '【重要】大樓清洗水塔通知', category: '維修通知', content: '本大樓將於下週二 (10/31) 上午9:00至下午4:00進行水塔清洗。\n\n屆時將暫停供水，請各位住戶提早儲水備用。清洗期間請勿開啟水龍頭，以免吸入空氣造成管線阻塞。\n\n若有任何問題，請聯繫管理室。造成不便敬請見諒。', date: '2025/10/24', isPinned: true, isRead: false },
-  { id: 2, title: '包裹代收服務調整說明', category: '一般通知', content: '親愛的住戶您好：\n\n即日起管理室代收包裹時間調整為每日上午8點至晚上9點。\n請住戶留意取件時間，以免撲空。\n\n另外，生鮮食品請務必當日領取，管理室恕不負保管責任。', date: '2025/10/20', isPinned: false, isRead: true },
-  { id: 3, title: '11月份社區聯誼烤肉活動', category: '活動訊息', content: '為增進住戶情誼，管委會將於 11/15 (六) 晚間 18:00 於頂樓花園舉辦烤肉活動。\n\n費用：每人 200 元 (12歲以下免費)\n報名方式：請至管理室填寫報名表並繳費\n\n歡迎大家踴躍參加！', date: '2025/10/18', isPinned: false, isRead: false },
-  { id: 4, title: '垃圾分類加強稽查公告', category: '重要公告', content: '近期發現回收區有未分類垃圾混入一般垃圾，環保局將不定期進行破袋稽查。\n\n請住戶務必配合垃圾分類，若經查獲未分類者，將依大樓規約處以罰款。\n\n保護環境，人人有責。', date: '2025/10/15', isPinned: false, isRead: true },
-]);
-
 // --- State ---
+const list = ref<Announcement[]>([]);
 const searchQuery = ref('');
 const selectedCategory = ref('all');
 const selectedItem = ref<Announcement | null>(null);
+const loading = ref(true);
+const readIds = ref<Set<string>>(new Set()); // 本地已讀 ID 集合
 
+// --- Constants ---
 const categoryStyles: Record<string, string> = {
   '一般通知': 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
   '重要公告': 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
@@ -150,6 +158,46 @@ const categoryMap: Record<string, string> = {
   'maintenance': '維修通知',
   'activity': '活動訊息',
   'general': '一般通知'
+};
+
+let unsubscribe: (() => void) | null = null;
+
+// --- Lifecycle ---
+onMounted(() => {
+  // 1. Load read status from local storage
+  const savedReadIds = localStorage.getItem('announcementReadIds');
+  if (savedReadIds) {
+    readIds.value = new Set(JSON.parse(savedReadIds));
+  }
+
+  // 2. Fetch data from Firestore
+  const q = query(collection(db, 'announcements'), orderBy('createdAt', 'desc'));
+  
+  unsubscribe = onSnapshot(q, (snapshot) => {
+    list.value = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Announcement));
+    loading.value = false;
+  }, (err) => {
+    console.error("Fetch announcements failed:", err);
+    loading.value = false;
+  });
+});
+
+onUnmounted(() => {
+  if (unsubscribe) unsubscribe();
+});
+
+// --- Helpers ---
+const formatDate = (ts: Timestamp) => {
+  if (!ts) return '';
+  const date = ts.toDate();
+  return date.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+};
+
+const isRead = (id: string) => {
+  return readIds.value.has(id);
 };
 
 // --- Computed ---
@@ -166,18 +214,32 @@ const filteredList = computed(() => {
     result = result.filter(i => i.title.toLowerCase().includes(q) || i.content.toLowerCase().includes(q));
   }
 
+  // Client-side sort: Pinned first, then Date (Firestore handles date sort, but pinning needs re-sort)
   return result.sort((a, b) => {
     if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-    return new Date(b.date).getTime() - new Date(a.date).getTime();
+    // If pinned status is same, Firestore already sorted by date, but safer to keep stable or re-sort
+    return b.createdAt.toMillis() - a.createdAt.toMillis();
   });
 });
 
 // --- Actions ---
-const openDetail = (item: Announcement) => {
+const openDetail = async (item: Announcement) => {
   selectedItem.value = item;
-  // Mark as read (Simulation)
-  if (!item.isRead) {
-    item.isRead = true;
+
+  // Mark as read locally
+  if (!readIds.value.has(item.id)) {
+    readIds.value.add(item.id);
+    localStorage.setItem('announcementReadIds', JSON.stringify(Array.from(readIds.value)));
+    
+    // Increment view count in Firestore
+    try {
+      const docRef = doc(db, 'announcements', item.id);
+      await updateDoc(docRef, {
+        views: increment(1)
+      });
+    } catch (e) {
+      console.error("Error incrementing views", e);
+    }
   }
 };
 

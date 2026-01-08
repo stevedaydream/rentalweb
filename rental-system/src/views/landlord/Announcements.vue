@@ -71,7 +71,11 @@
         </div>
       </div>
 
-      <div class="overflow-x-auto">
+      <div class="overflow-x-auto relative min-h-[200px]">
+        <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-card-dark/50 z-10">
+           <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+
         <table class="w-full text-sm text-left">
           <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50">
             <tr>
@@ -105,10 +109,10 @@
                  </span>
               </td>
               <td class="px-6 py-4 text-text-secondary-light whitespace-nowrap">
-                 {{ item.date }}
+                 {{ formatDate(item.createdAt) }}
               </td>
               <td class="px-6 py-4 text-center text-text-secondary-light">
-                 {{ item.views }}
+                 {{ item.views || 0 }}
               </td>
               <td class="px-6 py-4 text-center">
                  <div class="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -125,7 +129,7 @@
         </table>
       </div>
       
-      <div v-if="filteredList.length === 0" class="p-12 text-center text-text-secondary-light">
+      <div v-if="!loading && filteredList.length === 0" class="p-12 text-center text-text-secondary-light">
          <span class="material-symbols-outlined text-4xl mb-2 text-gray-300">campaign</span>
          <p>目前沒有任何公告</p>
       </div>
@@ -192,8 +196,10 @@
           </button>
           <button 
             @click="saveItem"
-            class="px-5 py-2 rounded-xl bg-primary text-white font-bold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors"
+            :disabled="submitting"
+            class="px-5 py-2 rounded-xl bg-primary text-white font-bold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
           >
+            <span v-if="submitting" class="material-symbols-outlined animate-spin text-sm mr-2">progress_activity</span>
             {{ isEditing ? '儲存變更' : '確認發布' }}
           </button>
         </div>
@@ -204,28 +210,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { db } from '../../firebase/config';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 // --- Type Definitions ---
 interface Announcement {
-  id: number;
+  id: string;
   title: string;
   category: string;
   content: string;
-  date: string;
+  createdAt: Timestamp;
   isPinned: boolean;
   views: number;
 }
 
-// --- Mock Data ---
-const list = ref<Announcement[]>([
-  { id: 1, title: '【重要】大樓清洗水塔通知', category: '維修通知', content: '本大樓將於下週二 (10/31) 上午9:00至下午4:00進行水塔清洗，屆時將暫停供水，請各位住戶提早儲水備用。造成不便敬請見諒。', date: '2025/10/24', isPinned: true, views: 45 },
-  { id: 2, title: '包裹代收服務調整說明', category: '一般通知', content: '即日起管理室代收包裹時間調整為每日上午8點至晚上9點，請住戶留意取件時間，以免撲空。', date: '2025/10/20', isPinned: false, views: 32 },
-  { id: 3, title: '11月份社區聯誼烤肉活動', category: '活動訊息', content: '為增進住戶情誼，管委會將於 11/15 舉辦烤肉活動，歡迎至管理室報名參加！', date: '2025/10/18', isPinned: false, views: 18 },
-  { id: 4, title: '垃圾分類加強稽查公告', category: '重要公告', content: '近期發現回收區有未分類垃圾，環保局將加強稽查，請住戶務必配合分類，以免受罰。', date: '2025/10/15', isPinned: false, views: 89 },
-]);
-
 // --- State ---
+const list = ref<Announcement[]>([]);
+const loading = ref(true);
+const submitting = ref(false);
 const currentFilter = ref('all');
 const searchQuery = ref('');
 const showModal = ref(false);
@@ -251,6 +254,31 @@ const categoryStyles: Record<string, string> = {
   '活動訊息': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
 };
 
+let unsubscribe: (() => void) | null = null;
+
+// --- Lifecycle ---
+onMounted(() => {
+  const q = query(collection(db, 'announcements'), orderBy('createdAt', 'desc'));
+  unsubscribe = onSnapshot(q, (snapshot) => {
+    list.value = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Announcement));
+    loading.value = false;
+  });
+});
+
+onUnmounted(() => {
+  if (unsubscribe) unsubscribe();
+});
+
+// --- Helpers ---
+const formatDate = (ts: Timestamp) => {
+  if (!ts) return '';
+  const date = ts.toDate();
+  return date.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+};
+
 // --- Computed ---
 const filteredList = computed(() => {
   let result = list.value;
@@ -271,21 +299,41 @@ const filteredList = computed(() => {
   // Sort: Pinned first, then Date
   return result.sort((a, b) => {
     if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-    return new Date(b.date).getTime() - new Date(a.date).getTime();
+    // Safe sort if timestamp is missing temporarily
+    const timeA = a.createdAt ? a.createdAt.toMillis() : 0;
+    const timeB = b.createdAt ? b.createdAt.toMillis() : 0;
+    return timeB - timeA;
   });
 });
 
-const stats = computed(() => ({
-  monthCount: list.value.filter(i => i.date.startsWith('2025/10')).length,
-  pinnedCount: list.value.filter(i => i.isPinned).length,
-  views: list.value.reduce((acc, cur) => acc + cur.views, 0)
-}));
+const stats = computed(() => {
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  return {
+    monthCount: list.value.filter(i => {
+       if(!i.createdAt) return false;
+       const d = i.createdAt.toDate();
+       return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    }).length,
+    pinnedCount: list.value.filter(i => i.isPinned).length,
+    views: list.value.reduce((acc, cur) => acc + (cur.views || 0), 0)
+  };
+});
 
 // --- Actions ---
 const openModal = (item?: Announcement) => {
   if (item) {
     isEditing.value = true;
-    form.value = { ...item };
+    // Copy data to form
+    form.value = { 
+      id: item.id,
+      title: item.title,
+      category: item.category,
+      content: item.content,
+      isPinned: item.isPinned
+    };
   } else {
     isEditing.value = false;
     form.value = {
@@ -298,35 +346,59 @@ const openModal = (item?: Announcement) => {
   showModal.value = true;
 };
 
-const saveItem = () => {
+const saveItem = async () => {
   if (!form.value.title || !form.value.content) return alert('請填寫完整內容');
+  
+  submitting.value = true;
 
-  if (isEditing.value) {
-    const idx = list.value.findIndex(i => i.id === form.value.id);
-    if (idx !== -1) {
-      list.value[idx] = { ...list.value[idx], ...form.value } as Announcement;
+  try {
+    if (isEditing.value && form.value.id) {
+      // Update
+      const docRef = doc(db, 'announcements', form.value.id);
+      await updateDoc(docRef, {
+        title: form.value.title,
+        category: form.value.category,
+        content: form.value.content,
+        isPinned: form.value.isPinned
+        // Do not update createdAt or views
+      });
+    } else {
+      // Create
+      await addDoc(collection(db, 'announcements'), {
+        ...form.value,
+        createdAt: serverTimestamp(),
+        views: 0
+      });
     }
-  } else {
-    const newId = Math.max(...list.value.map(i => i.id), 0) + 1;
-    list.value.unshift({
-      ...form.value,
-      id: newId,
-      date: new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' }),
-      views: 0
-    } as Announcement);
-  }
-  showModal.value = false;
-};
-
-const deleteItem = (id: number) => {
-  if (confirm('確定要刪除此公告嗎？')) {
-    const idx = list.value.findIndex(i => i.id === id);
-    if (idx !== -1) list.value.splice(idx, 1);
+    showModal.value = false;
+  } catch (error) {
+    console.error("Error saving announcement:", error);
+    alert("儲存失敗，請稍後再試");
+  } finally {
+    submitting.value = false;
   }
 };
 
-const togglePin = (item: Announcement) => {
-  item.isPinned = !item.isPinned;
+const deleteItem = async (id: string) => {
+  if (confirm('確定要刪除此公告嗎？此操作無法復原。')) {
+    try {
+      await deleteDoc(doc(db, 'announcements', id));
+    } catch (error) {
+      console.error("Error deleting:", error);
+      alert("刪除失敗");
+    }
+  }
+};
+
+const togglePin = async (item: Announcement) => {
+  try {
+    const docRef = doc(db, 'announcements', item.id);
+    await updateDoc(docRef, {
+      isPinned: !item.isPinned
+    });
+  } catch (error) {
+    console.error("Error toggling pin:", error);
+  }
 };
 </script>
 

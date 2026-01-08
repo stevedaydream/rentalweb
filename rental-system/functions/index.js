@@ -36,7 +36,7 @@ exports.generatePdf = onRequest({ memory: "1GiB", timeoutSeconds: 60, region: "a
   // 1. CORS 設定：允許所有來源 (解決開發環境跨域問題)
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With'); // 增加 Content-Length
 
   if (req.method === 'OPTIONS') {
     res.status(204).send('');
@@ -113,10 +113,20 @@ exports.generatePdf = onRequest({ memory: "1GiB", timeoutSeconds: 60, region: "a
         margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
       });
 
+      // ========== 修改開頭 ==========
+      // 1. 強制設定內容類型
       res.setHeader('Content-Type', 'application/pdf');
+      
+      // 2. 加上 Content-Length，讓前端知道這是二進位檔案的長度，避免瀏覽器誤判
+      res.setHeader('Content-Length', pdfBuffer.length);
+      
       const filename = encodeURIComponent(`Document-${Date.now()}.pdf`);
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.send(pdfBuffer);
+
+      // 3. 使用 res.end() 取代 res.send()
+      // res.send() 有時會嘗試序列化 Buffer，res.end() 則是直接寫入原始二進位流並關閉連線
+      res.end(pdfBuffer, 'binary');
+      // ========== 修改結尾 ==========
 
     } catch (error) {
       logger.error("PDF 產生失敗", error);

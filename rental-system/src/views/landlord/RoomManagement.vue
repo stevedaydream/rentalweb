@@ -43,7 +43,11 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div v-if="loading" class="text-center py-12">
+      <p class="text-gray-500">載入房源資料中...</p>
+    </div>
+
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <div 
         v-for="room in filteredRooms" 
         :key="room.id"
@@ -136,7 +140,7 @@
       </div>
     </div>
 
-    <div v-if="filteredRooms.length === 0" class="text-center py-12 bg-white dark:bg-card-dark rounded-2xl border border-gray-200 dark:border-gray-800 border-dashed">
+    <div v-if="!loading && filteredRooms.length === 0" class="text-center py-12 bg-white dark:bg-card-dark rounded-2xl border border-gray-200 dark:border-gray-800 border-dashed">
       <div class="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
         <span class="material-symbols-outlined text-3xl">domain_disabled</span>
       </div>
@@ -384,14 +388,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { storage } from '../../firebase/config';
+import { ref, computed, onMounted } from 'vue';
+import { db, storage } from '../../firebase/config';
+import { useAuthStore } from '../../stores/auth'; // [修改] 引入 AuthStore
+import { 
+  collection, 
+  onSnapshot, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  serverTimestamp, 
+  query, 
+  orderBy,
+  where // [修改] 引入 where
+} from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // --- Type Definitions ---
-// [MODIFIED] images array + coverImage string
 interface Room {
-  id: number;
+  id: string; 
   name: string;
   address: string;
   price: number;
@@ -399,47 +415,99 @@ interface Room {
   layout: string;
   status: 'occupied' | 'vacant' | 'maintenance';
   type: string;
-  images?: string[];    // Changed from single image to array
-  coverImage?: string;  // Explicit cover image
+  images?: string[];
+  coverImage?: string;
   tenantName?: string;
   leaseEnd?: string;
+  landlordId?: string; // [新增]
 }
 
-// --- Mock Data ---
-// [MODIFIED] Added sample images arrays
-const rooms = ref<Room[]>([
-  { 
-    id: 1, 
-    name: '信義區景觀套房 A-101', 
-    address: '台北市信義區信義路五段', 
-    price: 25000, 
-    size: 12, 
-    layout: '獨立套房',
-    status: 'occupied',
-    type: '公寓',
-    images: [
-      'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?ixlib=rb-4.0.3&auto=format&fit=crop&w=2340&q=80',
-      'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?ixlib=rb-4.0.3&auto=format&fit=crop&w=1346&q=80'
-    ],
-    coverImage: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?ixlib=rb-4.0.3&auto=format&fit=crop&w=2340&q=80',
-    tenantName: '陳大明',
-    leaseEnd: '2025-12-31'
-  },
-  { 
-    id: 2, 
-    name: '北投溫泉小居 B-202', 
-    address: '台北市北投區溫泉路', 
-    price: 18000, 
-    size: 8, 
-    layout: '分租套房',
-    status: 'vacant',
-    type: '電梯大樓',
-    images: ['https://images.unsplash.com/photo-1598928506311-c55ded91a20c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80'],
-    coverImage: '' // No explicit cover, will fallback
-  }
-]);
+// --- State ---
+const authStore = useAuthStore(); // [新增]
+const rooms = ref<Room[]>([]);
+const loading = ref(true);
 
-const defaultImage = 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1470&q=80'; // A default placeholder
+// Default placeholder
+const defaultImage = 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1470&q=80'; 
+
+// --- Firestore Integration ---
+
+// 1. 實時監聽
+onMounted(() => {
+  if (!authStore.user) return;
+  // [修改] 加入 landlordId 篩選，確保只看到自己的房源
+  const q = query(
+    collection(db, 'rooms'), 
+    where('landlordId', '==', authStore.user.uid),
+    orderBy('createdAt', 'desc')
+  );
+  
+  onSnapshot(q, (snapshot) => {
+    rooms.value = snapshot.docs.map(d => ({
+      id: d.id,
+      ...d.data()
+    } as Room));
+    loading.value = false;
+  }, (error) => {
+    console.error("Error fetching rooms:", error);
+    loading.value = false;
+  });
+});
+
+// 2. 儲存與更新
+const saveRoom = async () => {
+  if (!authStore.user) return; // [新增] 安全檢查
+  if (!form.value.name) return alert('請輸入房源名稱');
+  const imgCount = form.value.images?.length || 0;
+  if (imgCount < 1) return alert('請至少上傳 1 張照片');
+  if (imgCount > 10) return alert('照片數量不能超過 10 張');
+
+  try {
+    // 決定封面照片
+    const finalCover = form.value.coverImage || (form.value.images && form.value.images.length > 0 ? form.value.images[0] : defaultImage);
+    
+    // 整理要寫入的資料
+    const roomData = {
+      ...form.value,
+      coverImage: finalCover,
+      landlordId: authStore.user.uid, // [新增] 寫入房東 ID
+      updatedAt: serverTimestamp()
+    };
+    
+    // 移除 id 避免重複寫入文件內文
+    delete (roomData as any).id; 
+
+    if (isEditing.value && form.value.id) {
+      // 編輯模式
+      await updateDoc(doc(db, 'rooms', form.value.id), roomData);
+    } else {
+      // 新增模式
+      await addDoc(collection(db, 'rooms'), {
+        ...roomData,
+        createdAt: serverTimestamp()
+      });
+    }
+    
+    showModal.value = false;
+  } catch (err) {
+    console.error(err);
+    alert('儲存失敗');
+  }
+};
+
+// 3. 刪除
+const deleteRoom = async () => {
+  if (!form.value.id || !form.value.name) return;
+  if (confirm(`確定要刪除 ${form.value.name} 嗎？此操作無法復原。`)) {
+    try {
+      await deleteDoc(doc(db, 'rooms', form.value.id));
+      showModal.value = false;
+    } catch (err) {
+      console.error(err);
+      alert('刪除失敗');
+    }
+  }
+};
 
 // --- Filters & Search ---
 const currentFilter = ref('all');
@@ -452,12 +520,7 @@ const filters = [
   { label: '維修中', value: 'maintenance' }
 ];
 
-const statusLabels = {
-  occupied: '出租中',
-  vacant: '待租',
-  maintenance: '維護中'
-};
-
+const statusLabels = { occupied: '出租中', vacant: '待租', maintenance: '維護中' };
 const statusColors = {
   occupied: 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300',
   vacant: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
@@ -469,8 +532,7 @@ const filteredRooms = computed(() => {
     if (currentFilter.value !== 'all' && room.status !== currentFilter.value) return false;
     if (searchQuery.value) {
       const q = searchQuery.value.toLowerCase();
-      return room.name.toLowerCase().includes(q) || 
-             room.address.toLowerCase().includes(q);
+      return room.name.toLowerCase().includes(q) || room.address.toLowerCase().includes(q);
     }
     return true;
   });
@@ -482,16 +544,8 @@ const isEditing = ref(false);
 const isViewMode = ref(false);
 
 const form = ref<Partial<Room>>({
-  name: '',
-  price: 0,
-  size: 0,
-  address: '',
-  layout: '獨立套房',
-  status: 'vacant',
-  tenantName: '',
-  leaseEnd: '',
-  images: [],     // [MODIFIED]
-  coverImage: ''  // [MODIFIED]
+  name: '', price: 0, size: 0, address: '', layout: '獨立套房', status: 'vacant', 
+  tenantName: '', leaseEnd: '', images: [], coverImage: ''
 });
 
 // --- Upload Logic ---
@@ -499,9 +553,7 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const uploading = ref(false);
 const isDragging = ref(false);
 
-const triggerFileUpload = () => {
-  fileInput.value?.click();
-};
+const triggerFileUpload = () => fileInput.value?.click();
 
 const handleDrop = (e: DragEvent) => {
   isDragging.value = false;
@@ -517,7 +569,6 @@ const handleImageUpload = (event: Event) => {
   }
 };
 
-// [NEW] Process Multiple Files
 const processFiles = async (fileList: FileList) => {
   const currentCount = form.value.images?.length || 0;
   const newCount = fileList.length;
@@ -530,9 +581,8 @@ const processFiles = async (fileList: FileList) => {
   uploading.value = true;
   const uploadPromises: Promise<string>[] = [];
 
- for (let i = 0; i < fileList.length; i++) {
-    // [修復] 加上安全檢查
-    const file = fileList[i]; 
+  for (let i = 0; i < fileList.length; i++) {
+    const file = fileList[i];
     if (file && file.type.startsWith('image/')) {
       uploadPromises.push(uploadSingleFile(file));
     }
@@ -547,7 +597,6 @@ const processFiles = async (fileList: FileList) => {
     if (!form.value.coverImage && form.value.images.length > 0) {
         form.value.coverImage = form.value.images[0];
     }
-
   } catch (e: any) {
     console.error(e);
     alert('部分圖片上傳失敗');
@@ -564,59 +613,36 @@ const uploadSingleFile = async (file: File): Promise<string> => {
     return await getDownloadURL(fileRef);
 };
 
-// [NEW] Gallery Actions
 const removeImage = (index: number) => {
     if (!form.value.images) return;
     const removedUrl = form.value.images[index];
-    
-    // Remove from array
     form.value.images.splice(index, 1);
-
-    // If removed image was the cover, reset cover
     if (form.value.coverImage === removedUrl) {
         form.value.coverImage = form.value.images.length > 0 ? form.value.images[0] : '';
     }
 };
 
-const setCoverImage = (url: string) => {
-    form.value.coverImage = url;
-};
+const setCoverImage = (url: string) => { form.value.coverImage = url; };
 
-// [NEW] Helper to display correct cover in list
 const getCoverImage = (room: Room) => {
     if (room.coverImage) return room.coverImage;
     if (room.images && room.images.length > 0) return room.images[0];
     return defaultImage;
 };
 
-
 // --- Modal Core Logic ---
-const getMapLink = (address: string) => {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
-};
+const getMapLink = (address: string) => `https://www.google.com/maps/search/?api=1&query=$?q=${encodeURIComponent(address)}`;
 
 const openModal = (room?: Room, mode: 'create' | 'edit' | 'view' = 'create') => {
   if (room) {
-    // Edit or View: Clone data to avoid direct mutation
     form.value = JSON.parse(JSON.stringify(room));
-    if (!form.value.images) form.value.images = []; // Ensure array exists
+    if (!form.value.images) form.value.images = [];
   } else {
-    // Create
     form.value = {
-      name: '',
-      price: 0,
-      size: 0,
-      address: '',
-      layout: '獨立套房',
-      status: 'vacant',
-      type: '公寓',
-      tenantName: '',
-      leaseEnd: '',
-      images: [],
-      coverImage: ''
+      name: '', price: 0, size: 0, address: '', layout: '獨立套房', status: 'vacant', 
+      type: '公寓', tenantName: '', leaseEnd: '', images: [], coverImage: ''
     };
   }
-  
   isEditing.value = !!room;
   isViewMode.value = mode === 'view';
   showModal.value = true;
@@ -631,43 +657,4 @@ const modalTitle = computed(() => {
   if (isViewMode.value) return '房源詳情';
   return isEditing.value ? '編輯房源' : '新增房源';
 });
-
-const deleteRoom = () => {
-  if (!form.value.name) return;
-  if (confirm(`確定要刪除 ${form.value.name} 嗎？此操作無法復原。`)) {
-    const index = rooms.value.findIndex(r => r.id === form.value.id);
-    if (index !== -1) {
-      rooms.value.splice(index, 1);
-      showModal.value = false;
-    }
-  }
-};
-
-const saveRoom = () => {
-  if (!form.value.name) return alert('請輸入房源名稱');
-  
-  // [NEW] Validation
-  const imgCount = form.value.images?.length || 0;
-  if (imgCount < 1) return alert('請至少上傳 1 張照片');
-  if (imgCount > 10) return alert('照片數量不能超過 10 張');
-
-  if (isEditing.value) {
-    const index = rooms.value.findIndex(r => r.id === form.value.id);
-    if (index !== -1) {
-      rooms.value[index] = { ...rooms.value[index], ...form.value } as Room;
-    }
-  } else {
-    const newId = Math.max(...rooms.value.map(r => r.id), 0) + 1;
-    // Fallback logic for new rooms if no cover explicitly set
-    const finalCover = form.value.coverImage || (form.value.images && form.value.images.length > 0 ? form.value.images[0] : '');
-    
-    rooms.value.push({
-      ...form.value,
-      id: newId,
-      coverImage: finalCover
-    } as Room);
-  }
-  
-  showModal.value = false;
-};
 </script>
