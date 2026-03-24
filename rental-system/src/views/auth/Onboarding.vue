@@ -173,8 +173,8 @@ const checkLandlordCode = async (code: string) => {
 
     if (!snap.empty) {
       landlordFound.value = true;
-      landlordUid.value = snap.docs[0].id;
-      landlordName.value = snap.docs[0].data().name || '（未知）';
+      landlordUid.value = snap.docs[0]!.id;
+      landlordName.value = snap.docs[0]!.data().name || '（未知）';
       landlordCodeError.value = '';
     } else {
       landlordFound.value = false;

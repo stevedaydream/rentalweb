@@ -211,6 +211,7 @@ interface Review {
 
 interface LandlordProfile {
   displayName?: string;
+  name?: string;
   description?: string;
   lineBotId?: string;
 }

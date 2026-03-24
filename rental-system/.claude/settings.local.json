@@ -37,7 +37,9 @@
       "Skill(update-config)",
       "WebFetch(domain:ui.shadcn.com)",
       "Bash(pnpm dlx:*)",
-      "Bash(npx skills:*)"
+      "Bash(npx skills:*)",
+      "Bash(firebase use:*)",
+      "Bash(firebase functions:artifacts:setpolicy)"
     ]
   }
 }

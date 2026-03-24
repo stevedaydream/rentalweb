@@ -1,17 +1,8 @@
 // [修改開始]：src/router/index.ts
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
-import { auth } from '../firebase/config';
-
-// 輔助函式：確保 Firebase Auth 初始化完成
-const getCurrentUser = () => {
-  return new Promise((resolve, reject) => {
-    const removeListener = auth.onAuthStateChanged((user) => {
-      removeListener();
-      resolve(user);
-    }, reject);
-  });
-};
+import { auth, db } from '../firebase/config';
+import { doc, getDoc } from 'firebase/firestore';
 
 // 視圖組件導入
 const Identity = () => import('../views/auth/Identity.vue');
@@ -152,16 +143,20 @@ const router = createRouter({
 router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore();
 
-  // 1. 初始化狀態檢查
   if (!authStore.isInitialized) {
     await authStore.init();
   }
 
-  // 2. 獲取最即時的 Firebase 用戶狀態
-  const firebaseUser = await getCurrentUser();
+  const firebaseUser = auth.currentUser;
   const isAuthenticated = !!firebaseUser;
 
-  // 3. 處理已登入用戶嘗試訪問 Auth 頁面（/explore 相關頁面永遠可訪問）
+  if (isAuthenticated && firebaseUser && !authStore.userProfile) {
+    try {
+      const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
+      if (snap.exists()) authStore.userProfile = snap.data();
+    } catch {}
+  }
+
   if (to.name === 'RoomExplore' || to.name === 'LandlordProfile') return next();
   const isAuthPage = ['Identity', 'Login', 'Register', 'AdminLogin'].includes(to.name as string);
   if (isAuthenticated && isAuthPage) {
@@ -172,19 +167,16 @@ router.beforeEach(async (to, _from, next) => {
     return next({ name: 'Onboarding' });
   }
 
-  // 4. 權限檢查
   if (to.meta.requiresAuth && !isAuthenticated) {
     console.warn('[Guard] 未登入，導向 Login');
     return next({ name: 'Login' });
   }
 
-  // 5. 角色訪問限制
   if (isAuthenticated && to.meta.role) {
     const userRole = authStore.userProfile?.role;
     const requiredRole = to.meta.role as string;
 
     if (userRole !== requiredRole) {
-      // Admin 正在模擬房東時，允許進入房東路由
       if (userRole === 'admin' && requiredRole === 'landlord' && authStore.impersonatingLandlord) {
         return next();
       }

@@ -477,7 +477,8 @@ exports.lineWebhook = onRequest(
 
         await client.replyMessage({
           replyToken: event.replyToken,
-          messages: [{ type: 'text', text: `✅ 綁定成功！\n您好，${displayName}，您的帳號已與此 LINE 綁定。\n往後房東的回覆將直接傳送到這裡。` }],
+          messages: [{ type: 'text', text:
+            `✅ 綁定成功！\n您好，${displayName}，您的帳號已與此 LINE 綁定。\n往後房東的回覆將直接傳送到這裡。\n\n💡 可用查詢指令：\n帳單 ｜ 電費 ｜ 合約 ｜ 公告 ｜ 報修\n\n傳送「選單」查看完整說明` }],
         });
         logger.info('LINE binding successful', { uid: bindingData.uid, lineUserId, displayName });
         continue;
@@ -517,6 +518,13 @@ exports.lineWebhook = onRequest(
         reply: null,
         createdAt: FieldValue.serverTimestamp(),
       });
+
+      // Auto-reply: message received + keyword hints
+      await client.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{ type: 'text', text:
+          '📨 訊息已送達，等候房東回覆。\n\n💡 也可輸入指令快速查詢：\n帳單 ｜ 電費 ｜ 合約 ｜ 公告 ｜ 報修\n\n傳送「選單」查看完整說明' }],
+      }).catch(e => logger.warn('Auto-reply failed', { error: e.message }));
 
       logger.info('LINE message saved', { lineUserId, displayName, text: messageText.substring(0, 50) });
     }

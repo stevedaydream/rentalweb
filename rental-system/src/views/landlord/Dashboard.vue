@@ -27,7 +27,7 @@
 
       <MonthlyTaskCard
         :landlord-id="authStore.effectiveUid"
-        :pending-count="financial.unpaidCount + financial.overdueCount"
+        :pending-count="financial.unpaidTenantCount"
         :bill-send-day="authStore.userProfile?.settings?.billSendDay ?? 1"
         :payment-day="authStore.userProfile?.settings?.paymentDay ?? 12"
       />
@@ -87,6 +87,7 @@ const stats = reactive({
 const financial = reactive({
   unpaidCount: 0,
   unpaidAmount: 0,
+  unpaidTenantCount: 0,
   paidCount: 0,
   paidAmount: 0,
   overdueCount: 0,
@@ -157,11 +158,13 @@ const fetchDashboardData = async () => {
     // 3. 帳務概況
     financial.unpaidCount = 0;
     financial.unpaidAmount = 0;
+    financial.unpaidTenantCount = 0;
     financial.paidCount = 0;
     financial.paidAmount = 0;
     financial.overdueCount = 0;
     financial.overdueAmount = 0;
     const todayStr = new Date().toISOString().split('T')[0] || '';
+    const unpaidTenantIds = new Set<string>();
     billsSnap.forEach(d => {
       const data = d.data();
       const amount = Number(data.totalAmount) || 0;
@@ -171,11 +174,14 @@ const fetchDashboardData = async () => {
       } else if (data.dueDate && data.dueDate < todayStr) {
         financial.overdueCount++;
         financial.overdueAmount += amount;
+        if (data.tenantId) unpaidTenantIds.add(data.tenantId);
       } else {
         financial.unpaidCount++;
         financial.unpaidAmount += amount;
+        if (data.tenantId) unpaidTenantIds.add(data.tenantId);
       }
     });
+    financial.unpaidTenantCount = unpaidTenantIds.size;
 
     // 4. 最新報修
     if (repairsSnap) {

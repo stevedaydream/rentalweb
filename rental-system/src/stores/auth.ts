@@ -8,8 +8,6 @@ import {
   onAuthStateChanged,
   GoogleAuthProvider,
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   type User
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -59,56 +57,58 @@ export const useAuthStore = defineStore('auth', () => {
     }
   };
 
-  const init = () => {
-    if (isInitialized.value) return Promise.resolve();
-    
-    return new Promise<void>((resolve) => {
-      // 處理手機版 Redirect 回來的結果
-      getRedirectResult(auth).then(async (result) => {
-        if (result?.user) await handleAuthSuccess(result.user);
-      }).catch(console.error);
-
-      // 監聽登入狀態改變
-      onAuthStateChanged(auth, async (currentUser) => {
-        user.value = currentUser;
-        if (currentUser) {
-          try {
-            const userStore = useUserStore();
-            // 優先從快取取得，避免重複 Firestore 讀取
-            // 注意：Pinia setup store 在外部存取時 ref 會自動 unwrap，不需要 .value
-            const cached = userStore.cache[currentUser.uid];
-            if (cached) {
-              userProfile.value = cached;
-            } else {
-              const docRef = doc(db, 'users', currentUser.uid);
-              const docSnap = await getDoc(docRef);
-              if (docSnap.exists()) {
-                userProfile.value = docSnap.data();
-                userStore.setProfile(currentUser.uid, docSnap.data());
-              }
-            }
-          } catch (e) {
-            console.warn('初始化時讀取用戶資料受阻:', e);
-          }
+  const loadProfile = async (currentUser: User) => {
+    try {
+      const userStore = useUserStore();
+      const cached = userStore.cache[currentUser.uid];
+      if (cached) {
+        userProfile.value = cached;
+      } else {
+        const docRef = doc(db, 'users', currentUser.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          userProfile.value = docSnap.data();
+          userStore.setProfile(currentUser.uid, docSnap.data());
         }
-        loading.value = false;
-        isInitialized.value = true;
-        resolve();
-      });
+      }
+    } catch (e) {
+      console.warn('讀取用戶資料受阻:', e);
+    }
+  };
+
+  const init = async () => {
+    if (isInitialized.value) return;
+
+    // authStateReady() 等待 Firebase Auth 確定初始狀態（避免手機上先 fire null 的問題）
+    await auth.authStateReady();
+
+    const currentUser = auth.currentUser;
+    user.value = currentUser;
+    if (currentUser) {
+      await loadProfile(currentUser);
+    }
+
+    loading.value = false;
+    isInitialized.value = true;
+
+    // 監聽後續 auth 狀態變化（登出等）
+    onAuthStateChanged(auth, async (currentUser) => {
+      user.value = currentUser;
+      if (!currentUser) {
+        userProfile.value = null;
+        return;
+      }
+      if (!userProfile.value) {
+        await loadProfile(currentUser);
+      }
     });
   };
 
   const loginWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
-    const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
-    
-    if (isMobile) {
-      await signInWithRedirect(auth, provider);
-    } else {
-      const result = await signInWithPopup(auth, provider);
-      await handleAuthSuccess(result.user);
-    }
+    const result = await signInWithPopup(auth, provider);
+    await handleAuthSuccess(result.user);
   };
 
   const loginEmail = async (email: string, pass: string) => {

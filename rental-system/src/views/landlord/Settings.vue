@@ -454,7 +454,7 @@ const handleLogout = () => {
 // =============================================
 // LINE Bot Config
 // =============================================
-const FIREBASE_PROJECT_ID = 'rental-8897a';
+const FIREBASE_PROJECT_ID = 'rental-system-7675e';
 const FUNCTIONS_REGION = 'asia-east1';
 
 const lineConfig = ref({
@@ -526,7 +526,7 @@ const saveLineConfig = async () => {
 };
 
 const copyWebhookUrl = () => {
-  navigator.clipboard.writeText(webhookUrl).then(() => {
+  navigator.clipboard.writeText(webhookUrl.value).then(() => {
     toast.success('Webhook URL 已複製');
   }).catch(() => {
     toast.warning('複製失敗，請手動複製');

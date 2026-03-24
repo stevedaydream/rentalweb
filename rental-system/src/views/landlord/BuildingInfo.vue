@@ -33,7 +33,7 @@
     <div class="flex border-b border-gray-200 dark:border-gray-700">
       <button
         v-for="tab in tabs" :key="tab.value"
-        @click="activeTab = tab.value"
+        @click="activeTab = tab.value as 'map' | 'facilities'"
         class="px-5 py-3 text-sm font-medium border-b-2 transition-colors relative top-[1px]"
         :class="activeTab === tab.value ? 'border-primary text-primary' : 'border-transparent text-text-secondary-light hover:text-gray-600 dark:hover:text-gray-300'"
       >
@@ -547,7 +547,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useToastStore } from '../../stores/toast'
 import { db } from '../../firebase/config'
@@ -694,10 +694,10 @@ const svgTemplates: Record<string, string> = {
 }
 
 const templateOptions = [
-  { id: 'blank',      name: '空白模板', desc: '自由配置',   thumbnail: svgTemplates.blank.replace('class="w-full h-auto block"', 'style="width:100%;height:auto"') },
-  { id: 'studio',     name: '套房型',   desc: '一室一廳',   thumbnail: svgTemplates.studio.replace('class="w-full h-auto block"', 'style="width:100%;height:auto"') },
-  { id: 'onebedroom', name: '一房一廳', desc: '兩室一廳',   thumbnail: svgTemplates.onebedroom.replace('class="w-full h-auto block"', 'style="width:100%;height:auto"') },
-  { id: 'twobedroom', name: '兩房一廳', desc: '三室一廳',   thumbnail: svgTemplates.twobedroom.replace('class="w-full h-auto block"', 'style="width:100%;height:auto"') },
+  { id: 'blank',      name: '空白模板', desc: '自由配置',   thumbnail: svgTemplates['blank']!.replace('class="w-full h-auto block"', 'style="width:100%;height:auto"') },
+  { id: 'studio',     name: '套房型',   desc: '一室一廳',   thumbnail: svgTemplates['studio']!.replace('class="w-full h-auto block"', 'style="width:100%;height:auto"') },
+  { id: 'onebedroom', name: '一房一廳', desc: '兩室一廳',   thumbnail: svgTemplates['onebedroom']!.replace('class="w-full h-auto block"', 'style="width:100%;height:auto"') },
+  { id: 'twobedroom', name: '兩房一廳', desc: '三室一廳',   thumbnail: svgTemplates['twobedroom']!.replace('class="w-full h-auto block"', 'style="width:100%;height:auto"') },
 ]
 
 // --- Load & Save ---

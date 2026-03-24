@@ -59,7 +59,7 @@ export const useBillStore = defineStore('bill', () => {
   };
 
   // --- 統計 computed ---
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = new Date().toISOString().split('T')[0] as string;
 
   const pendingBills = computed(() =>
     bills.value.filter(b => b.status === 'pending' && !(b.dueDate && b.dueDate < todayStr))

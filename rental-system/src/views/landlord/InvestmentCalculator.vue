@@ -314,10 +314,8 @@ function progressiveTax(income: number): number {
 }
 
 function getMarginalRate(income: number): number {
-  let prev = 0
   for (const bracket of TAX_BRACKETS) {
     if (income <= bracket.limit) return bracket.rate
-    prev = bracket.limit
   }
   return 0.40
 }

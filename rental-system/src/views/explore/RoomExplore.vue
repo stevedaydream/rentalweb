@@ -392,7 +392,7 @@ const maskAddress = (address: string): string => {
 
 const getCoverImage = (room: PublicRoom): string => {
   if (room.coverImage) return room.coverImage;
-  if (room.images?.length) return room.images[0];
+  if (room.images?.length) return room.images[0] as string;
   return defaultImage;
 };
 
@@ -426,7 +426,7 @@ const filteredRooms = computed(() => {
     }
     if (filterLayout.value && room.layout !== filterLayout.value) return false;
     if (filterPrice.value) {
-      const [min, max] = filterPrice.value.split('-').map(Number);
+      const [min, max] = filterPrice.value.split('-').map(Number) as [number, number];
       if (room.price < min || room.price > max) return false;
     }
     return true;

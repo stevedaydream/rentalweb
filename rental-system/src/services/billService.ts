@@ -4,7 +4,6 @@ import {
   onSnapshot, query, orderBy, serverTimestamp, where, limit,
   type Unsubscribe,
 } from 'firebase/firestore'
-import type { Bill } from '../types/index'
 
 // Firestore 'bills' collection uses a broader shape than the shared Bill type.
 // These extended types reflect the actual document structure.

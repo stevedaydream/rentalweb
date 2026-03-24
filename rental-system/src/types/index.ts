@@ -2,23 +2,26 @@
 // Enums
 // ===========================
 
-export enum RoomStatus {
-  Occupied = 'occupied',
-  Vacant = 'vacant',
-  Maintenance = 'maintenance'
-}
+export const RoomStatus = {
+  Occupied: 'occupied',
+  Vacant: 'vacant',
+  Maintenance: 'maintenance'
+} as const;
+export type RoomStatus = typeof RoomStatus[keyof typeof RoomStatus];
 
-export enum BillStatus {
-  Pending = 'pending',
-  Completed = 'completed',
-  Overdue = 'overdue'
-}
+export const BillStatus = {
+  Pending: 'pending',
+  Completed: 'completed',
+  Overdue: 'overdue'
+} as const;
+export type BillStatus = typeof BillStatus[keyof typeof BillStatus];
 
-export enum RepairStatus {
-  Pending = 'pending',
-  Processing = 'processing',
-  Resolved = 'resolved'
-}
+export const RepairStatus = {
+  Pending: 'pending',
+  Processing: 'processing',
+  Resolved: 'resolved'
+} as const;
+export type RepairStatus = typeof RepairStatus[keyof typeof RepairStatus];
 
 // ===========================
 // Core Interfaces

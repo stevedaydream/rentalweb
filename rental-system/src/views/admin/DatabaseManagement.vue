@@ -224,7 +224,7 @@ import { db } from '../../firebase/config';
 import { useToastStore } from '../../stores/toast';
 import {
   collection, getDocs, query, where, addDoc,
-  serverTimestamp, doc, setDoc, writeBatch, updateDoc
+  serverTimestamp, doc, setDoc, writeBatch
 } from 'firebase/firestore';
 
 interface RoomItem {

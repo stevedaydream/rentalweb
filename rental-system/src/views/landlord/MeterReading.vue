@@ -561,7 +561,7 @@ const calculateUsage = (room: MeterEntry) => Math.max(0, (room.currentReading ||
 const calculateResult = (room: MeterEntry) => calculateElectricity(room);
 const validateReading = (room: MeterEntry) => !((room.currentReading || 0) < room.lastReading && room.currentReading !== undefined);
 const totalEstimatedCost = computed(() => meterData.value.reduce((sum, r) => sum + calculateResult(r).cost, 0));
-const totalUsage = computed(() => meterData.value.reduce((sum, r) => sum + calculateUsage(r), 0));
+
 const hasValidChanges = computed(() => pendingSaveCount.value > 0);
 
 // --- 操作 ---

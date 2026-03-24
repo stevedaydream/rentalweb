@@ -21,7 +21,7 @@
         <button
           v-for="tab in tabs"
           :key="tab.id"
-          @click="activeTab = tab.id"
+          @click="activeTab = tab.id as 'map' | 'rules'"
           class="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           :class="activeTab === tab.id
             ? 'bg-white dark:bg-card-dark text-gold-600 shadow-sm'
@@ -227,7 +227,6 @@ const isLoading = ref(true)
 const buildingInfo = ref<BuildingInfo>({ mapType: '', markers: [], facilities: [], shapes: [] })
 const infoMarker = ref<Marker | null>(null)
 const activeTab = ref<'map' | 'rules'>('map')
-const mapEl = ref<HTMLElement | null>(null)
 
 const tabs = [
   { id: 'map', label: '互動地圖' },

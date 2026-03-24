@@ -221,7 +221,6 @@ import {
   doc,
   getDoc,
   updateDoc,
-  getDocs,
   serverTimestamp,
   orderBy
 } from 'firebase/firestore';

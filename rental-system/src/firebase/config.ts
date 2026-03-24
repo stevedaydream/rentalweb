@@ -6,13 +6,13 @@ import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAVRqlmXqHpY5zSWjHgYbESTdXPBPSsg8w",
-  authDomain: "rental-8897a.firebaseapp.com",
-  projectId: "rental-8897a",
-  storageBucket: "rental-8897a.firebasestorage.app",
-  messagingSenderId: "594733001884",
-  appId: "1:594733001884:web:c5f938075873db45fb9159",
-  measurementId: "G-NC6MHSWKEW"
+  apiKey: "AIzaSyB9dScnoKGiImeaUjsLFdAgEICSbuWxyDQ",
+  authDomain: "rental-system-7675e.firebaseapp.com",
+  projectId: "rental-system-7675e",
+  storageBucket: "rental-system-7675e.firebasestorage.app",
+  messagingSenderId: "578769186798",
+  appId: "1:578769186798:web:1b7cb582a3f573f1a4e8ff",
+  measurementId: "G-YN3V4GQP3N"
 };
 
 const app = initializeApp(firebaseConfig);

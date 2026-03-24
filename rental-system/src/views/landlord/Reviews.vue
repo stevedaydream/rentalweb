@@ -33,7 +33,7 @@
     <div class="flex items-center gap-3">
       <button
         v-for="f in filters" :key="f.value"
-        @click="activeFilter = f.value"
+        @click="activeFilter = f.value as 'all' | 'visible' | 'hidden'"
         class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
         :class="activeFilter === f.value
           ? 'bg-blue-600 text-white'

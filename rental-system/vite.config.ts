@@ -4,7 +4,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { visualizer } from 'rollup-plugin-visualizer'
 
 export default defineConfig({
-  plugins: [vue(),
+  plugins: [
+    vue(),
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
@@ -23,6 +24,11 @@ export default defineConfig({
             type: 'image/png'
           }
         ]
+      },
+      workbox: {
+        // 【加入這行】告訴 Service Worker 不要攔截 Firebase 的內部路由
+        navigateFallbackDenylist: [/^\/__/],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}']
       }
     }),
     // Bundle 分析（僅在 npm run analyze 時啟用）
