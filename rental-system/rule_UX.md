@@ -1,7 +1,7 @@
 # rule_UX.md — 租屋系統 UX 設計規範
 
 > 本文件定義各角色完整操作流程與 UX 規則，供開發、設計與 AI 協作時統一遵循。
-> 最後更新：2026-03-23
+> 最後更新：2026-03-24
 
 ---
 
@@ -24,11 +24,11 @@
 |-------------|---------------|--------------------------|-------------|
 | 訪客（找房） | `/explore`    | 無（獨立頁面）            | 藍色         |
 | 未登入       | `/`           | 無（全螢幕）              | —           |
-| 房東         | `/landlord/`  | `LandlordLayout.vue`     | 藍/靛色      |
+| 房東         | `/landlord/`  | `LandlordLayout.vue`     | 金色/靛色    |
 | 租客         | `/tenant/`    | `TenantLayout.vue`       | 綠/藍色      |
 | 管理員       | `/admin/`     | `SuperAdminLayout.vue`   | 深色＋紅色   |
 
-**入口選擇頁** (`/`)：使用者選擇「房東」或「租客」身份後，角色暫存至 localStorage，進入 Login 頁面。頁面底部提供「瀏覽空置房間（無需登入）」連結至 `/explore`。
+**入口選擇頁** (`/`)：使用者選擇「房東」或「租客」身份後進入 Login 頁面。頁面底部提供「瀏覽空置房間（無需登入）」連結至 `/explore`。
 
 **兩條截然不同的路線：**
 ```
@@ -95,29 +95,37 @@
 
 ### 資料來源
 - 查詢條件：`isPublic == true` AND `status == 'vacant'`
-- 每筆 room 文件包含 `landlordName`、`landlordPhone`（房東儲存時寫入）
+- 每筆 room 文件包含 `landlordName`、`landlordPhone`（房東儲存時 denormalize 寫入）
+- 每筆 room 另批次查詢 `public_profiles/{landlordId}` 取得 `lineBotId`、`avgRating`、`reviewCount`
 
-### 房間卡片內容
+### 房間卡片功能
 - 封面照片（hover 放大效果）
 - 格局標籤 overlay（左下）
-- 照片數 overlay（右下）
+- **照片數 overlay（右下）→ 點擊開啟照片 Lightbox（全屏放大，支援左右切換 + 縮圖列）**
 - 房源名稱、月租金
-- **地址隱私**：只顯示城市+行政區（如「台北市大安區」），不顯示完整地址
+- **地址隱私**：只顯示城市+行政區（如「台北市大安區」），點擊開啟 Google Maps 新分頁（完整地址搜尋）
 - 規格 chips：坪數、格局
-- 房東姓名（頭像以姓名首字顯示）
-- 「聯絡房東」按鈕 → 點擊後顯示電話號碼（可直接撥打）
+- 房東姓名（頭像以姓名首字顯示）+ 評分星數
+- 「電話」按鈕 → 點擊後顯示號碼（防爬蟲）
+- 「LINE 詢問」按鈕（如房東有設定 LINE Bot）
+
+### 房東個人頁 (`/explore/landlord/:landlordId`)
+- 從 `public_profiles` 讀取：`displayName`、`name`（fallback）、`description`、`lineBotId`
+- 顯示評分、評價列表（`isVisible == true` 的評價）
+- 撰寫評價表單：姓名（暱稱可）、星評 1–5、內容
+  - 評價提交由前端 `addDoc(reviews)` 完成（不需登入）
+  - `public_profiles.avgRating` / `reviewCount` 由 Cloud Function `onReviewCreated` 自動更新（不在前端更新）
 
 ### UX 規則
-- 「聯絡房東」按鈕點一下才顯示電話（防爬蟲、避免直接曝光）
+- 「電話」按鈕點一下才顯示電話（防爬蟲、避免直接曝光）
 - 載入時顯示 Skeleton 卡片（6 張）
 - 無結果時顯示空白狀態 + 建議調整篩選
 - 篩選變更即時重新過濾（前端過濾，無需重新查詢）
-- `/explore` 不受 router guard 攔截（已登入者也可訪問）
+- `/explore` 與 `/explore/landlord/:id` 不受 router guard 攔截（已登入者也可訪問）
 
 ### isPublic 欄位（房東端）
 - 只有 `status === 'vacant'` 的房間可以開啟 `isPublic`
 - 狀態改為 `occupied` 或 `maintenance` 時，`isPublic` 自動設為 `false`
-- 儲存時，server-side 也強制確保非空置房間不會 `isPublic = true`
 - 房間卡片顯示「公開刊登」綠色小徽章（右上角）
 - Modal 中的 toggle 在非空置狀態時顯示 disabled
 
@@ -125,19 +133,19 @@
 
 ## 4. 房東 UX 流程
 
-### 導覽結構（側邊欄，12 項）
+### 導覽結構（側邊欄，15 項）
 
 ```
-儀表板 → 房間管理 → 租客名單 → 公告 → 財務管理
-→ 電表登錄 → 電表歷史 → 報修管理 → 電子合約 → 收據
-→ 訊息中心 → 系統設定
+儀表板 → 房源管理 → 租客列表 → 社區公告 → 帳務管理
+→ 投資試算 → 電表登錄 → 電表歷史 → 報修管理 → 大樓資訊
+→ 電子合約 → 收據產生 → 評價管理 → 訊息中心 → 系統設定
 ```
 
-通知徽章顯示於：**訊息中心**（未讀數）、**報修管理**（待處理數）
+通知徽章顯示於：**訊息中心**（未讀數）、**報修管理**（待處理件數）、**租客列表**（逾期未繳數）
 
 ---
 
-### 3.1 儀表板 (`/landlord/dashboard`)
+### 4.1 儀表板 (`/landlord/dashboard`)
 
 **目的**：一覽物業狀態、財務概況、快速操作
 
@@ -154,7 +162,7 @@
 
 ---
 
-### 3.2 房間管理 (`/landlord/rooms`)
+### 4.2 房源管理 (`/landlord/rooms`)
 
 **目的**：新增、編輯、刪除租賃物件
 
@@ -169,10 +177,11 @@
 - 房型選項：獨立套房 / 分租套房 / 雅房 / 整層住家
 - 狀態為「已入住」時才顯示租客資訊欄位
 - 儲存成功後卡片即時更新，無需重新整理
+- 儲存時自動 denormalize `landlordName`、`landlordPhone` 至 room 文件（供找房頁使用）
 
 ---
 
-### 3.3 租客名單 (`/landlord/tenants`)
+### 4.3 租客列表 (`/landlord/tenants`)
 
 **目的**：管理所有租約關係
 
@@ -191,7 +200,7 @@
 
 ---
 
-### 3.4 公告 (`/landlord/announcements`)
+### 4.4 社區公告 (`/landlord/announcements`)
 
 **類別**：一般通知 / 重要公告 / 維修通知 / 活動訊息
 
@@ -202,7 +211,7 @@
 
 ---
 
-### 3.5 財務管理 (`/landlord/financials`)
+### 4.5 帳務管理 (`/landlord/financials`)
 
 **月份切換**：上/下月箭頭，預設當月
 
@@ -219,7 +228,17 @@
 
 ---
 
-### 3.6 電表登錄 (`/landlord/meter-reading`)
+### 4.6 投資試算 (`/landlord/investment`)
+
+**目的**：計算投報率、預期收益、稅務成本
+
+**UX 規則**：
+- 試算結果即時更新（無需按計算按鈕）
+- 數字以千分位格式顯示
+
+---
+
+### 4.7 電表登錄 (`/landlord/meter-reading`)
 
 **目的**：批量登錄各房間電錶讀數並計算電費
 
@@ -236,7 +255,7 @@
 
 ---
 
-### 3.7 電表歷史 (`/landlord/meter-history`)
+### 4.8 電表歷史 (`/landlord/meter-history`)
 
 **篩選**：月份 × 房間
 **欄位**：日期、房間、上期讀數、本期讀數、用電量、費用
@@ -244,7 +263,7 @@
 
 ---
 
-### 3.8 報修管理 (`/landlord/repairs`)
+### 4.9 報修管理 (`/landlord/repairs`)
 
 **優先級顏色**：高=紅、中=橙、低=藍
 
@@ -260,20 +279,17 @@
 
 ---
 
-### 3.9 訊息中心 (`/landlord/messages`)
+### 4.10 大樓資訊 (`/landlord/building-info`)
 
-**Tab**：全部 / 未讀 / 已回覆
-
-**來源徽章**：LINE（藍）/ Web（灰）
+**內容**：逃生圖、設施位置、使用規範、注意事項
 
 **UX 規則**：
-- 開啟訊息對話後，該訊息自動標記為已讀
-- 回覆送出後，訊息移入「已回覆」tab
-- 側邊欄徽章 = 未讀數
+- 可上傳圖片（逃生圖等）
+- 租客端同步顯示（唯讀）
 
 ---
 
-### 3.10 電子合約 (`/landlord/contracts`)
+### 4.11 電子合約 (`/landlord/contract`)
 
 **兩步驟流程**：
 1. 填寫合約資訊（房間、租客、租期、金額、簽名）
@@ -286,7 +302,7 @@
 
 ---
 
-### 3.11 收據 (`/landlord/receipts`)
+### 4.12 收據產生 (`/landlord/receipts`)
 
 **類型**：租金收據 / 押金收據
 
@@ -296,28 +312,55 @@
 
 ---
 
-### 3.12 系統設定 (`/landlord/settings`)
+### 4.13 評價管理 (`/landlord/reviews`)
+
+**目的**：查看租客對自己的評價，可回覆或隱藏
+
+**UX 規則**：
+- 房東可隱藏不實或不當評價（`isVisible` 設為 `false`）
+- 房東可針對每則評價回覆一次（`landlordReply` 欄位）
+- 隱藏的評價在租客端不顯示，但管理員可見
+- 平均評分與評價數由 Cloud Function `onReviewCreated` 自動更新至 `public_profiles`，**不在前端寫入**
+
+---
+
+### 4.14 訊息中心 (`/landlord/messages`)
+
+**Tab**：全部 / 未讀 / 已回覆
+
+**來源徽章**：LINE（綠）/ Web（灰）
+
+**UX 規則**：
+- 開啟訊息對話後，該訊息自動標記為已讀
+- 回覆送出後，訊息移入「已回覆」tab
+- 側邊欄徽章 = 未讀數
+
+---
+
+### 4.15 系統設定 (`/landlord/settings`)
 
 **區塊**：
 - 基本資訊（姓名、手機、Email — Email 唯讀）
+  - 儲存時同步更新 `public_profiles.displayName` 與 `public_profiles.name`（供找房頁顯示）
 - 預設匯款帳戶（銀行代號、帳號、戶名）
-- 系統偏好設定
+- LINE Bot 設定（Channel Secret、Access Token）
+  - 儲存後同步 `lineBotId` 至 `public_profiles`
 
 ---
 
 ## 5. 租客 UX 流程
 
-### 導覽結構（側邊欄，5 項）
+### 導覽結構（側邊欄，6 項）
 
 ```
-儀表板 → 我的帳單 → 社區公告 → 報修申請 → 聯繫房東
+儀表板 → 我的帳單 → 社區公告 → 報修申請 → 聯繫房東 → 大樓資訊
 ```
 
 通知指示：**聯繫房東** 顯示「有新回覆」脈衝點
 
 ---
 
-### 4.1 儀表板 (`/tenant/dashboard`)
+### 5.1 儀表板 (`/tenant/dashboard`)
 
 **區塊**：
 - 左：租約資訊卡（房間號、租期、月租、繳款日）
@@ -331,7 +374,7 @@
 
 ---
 
-### 4.2 我的帳單 (`/tenant/bills`)
+### 5.2 我的帳單 (`/tenant/bills`)
 
 **Tab**：未繳 / 已繳
 
@@ -344,7 +387,7 @@
 
 ---
 
-### 4.3 社區公告 (`/tenant/announcements`)
+### 5.3 社區公告 (`/tenant/announcements`)
 
 **唯讀**：租客只能瀏覽，不可發文
 
@@ -355,7 +398,7 @@
 
 ---
 
-### 4.4 報修申請 (`/tenant/repairs`)
+### 5.4 報修申請 (`/tenant/repairs`)
 
 **狀態查看**：
 ```
@@ -374,13 +417,13 @@
 
 ---
 
-### 4.5 聯繫房東 (`/tenant/contact`)
+### 5.5 聯繫房東 (`/tenant/contact`)
 
 **左側**：房東資訊卡（姓名、電話可撥打、Email 可複製、LINE ID 可複製）
 
 **LINE Bot 綁定**：
 - 顯示綁定狀態（已綁定 / 未綁定）
-- 未綁定：顯示 QR Code
+- 未綁定：顯示綁定說明
 - 已綁定：顯示解除綁定按鈕
 
 **右側**：訊息對話（類 chat UI）
@@ -394,6 +437,12 @@
 
 ---
 
+### 5.6 大樓資訊 (`/tenant/building-info`)
+
+**唯讀**：查看房東上傳的逃生圖、設施位置、使用規範
+
+---
+
 ## 6. 管理員 UX 流程
 
 ### 導覽結構（深色側邊欄，5 項）
@@ -404,7 +453,7 @@
 
 ---
 
-### 5.1 系統總覽 (`/admin/dashboard`)
+### 6.1 系統總覽 (`/admin/dashboard`)
 
 **統計**：總房東數、總租客數、未配對租客數（紅色醒目）
 
@@ -412,7 +461,7 @@
 
 ---
 
-### 5.2 房東管理 (`/admin/landlords`)
+### 6.2 房東管理 (`/admin/landlords`)
 
 **操作**：搜尋、分頁、模擬登入（Impersonate）、同步、刪除
 
@@ -420,10 +469,11 @@
 - 進入模擬模式後，頂端顯示「目前模擬：{房東名稱}」警示列
 - 任何寫入操作使用該房東的 `effectiveUid`
 - 側邊欄顯示「結束模擬」按鈕，點擊後恢復管理員身份
+- 房東側邊欄登出按鈕改為「結束模擬」
 
 ---
 
-### 5.3 租客與配對 (`/admin/tenants`)
+### 6.3 租客與配對 (`/admin/tenants`)
 
 **統計**：總租客、已配對、未配對（紅色警示）
 
@@ -437,7 +487,7 @@
 
 ---
 
-### 5.4 資料庫操作 (`/admin/database`)
+### 6.4 資料庫操作 (`/admin/database`)
 
 **高風險操作規則**：
 - 批量刪除需輸入確認文字
@@ -446,7 +496,7 @@
 
 ---
 
-### 5.5 系統模擬器 (`/admin/simulator`)
+### 6.5 系統模擬器 (`/admin/simulator`)
 
 **用途**：測試使用者流程、帳單計算、電表邏輯
 
@@ -458,7 +508,7 @@
 
 ## 7. 共用 UX 規則
 
-### 6.1 Toast 通知
+### 7.1 Toast 通知
 
 | 場景             | 類型    | 持續時間 |
 |------------------|---------|---------|
@@ -470,26 +520,26 @@
 - 使用 `ToastContainer.vue`，位置：右下角
 - 同時最多顯示 3 則，超過則佇列等待
 
-### 6.2 Modal 規則
+### 7.2 Modal 規則
 
 - 開啟 Modal 時背景加深遮罩（`bg-black/50`）
 - ESC 鍵關閉 Modal（需先確認有無未儲存變更）
 - 確認刪除的 Modal 需使用紅色確認按鈕
 - 必填欄位標示 `*`，submit 時統一驗證並 focus 第一個錯誤欄位
 
-### 6.3 載入狀態
+### 7.3 載入狀態
 
 - 資料載入中：顯示 Skeleton 或 Spinner
 - 按鈕操作中：按鈕 disabled + 顯示 loading icon，防止重複觸發
 - 非同步操作失敗：顯示 error Toast，按鈕恢復正常
 
-### 6.4 響應式設計
+### 7.4 響應式設計
 
-- 斷點：`md` (768px) 以上顯示側邊欄；以下改為 Hamburger 選單
+- 斷點：`lg` (1024px) 以上固定顯示側邊欄；以下改為 Hamburger 選單
 - 表格在手機版改為卡片列表
-- Modal 在手機版為全螢幕
+- Modal 在手機版為底部滑入或全螢幕
 
-### 6.5 表單驗證規則
+### 7.5 表單驗證規則
 
 | 欄位      | 規則                         |
 |-----------|------------------------------|
@@ -499,16 +549,17 @@
 | 金額      | 正整數，不得為 0              |
 | 日期區間   | 結束日 > 開始日               |
 
-### 6.6 空白狀態
+### 7.6 空白狀態
 
 - 每個清單/表格若無資料，顯示說明文字 + 引導操作按鈕（例如「尚無房間，點此新增」）
 - 不顯示空白表格框架
 
-### 6.7 角色路由保護
+### 7.7 角色路由保護
 
 - Router guard 依 `meta.role` 驗證，不符合角色導回對應 dashboard
 - 未登入訪問任何受保護路由，導向 `/login`
 - 管理員可訪問所有路由（含模擬登入時的房東路由）
+- `/explore`、`/explore/landlord/:id` 永遠可訪問，不受 guard 攔截
 
 ---
 
@@ -527,6 +578,8 @@
 | announcements     | `landlordId == uid`  | 透過 `boundLandlordCode` | 全部 |
 | messages          | `landlordId == uid`  | `tenantId == uid`  | 全部   |
 | meter_readings    | `landlordId == uid`  | —                  | 全部   |
+| reviews           | `landlordId == uid`  | —（公開可讀）       | 全部   |
+| public_profiles   | 自己的文件            | —（公開可讀）       | 全部   |
 
 ### 關鍵欄位（rooms）
 
@@ -534,7 +587,7 @@
 |------|------|
 | `isPublic` | boolean，控制是否顯示於 `/explore` 找房頁 |
 | `landlordName` | 房東姓名（儲存時 denormalize，避免找房頁需 join） |
-| `landlordPhone` | 房東電話（同上，僅對點擊「聯絡房東」的訪客顯示） |
+| `landlordPhone` | 房東電話（同上，僅對點擊「電話」的訪客顯示） |
 
 ### 關鍵 ID 欄位
 
@@ -543,11 +596,23 @@
 - `boundLandlordCode`：存於租客 profile，連結所屬房東
 - `effectiveUid`：管理員模擬時使用，覆蓋實際 uid
 
+### public_profiles 欄位
+
+| 欄位 | 說明 | 寫入時機 |
+|------|------|---------|
+| `displayName` | 房東顯示名稱 | 房東儲存設定時 |
+| `name` | 房東名稱（fallback） | 房東儲存設定時 |
+| `description` | 房東自介 | 房東儲存設定時 |
+| `lineBotId` | LINE Bot ID | 房東設定 LINE 時 |
+| `avgRating` | 平均評分 | Cloud Function `onReviewCreated` 自動更新 |
+| `reviewCount` | 評價數 | Cloud Function `onReviewCreated` 自動更新 |
+
 ### 寫入權限邊界
 
 - 租客**不可**修改帳單金額、公告內容、房間資料
 - 房東**不可**讀取其他房東的資料
 - 管理員寫入操作應記錄至 `admin_logs`
+- `public_profiles.avgRating` 與 `reviewCount` 只由 Cloud Function 寫入，前端不直接更新
 
 ---
 

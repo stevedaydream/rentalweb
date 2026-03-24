@@ -37,7 +37,7 @@
             </div>
             <div class="flex-1 min-w-0">
               <h1 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">
-                {{ profile.displayName || '房東' }}
+                {{ profile.displayName || profile.name || '房東' }}
               </h1>
               <!-- 星評 -->
               <div class="flex items-center gap-2 mt-1">
@@ -194,7 +194,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
-import { collection, query, where, getDocs, addDoc, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, doc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 
 interface Review {
@@ -285,13 +285,7 @@ const submitReview = async () => {
       ...newReview,
       createdAt: { toDate: () => new Date() },
     } as Review);
-    // Update cached rating in public_profiles
-    const newAvg = avgRating.value;
-    const newCount = visibleReviews.value.length;
-    await setDoc(doc(db, 'public_profiles', landlordId), {
-      avgRating: Math.round(newAvg * 10) / 10,
-      reviewCount: newCount,
-    }, { merge: true });
+    // Note: public_profiles avgRating/reviewCount is updated via Cloud Function (onReviewCreated)
     form.value = { authorName: '', rating: 0, content: '' };
     submitSuccess.value = true;
   } catch (e) {

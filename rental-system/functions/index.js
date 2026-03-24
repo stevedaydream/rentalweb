@@ -868,3 +868,33 @@ exports.scheduledReminderDaily = onSchedule(
     });
   }
 );
+
+// 評價新增時，自動更新 public_profiles 的 avgRating / reviewCount
+exports.onReviewCreated = onDocumentCreated(
+  { document: 'reviews/{reviewId}', region: 'asia-east1' },
+  async (event) => {
+    const data = event.data?.data();
+    if (!data?.landlordId || !data?.isVisible) return;
+
+    const db = getFirestore();
+    const landlordId = data.landlordId;
+
+    // 重新計算該房東所有可見評價的平均分
+    const snap = await db.collection('reviews')
+      .where('landlordId', '==', landlordId)
+      .where('isVisible', '==', true)
+      .get();
+
+    const count = snap.size;
+    const avg = count > 0
+      ? snap.docs.reduce((sum, d) => sum + (d.data().rating || 0), 0) / count
+      : 0;
+
+    await db.collection('public_profiles').doc(landlordId).set({
+      avgRating: Math.round(avg * 10) / 10,
+      reviewCount: count,
+    }, { merge: true });
+
+    logger.info('onReviewCreated: updated public_profiles', { landlordId, avg, count });
+  }
+);

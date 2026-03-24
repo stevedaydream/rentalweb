@@ -427,6 +427,7 @@ const handleSave = async () => {
     const { setDoc: sd } = await import('firebase/firestore');
     await sd(doc(db, 'public_profiles', authStore.effectiveUid), {
       displayName: formData.value.name,
+      name: formData.value.name,
       description: formData.value.description,
     }, { merge: true });
 

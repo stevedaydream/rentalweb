@@ -43,8 +43,6 @@
     <!-- 篩選列 -->
     <div class="sticky top-[57px] z-30 bg-white dark:bg-card-dark border-b border-gray-100 dark:border-gray-800 shadow-sm">
       <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap gap-3 items-center">
-
-        <!-- 搜尋（地區） -->
         <div class="relative flex-1 min-w-[160px] max-w-xs">
           <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">search</span>
           <input
@@ -54,8 +52,6 @@
             class="w-full pl-9 pr-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none"
           >
         </div>
-
-        <!-- 格局篩選 -->
         <select
           v-model="filterLayout"
           class="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none"
@@ -66,8 +62,6 @@
           <option>雅房</option>
           <option>整層住家</option>
         </select>
-
-        <!-- 價格篩選 -->
         <select
           v-model="filterPrice"
           class="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none"
@@ -79,8 +73,6 @@
           <option value="12000-18000">12,000–18,000</option>
           <option value="18000-99999">18,000 以上</option>
         </select>
-
-        <!-- 結果數 -->
         <span class="text-sm text-text-secondary-light ml-auto hidden sm:block">
           共 {{ filteredRooms.length }} 間
         </span>
@@ -129,11 +121,14 @@
             <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-white px-2 py-1 rounded-lg text-xs font-medium">
               {{ room.layout }}
             </div>
-            <!-- 照片數 -->
-            <div class="absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm text-white px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1">
+            <!-- 照片數（點擊開啟 lightbox） -->
+            <button
+              @click="openLightbox(room, 0)"
+              class="absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm hover:bg-black/80 text-white px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors"
+            >
               <span class="material-symbols-outlined text-[13px]">photo_library</span>
-              {{ room.images?.length || 1 }}
-            </div>
+              {{ getRoomImages(room).length }}
+            </button>
           </div>
 
           <!-- 內容 -->
@@ -147,11 +142,17 @@
               </span>
             </div>
 
-            <!-- 地區（只顯示城市+行政區） -->
-            <p class="text-sm text-text-secondary-light mb-3 flex items-center gap-1">
+            <!-- 地址（點擊開啟 Google 地圖） -->
+            <a
+              :href="`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(room.address)}`"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-sm text-text-secondary-light mb-3 flex items-center gap-1 hover:text-blue-600 transition-colors w-fit"
+              :title="room.address"
+            >
               <span class="material-symbols-outlined text-[15px]">location_on</span>
               {{ maskAddress(room.address) }}
-            </p>
+            </a>
 
             <!-- 規格 chips -->
             <div class="flex flex-wrap gap-2 mb-4">
@@ -197,7 +198,6 @@
 
                 <!-- 聯絡按鈕群 -->
                 <div class="flex items-center gap-1.5">
-                  <!-- LINE 詢問 -->
                   <a
                     v-if="room.landlordLineBotId"
                     :href="`https://line.me/R/ti/p/${room.landlordLineBotId}`"
@@ -211,8 +211,6 @@
                     </svg>
                     LINE 詢問
                   </a>
-
-                  <!-- 電話 -->
                   <button
                     v-if="revealedContact !== room.id"
                     @click="revealedContact = room.id"
@@ -251,6 +249,61 @@
       </div>
     </footer>
 
+    <!-- ===== 照片 Lightbox ===== -->
+    <Teleport to="body">
+      <div
+        v-if="lightboxRoom"
+        class="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
+        @click.self="closeLightbox"
+      >
+        <!-- 關閉 -->
+        <button @click="closeLightbox" class="absolute top-4 right-4 text-white/70 hover:text-white">
+          <span class="material-symbols-outlined text-[32px]">close</span>
+        </button>
+
+        <!-- 計數 -->
+        <div class="absolute top-4 left-1/2 -translate-x-1/2 text-white/70 text-sm">
+          {{ lightboxIndex + 1 }} / {{ getRoomImages(lightboxRoom).length }}
+        </div>
+
+        <!-- 主圖 -->
+        <img
+          :src="getRoomImages(lightboxRoom)[lightboxIndex]"
+          class="max-w-full max-h-[80vh] object-contain rounded-lg select-none"
+          alt="放大圖"
+        >
+
+        <!-- 左右箭頭 -->
+        <button
+          v-if="lightboxIndex > 0"
+          @click="lightboxIndex--"
+          class="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
+        >
+          <span class="material-symbols-outlined text-[28px]">chevron_left</span>
+        </button>
+        <button
+          v-if="lightboxIndex < getRoomImages(lightboxRoom).length - 1"
+          @click="lightboxIndex++"
+          class="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
+        >
+          <span class="material-symbols-outlined text-[28px]">chevron_right</span>
+        </button>
+
+        <!-- 縮圖列 -->
+        <div v-if="getRoomImages(lightboxRoom).length > 1" class="absolute bottom-4 left-0 right-0 flex justify-center gap-2 px-4 overflow-x-auto">
+          <button
+            v-for="(img, i) in getRoomImages(lightboxRoom)"
+            :key="i"
+            @click="lightboxIndex = i"
+            class="flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all"
+            :class="i === lightboxIndex ? 'border-white' : 'border-transparent opacity-50 hover:opacity-75'"
+          >
+            <img :src="img" class="w-full h-full object-cover" alt="">
+          </button>
+        </div>
+      </div>
+    </Teleport>
+
   </div>
 </template>
 
@@ -284,6 +337,10 @@ const filterLayout = ref('');
 const filterPrice = ref('');
 const revealedContact = ref<string | null>(null);
 
+// Lightbox 狀態
+const lightboxRoom = ref<PublicRoom | null>(null);
+const lightboxIndex = ref(0);
+
 const defaultImage = 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1470&q=80';
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -302,7 +359,6 @@ onMounted(async () => {
     const snap = await getDocs(q);
     const rawRooms = snap.docs.map(d => ({ id: d.id, ...d.data() } as PublicRoom));
 
-    // Batch-fetch public_profiles for unique landlordIds to get lineBotId
     const landlordIds = [...new Set(rawRooms.map(r => r.landlordId).filter(Boolean))] as string[];
     const profileMap: Record<string, any> = {};
     await Promise.all(
@@ -329,10 +385,8 @@ onMounted(async () => {
 
 const maskAddress = (address: string): string => {
   if (!address) return '地區未公開';
-  // 嘗試擷取城市+行政區（台北市大安區 / 新北市板橋區 等）
   const match = address.match(/^(.{2,3}[市縣])(.{2,4}[區鄉鎮市])?/);
   if (match) return (match[1] || '') + (match[2] || '');
-  // fallback: 只顯示前 6 字
   return address.slice(0, 6) + (address.length > 6 ? '...' : '');
 };
 
@@ -342,16 +396,35 @@ const getCoverImage = (room: PublicRoom): string => {
   return defaultImage;
 };
 
+const getRoomImages = (room: PublicRoom): string[] => {
+  const seen = new Set<string>();
+  const imgs: string[] = [];
+  if (room.coverImage) { seen.add(room.coverImage); imgs.push(room.coverImage); }
+  if (room.images?.length) {
+    room.images.forEach(img => { if (!seen.has(img)) { seen.add(img); imgs.push(img); } });
+  }
+  if (imgs.length === 0) imgs.push(defaultImage);
+  return imgs;
+};
+
+const openLightbox = (room: PublicRoom, index: number) => {
+  lightboxRoom.value = room;
+  lightboxIndex.value = index;
+  document.body.style.overflow = 'hidden';
+};
+
+const closeLightbox = () => {
+  lightboxRoom.value = null;
+  document.body.style.overflow = '';
+};
+
 const filteredRooms = computed(() => {
   return rooms.value.filter(room => {
-    // 地區搜尋
     if (searchQuery.value) {
       const q = searchQuery.value.toLowerCase();
       if (!room.address.toLowerCase().includes(q) && !room.name.toLowerCase().includes(q)) return false;
     }
-    // 格局篩選
     if (filterLayout.value && room.layout !== filterLayout.value) return false;
-    // 價格篩選
     if (filterPrice.value) {
       const [min, max] = filterPrice.value.split('-').map(Number);
       if (room.price < min || room.price > max) return false;
