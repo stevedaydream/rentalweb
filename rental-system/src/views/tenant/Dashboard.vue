@@ -549,13 +549,16 @@ const fetchDashboardData = async () => {
     userProfile.email = authStore.user.email || '';
     userProfile.landlordId = authStore.userProfile.landlordId || '';
     
-    // 如果有房東 ID，嘗試讀取房東名稱
+    // 如果有房東 ID，嘗試讀取房東名稱與繳費設定
     if (userProfile.landlordId) {
       const landlordSnap = await getDoc(doc(db, 'users', userProfile.landlordId));
       if (landlordSnap.exists()) {
-        // [修改] 確保 data() 存在
         const data = landlordSnap.data();
-        if (data) userProfile.landlordName = data.name;
+        if (data) {
+          userProfile.landlordName = data.name;
+          // 儲存房東的繳費截止日設定，section B 會用來覆蓋合約靜態值
+          (userProfile as any)._landlordPaymentDay = data.settings?.paymentDay ?? null;
+        }
       }
     }
   }
@@ -577,7 +580,8 @@ const fetchDashboardData = async () => {
       rentalInfo.leaseStart = data.startDate;
       rentalInfo.leaseEnd = data.endDate;
       rentalInfo.rent = Number(data.rent);
-      rentalInfo.paymentDay = data.paymentDay || 5;
+      // 優先使用房東系統設定的繳費日，其次才是合約靜態值
+      rentalInfo.paymentDay = (userProfile as any)._landlordPaymentDay ?? data.paymentDay ?? 5;
 
       // 押金狀態
       if (Array.isArray(data.deposits) && data.deposits.length > 0) {

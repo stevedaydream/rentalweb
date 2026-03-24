@@ -109,9 +109,11 @@ const menuItems = [
   { id: 'meter', name: '電表登錄', to: { name: 'MeterReading' }, icon: 'electric_meter' },
   { id: 'meter-history', name: '電表歷史', to: { name: 'MeterReadingHistory' }, icon: 'history' },
   { id: 'repairs', name: '報修管理', to: { name: 'RepairRequests' }, icon: 'build' },
+  { id: 'building', name: '大樓資訊', to: { name: 'LandlordBuildingInfo' }, icon: 'apartment' },
   { id: 'contract', name: '電子合約', to: { name: 'Contract' }, icon: 'history_edu' },
   { id: 'receipts', name: '收據產生', to: { name: 'Receipts' }, icon: 'receipt' },
-  { id: 'messages', name: '訊息中心', to: { name: 'LandlordMessages' }, icon: 'chat', badgeColor: 'bg-red-500 text-white' }, 
+  { id: 'reviews', name: '評價管理', to: { name: 'LandlordReviews' }, icon: 'star' },
+  { id: 'messages', name: '訊息中心', to: { name: 'LandlordMessages' }, icon: 'chat', badgeColor: 'bg-red-500 text-white' },
   { id: 'settings', name: '系統設定', to: { name: 'Settings' }, icon: 'settings' },
 ];
 

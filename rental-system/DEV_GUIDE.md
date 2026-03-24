@@ -85,28 +85,29 @@ https://xxxx-xxxx-xxxx.trycloudflare.com
 
 ### 設定 LINE Webhook（本地測試用）
 
+> ⚠️ **多房東架構**：Webhook URL 必須帶 `?lid={房東UID}`，LINE 才知道這是哪位房東的 Bot。
+
 將 LINE Developers Console → Webhook URL 改為：
 ```
-https://xxxx-xxxx-xxxx.trycloudflare.com/rental-8897a/asia-east1/lineWebhook
+https://xxxx-xxxx-xxxx.trycloudflare.com/rental-8897a/asia-east1/lineWebhook?lid=你的Firebase_UID
 ```
+
+你的 Firebase UID 可在本地系統登入後，從瀏覽器 DevTools → Console 輸入 `firebase.auth().currentUser.uid` 取得，或到 Emulator UI → Authentication 查看。
 
 > ⚠️ Cloudflare 免費 Tunnel URL 每次重啟都會變，需重新貼到 LINE Console。
 
 ### 設定本地 LINE 設定檔
 
-模擬器的 Firestore 是空的，需手動建立 LINE 設定文件。
+本地模擬器透過 `functions/.env` 讀取 LINE 金鑰（不需要在 Emulator Firestore 手動建文件）：
 
-開啟 `http://localhost:4000`（Emulator UI）→ Firestore → 新增：
-- Collection：`settings`
-- Document ID：`line`
-- 欄位：
-  ```
-  channelSecret      → 你的 Channel Secret
-  channelAccessToken → 你的 Channel Access Token
-  landlordId         → 你的 Firebase UID
-  ```
+```env
+# functions/.env
+LINE_CHANNEL_SECRET=你的_Channel_Secret
+LINE_CHANNEL_ACCESS_TOKEN=你的_Channel_Access_Token
+LINE_LANDLORD_ID=你的_Firebase_UID
+```
 
-> 或直接登入本地系統，到「設定 → LINE Bot」儲存即可。
+> `functions/.env` 已加入 `.gitignore`，不會被提交。
 
 ---
 
@@ -156,10 +157,14 @@ Vite 依據 `npm run dev`（DEV）或 `npm run build`（PROD）自動選擇。
 
 ## 五、LINE Webhook URL 對照
 
+> 多房東架構：每位房東的 Webhook URL 結尾需帶 `?lid={landlordId}`。
+
 | 環境 | Webhook URL |
 |------|-------------|
-| 本地測試 | `https://<cloudflare-tunnel>/rental-8897a/asia-east1/lineWebhook` |
-| 正式雲端 | `https://linewebhook-lwja67gasq-de.a.run.app` |
+| 本地測試 | `https://<cloudflare-tunnel>/rental-8897a/asia-east1/lineWebhook?lid={UID}` |
+| 正式雲端 | `https://asia-east1-rental-8897a.cloudfunctions.net/lineWebhook?lid={UID}` |
+
+房東在系統「設定 → LINE Bot」頁面可直接複製帶有自己 UID 的完整 URL。
 
 ---
 
@@ -190,9 +195,10 @@ Vite 依據 `npm run dev`（DEV）或 `npm run build`（PROD）自動選擇。
 
 - [ ] `npm start` 已啟動（或 `npm run dev:emulator` + `npm run dev`）
 - [ ] `cloudflared tunnel --url http://localhost:5001` 已啟動
-- [ ] LINE Console Webhook URL 改為 Tunnel URL
-- [ ] Emulator Firestore `settings/line` 文件已建立
+- [ ] `functions/.env` 已填入 `LINE_CHANNEL_SECRET`、`LINE_CHANNEL_ACCESS_TOKEN`、`LINE_LANDLORD_ID`
+- [ ] LINE Console → Webhook URL 改為 `https://<tunnel>/rental-8897a/asia-east1/lineWebhook?lid={UID}`
 - [ ] LINE Console → Use webhook 已開啟
+- [ ] LINE Console → 點 Verify → 回傳 200 OK
 
 ### 本地 → 推送正式
 
@@ -206,10 +212,154 @@ Vite 依據 `npm run dev`（DEV）或 `npm run build`（PROD）自動選擇。
 
 ---
 
-## 八、常見問題
+## 八、LINE Bot Debug 排查流程
+
+當 LINE Bot 沒有反應或出現錯誤時，依以下順序逐層排查。
+
+---
+
+### Layer 1：Tunnel 是否通？
+
+**症狀**：LINE Console Verify 回傳 "A domain name that can't be resolved"
+
+```bash
+# 確認 cloudflared 有在跑，且看到 tunnel URL
+cloudflared tunnel --url http://localhost:5001
+# 應顯示：https://xxxx.trycloudflare.com
+
+# 用 PowerShell 手動戳健康狀態
+Invoke-WebRequest -Uri "https://xxxx.trycloudflare.com/rental-8897a/asia-east1/lineWebhook?lid=UID" -Method POST -Body '{"events":[]}' -ContentType "application/json"
+# 正常應回傳：{"status":"ok"}
+```
+
+**常見問題**：
+- Tunnel URL 重啟後換了 → 重新複製到 LINE Console
+- 對到 `:5173`（前端）而不是 `:5001`（Functions）→ 確認 Tunnel 指向 `http://localhost:5001`
+- 模擬器沒啟動 → 先跑 `npm start`
+
+---
+
+### Layer 2：Functions 有收到請求嗎？
+
+**症狀**：LINE Console Verify 回傳 "A timeout occurred"
+
+```bash
+# 查看模擬器 log（npm start 的終端機輸出）
+# 正常驗證 ping 應看到：
+# [emulator] LINE webhook verification ping received
+```
+
+**如果 log 完全沒有輸出**：
+- Tunnel 沒有通（回 Layer 1）
+- Functions 模擬器沒啟動（確認 port 5001 有開）
+
+**如果看到錯誤 log**：
+```
+LINE config error: 請在 functions/.env 填入...
+```
+→ `functions/.env` 未設定，參考第二節填寫
+
+---
+
+### Layer 3：簽章驗證通過了嗎？
+
+**症狀**：LINE Console Verify 成功（200），但傳訊息沒回應
+
+```bash
+# 模擬器 log 應看到：
+# Invalid LINE signature — possible spoofed request   ← 簽章錯誤
+# LINE message saved   ← 成功處理
+```
+
+**簽章失敗原因**：
+- `LINE_CHANNEL_SECRET` 填錯（注意：是 Channel **Secret** 不是 Channel ID）
+- `rawBody` 被中介層改寫 → 目前已用 `req.rawBody || Buffer.from(JSON.stringify(req.body))` 處理
+
+---
+
+### Layer 4：?lid= 參數有帶嗎？
+
+**症狀**：log 顯示 `missing ?lid= query param`，回傳 400
+
+```bash
+# 確認 Webhook URL 格式（注意 ?lid= 是必要的）
+https://xxxx.trycloudflare.com/rental-8897a/asia-east1/lineWebhook?lid=YOUR_UID
+```
+
+**取得你的 Firebase UID**：
+- Emulator UI → `http://localhost:4000` → Authentication → 找你的帳號
+- 或：瀏覽器 Console → `firebase.auth().currentUser?.uid`
+
+---
+
+### Layer 5：訊息有存入 Firestore 嗎？
+
+**症狀**：LINE Bot 沒有回覆指令，也沒收到一般訊息
+
+```bash
+# 模擬器 log 看有沒有 "LINE message saved"
+# 到 Emulator UI → Firestore → messages collection 確認有沒有新文件
+```
+
+| log 內容 | 意義 |
+|----------|------|
+| `handleCommand: 帳單` | 指令被處理，不存入 messages |
+| `LINE message saved` | 一般訊息已存入 Firestore |
+| `Cannot get LINE profile` | LINE API 拿不到使用者資料（正常，不影響功能）|
+| `Error looking up tenant by lineUserId` | 查租客資料失敗（可能是 Firestore 規則問題）|
+
+---
+
+### Layer 6：LINE API 回覆有成功嗎？
+
+**症狀**：指令有被辨識但 LINE 沒收到回訊
+
+```bash
+# 模擬器 log 看有沒有 LINE SDK 錯誤
+# 常見：
+# "The access token is invalid"  → LINE_CHANNEL_ACCESS_TOKEN 填錯
+# "Invalid reply token"          → replyToken 已過期（超過 30 秒）
+# "The bot can't send messages"  → Channel 沒有啟用 Messaging API
+```
+
+**replyToken 過期**：本地開發時偶爾會因為中斷點或 log 太多導致處理超時。直接在 LINE App 再傳一次訊息。
+
+---
+
+### 快速排查清單
+
+```
+LINE Bot 沒反應？依序確認：
+
+[ ] 1. cloudflared 在跑，且 URL 是最新的
+[ ] 2. npm start 模擬器有跑（port 5001 開著）
+[ ] 3. LINE Console Webhook URL 有帶 ?lid=UID
+[ ] 4. LINE Console → Verify 回傳 200 OK
+[ ] 5. functions/.env 三個欄位都填了（SECRET / TOKEN / LANDLORD_ID）
+[ ] 6. 傳訊息後，模擬器終端機有出現 log
+[ ] 7. Emulator UI → Firestore → messages 有新增資料
+```
+
+---
+
+### 測試各功能的快速驗證方法
+
+| 功能 | 測試方式 | 預期結果 |
+|------|----------|----------|
+| Webhook 連線 | LINE Console → Verify | 200 OK |
+| 一般訊息 | 傳任意文字 | Emulator messages collection 新增一筆 |
+| 選單指令 | 傳「選單」 | Bot 回覆功能選單 |
+| 帳單查詢 | 傳「帳單」| Bot 回覆帳單（需先綁定）|
+| 綁定流程 | 系統產生綁定碼 → 傳到 LINE | Bot 回覆「綁定成功」|
+| 房東回覆 | 訊息頁面點回覆 | 租客 LINE 收到推播 |
+| 帳單推播 | 新增一筆 income bill | 租客 LINE 收到帳單通知 |
+
+---
+
+## 九、常見問題
 
 ### Q: 本地 LINE Webhook 驗證失敗
-確認 Tunnel 有對應到 `localhost:5001`（不是 5173），且模擬器已啟動。
+確認 Tunnel 有對應到 `localhost:5001`（不是 5173），且模擬器已啟動。URL 需帶 `?lid=UID`，詳細排查見第八節。
 
 ### Q: 本地 Firestore 資料與雲端不同步
 這是正常的，本地模擬器是獨立沙盒。若需要雲端資料，要先 `export` 再 `import`：

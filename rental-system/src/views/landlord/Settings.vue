@@ -49,13 +49,27 @@
             </div>
             <div>
               <label class="block text-sm font-medium text-text-secondary-light mb-1">電子信箱 (帳號)</label>
-              <input 
-                :value="authStore.user?.email" 
+              <input
+                :value="authStore.user?.email"
                 disabled
-                type="email" 
+                type="email"
                 class="w-full px-4 py-2 bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-500 cursor-not-allowed"
               >
               <p class="text-xs text-text-secondary-light mt-1">如需更改信箱請聯繫系統管理員</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-text-secondary-light mb-1">
+                公開簡介
+                <span class="text-xs font-normal ml-1 text-blue-500">（顯示於找房頁面的房東資料）</span>
+              </label>
+              <textarea
+                v-model="formData.description"
+                rows="3"
+                maxlength="200"
+                class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary outline-none text-text-primary-light dark:text-text-primary-dark transition-colors resize-none text-sm"
+                placeholder="例如：管理 10 年以上，快速維修，友善溝通..."
+              ></textarea>
+              <p class="text-xs text-text-secondary-light mt-1 text-right">{{ formData.description.length }}/200</p>
             </div>
           </div>
         </section>
@@ -228,6 +242,18 @@
             />
           </div>
 
+          <!-- LINE Bot Basic ID -->
+          <div>
+            <label class="block text-sm font-medium text-text-secondary-light mb-1">LINE Bot Basic ID（供租客掃碼加入）</label>
+            <input
+              v-model="lineConfig.lineBotId"
+              type="text"
+              class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-[#06C755] outline-none text-sm"
+              placeholder="例如：@Rxxxxxxx（LINE Developers Console → Basic settings → Basic ID）"
+            />
+            <p class="text-xs text-text-secondary-light mt-1">填入後租客的「聯繫房東」頁面會顯示 QR Code 讓租客掃碼加入 Bot</p>
+          </div>
+
           <!-- Webhook URL (read-only) -->
           <div>
             <label class="block text-sm font-medium text-text-secondary-light mb-1">Webhook URL（填入 LINE Developers Console）</label>
@@ -313,7 +339,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watchEffect, onMounted } from 'vue';
+import { ref, computed, watchEffect, onMounted } from 'vue';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
@@ -327,6 +353,7 @@ const isSaving = ref(false);
 interface SettingsForm {
   name: string;
   phone: string;
+  description: string;
   bankCode: string;
   bankAccount: string;
   bankAccountName: string;
@@ -339,6 +366,7 @@ interface SettingsForm {
 const formData = ref<SettingsForm>({
   name: '',
   phone: '',
+  description: '',
   bankCode: '',
   bankAccount: '',
   bankAccountName: '',
@@ -355,6 +383,7 @@ watchEffect(() => {
     formData.value = {
       name: p.name || '',
       phone: p.phone || '',
+      description: p.description || '',
       bankCode: p.bankInfo?.code || '',
       bankAccount: p.bankInfo?.account || '',
       bankAccountName: p.bankInfo?.name || p.name || '',
@@ -377,6 +406,7 @@ const handleSave = async () => {
     const updateData = {
       name: formData.value.name,
       phone: formData.value.phone,
+      description: formData.value.description,
       bankInfo: {
         code: formData.value.bankCode,
         account: formData.value.bankAccount,
@@ -392,7 +422,14 @@ const handleSave = async () => {
     };
 
     await updateDoc(userRef, updateData);
-    
+
+    // 同步公開資料到 public_profiles（供找房頁顯示房東名稱與簡介）
+    const { setDoc: sd } = await import('firebase/firestore');
+    await sd(doc(db, 'public_profiles', authStore.effectiveUid), {
+      displayName: formData.value.name,
+      description: formData.value.description,
+    }, { merge: true });
+
     // 更新本地 Store 的 userProfile
     if (authStore.userProfile) {
       Object.assign(authStore.userProfile, updateData);
@@ -422,20 +459,29 @@ const FUNCTIONS_REGION = 'asia-east1';
 const lineConfig = ref({
   channelSecret: '',
   channelAccessToken: '',
+  lineBotId: '',   // LINE Bot Basic ID，例如 @Rxxxxxx
   isEnabled: false,
 });
 const isSavingLine = ref(false);
 
-const webhookUrl = `https://${FUNCTIONS_REGION}-${FIREBASE_PROJECT_ID}.cloudfunctions.net/lineWebhook`;
+// 每位房東的 Webhook URL 帶有自己的 ?lid= 參數
+const webhookUrl = computed(() =>
+  `https://${FUNCTIONS_REGION}-${FIREBASE_PROJECT_ID}.cloudfunctions.net/lineWebhook?lid=${authStore.effectiveUid}`
+);
 
 onMounted(async () => {
   // Load existing LINE config (only channel enabled status, not secrets for security)
   try {
-    const snap = await getDoc(doc(db, 'settings', 'line'));
-    if (snap.exists()) {
-      const data = snap.data();
+    const [lineSnap, userSnap] = await Promise.all([
+      getDoc(doc(db, 'line_configs', authStore.effectiveUid)),
+      getDoc(doc(db, 'users', authStore.effectiveUid)),
+    ]);
+    if (lineSnap.exists()) {
+      const data = lineSnap.data();
       lineConfig.value.isEnabled = !!(data.channelSecret && data.channelAccessToken);
-      // Don't pre-fill secrets in the input — user re-enters to update
+    }
+    if (userSnap.exists()) {
+      lineConfig.value.lineBotId = userSnap.data().lineBotId || '';
     }
   } catch (e) {
     console.warn('Cannot read LINE config:', e);
@@ -450,12 +496,22 @@ const saveLineConfig = async () => {
   }
   isSavingLine.value = true;
   try {
-    await setDoc(doc(db, 'settings', 'line'), {
-      channelSecret: lineConfig.value.channelSecret.trim(),
-      channelAccessToken: lineConfig.value.channelAccessToken.trim(),
-      landlordId: authStore.effectiveUid,
-      updatedAt: new Date().toISOString(),
-    });
+    const savePromises: Promise<any>[] = [
+      // 每位房東寫入自己的 line_configs/{uid}
+      setDoc(doc(db, 'line_configs', authStore.effectiveUid), {
+        channelSecret: lineConfig.value.channelSecret.trim(),
+        channelAccessToken: lineConfig.value.channelAccessToken.trim(),
+        updatedAt: new Date().toISOString(),
+      }),
+    ];
+    // lineBotId 存到 users/{uid}（租客可讀）及 public_profiles/{uid}（未登入訪客可讀）
+    if (lineConfig.value.lineBotId.trim()) {
+      const { updateDoc: upd, setDoc: sd } = await import('firebase/firestore');
+      const botId = lineConfig.value.lineBotId.trim();
+      savePromises.push(upd(doc(db, 'users', authStore.effectiveUid), { lineBotId: botId }));
+      savePromises.push(sd(doc(db, 'public_profiles', authStore.effectiveUid), { lineBotId: botId }, { merge: true }));
+    }
+    await Promise.all(savePromises);
     lineConfig.value.isEnabled = true;
     lineConfig.value.channelSecret = '';
     lineConfig.value.channelAccessToken = '';

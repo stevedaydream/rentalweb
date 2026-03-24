@@ -1,28 +1,26 @@
 <template>
   <div class="max-w-7xl mx-auto space-y-6" @click="closeDropdown">
-    
+
+    <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
-          租客列表
-        </h1>
+        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">租客列表</h1>
         <p class="text-text-secondary-light">管理所有租客資料、租約期限與聯繫方式</p>
       </div>
       <div class="flex gap-3">
         <button class="px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center">
-          <span class="material-symbols-outlined text-[18px] mr-2">download</span>
-          匯出清單
+          <span class="material-symbols-outlined text-[18px] mr-2">download</span>匯出清單
         </button>
-        <button 
-          @click="openModal()"
+        <button
+          @click="openNewTenantModal()"
           class="px-4 py-2 bg-primary text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors text-sm font-medium flex items-center"
         >
-          <span class="material-symbols-outlined text-[18px] mr-2">person_add</span>
-          手動新增租客
+          <span class="material-symbols-outlined text-[18px] mr-2">person_add</span>手動新增租客
         </button>
       </div>
     </div>
 
+    <!-- Stats -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div class="p-4 bg-white dark:bg-card-dark rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
         <div>
@@ -53,19 +51,17 @@
       </div>
     </div>
 
+    <!-- Filter bar -->
     <div class="bg-white dark:bg-card-dark rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col md:flex-row gap-4 items-center justify-between">
       <div class="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
-        <button 
-          v-for="filter in filters" 
+        <button
+          v-for="filter in filters"
           :key="filter.value"
           @click="currentFilter = filter.value"
           class="px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors"
           :class="currentFilter === filter.value ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400'"
-        >
-          {{ filter.label }}
-        </button>
+        >{{ filter.label }}</button>
       </div>
-      
       <div class="relative w-full md:w-64">
         <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[20px]">search</span>
         <input
@@ -77,6 +73,7 @@
       </div>
     </div>
 
+    <!-- Table -->
     <div class="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-visible">
       <div class="overflow-x-auto min-h-[400px]">
         <table class="w-full text-sm text-left">
@@ -91,19 +88,22 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
-            <tr v-for="tenant in pagedTenants" :key="tenant.id" class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+            <tr
+              v-for="tenant in pagedTenants"
+              :key="tenant.id"
+              class="hover:bg-blue-50/40 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
+              @click="openDrawer(tenant)"
+            >
               <td class="px-6 py-4">
                 <div class="flex items-center">
-                  <div 
+                  <div
                     class="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center font-bold mr-3"
                     :class="tenant.isOnlineUser ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-200'"
-                  >
-                    {{ tenant.name[0] }}
-                  </div>
+                  >{{ tenant.name[0] }}</div>
                   <div>
                     <div class="flex items-center gap-2">
-                       <p class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ tenant.name }}</p>
-                       <span v-if="tenant.isOnlineUser" class="bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5 rounded-full font-medium">已綁定帳號</span>
+                      <p class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ tenant.name }}</p>
+                      <span v-if="tenant.isOnlineUser" class="bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5 rounded-full font-medium">已綁定帳號</span>
                     </div>
                     <p class="text-xs text-text-secondary-light mt-0.5">{{ tenant.phone }}</p>
                   </div>
@@ -111,8 +111,8 @@
               </td>
               <td class="px-6 py-4">
                 <div class="flex items-center">
-                   <span class="material-symbols-outlined text-gray-400 mr-2 text-[18px]">meeting_room</span>
-                   <span :class="{'text-gray-400 italic': !tenant.room || tenant.room === '尚未設定'}">{{ tenant.room || '尚未設定' }}</span>
+                  <span class="material-symbols-outlined text-gray-400 mr-2 text-[18px]">meeting_room</span>
+                  <span :class="{'text-gray-400 italic': !tenant.room || tenant.room === '尚未設定'}">{{ tenant.room || '尚未設定' }}</span>
                 </div>
               </td>
               <td class="px-6 py-4">
@@ -120,15 +120,11 @@
                   <p><span class="text-text-secondary-light w-6 inline-block">起:</span> {{ tenant.leaseStart }}</p>
                   <p><span class="text-text-secondary-light w-6 inline-block">迄:</span> {{ tenant.leaseEnd }}</p>
                 </div>
-                <div v-else class="text-xs text-gray-400 italic">
-                  租約未設定
-                </div>
-                <span v-if="isExpiringSoon(tenant.leaseEnd)" class="mt-1 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700">
-                   即將到期
-                </span>
+                <div v-else class="text-xs text-gray-400 italic">租約未設定</div>
+                <span v-if="isExpiringSoon(tenant.leaseEnd)" class="mt-1 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700">即將到期</span>
               </td>
               <td class="px-6 py-4">
-                <span 
+                <span
                   class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
                   :class="paymentStatusStyles[tenant.paymentStatus]"
                 >
@@ -137,25 +133,47 @@
                 </span>
               </td>
               <td class="px-6 py-4">
-                <button
+                <span
                   v-if="tenant.contractId"
-                  @click="openDepositModal(tenant)"
-                  class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                  class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium"
                   :class="getDepositBadgeClass(tenant)"
                 >
                   <span class="material-symbols-outlined text-[14px]">payments</span>
                   {{ getDepositLabel(tenant) }}
-                </button>
+                </span>
                 <span v-else class="text-xs text-gray-400">—</span>
               </td>
-              <td class="px-6 py-4">
-                <div class="flex items-center gap-2 relative">
-                  <button @click="openModal(tenant)" class="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                    <span class="material-symbols-outlined text-[20px]">edit</span>
+              <!-- 操作：阻止 row click，只保留 ⋮ 更多選單 -->
+              <td class="px-6 py-4" @click.stop>
+                <div class="relative flex items-center">
+                  <button
+                    @click.stop="toggleMenu(tenant.id)"
+                    class="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    <span class="material-symbols-outlined text-[22px]">more_vert</span>
                   </button>
-                  <div class="relative">
-                    <button @click.stop="toggleMenu(tenant.id)" class="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
-                       <span class="material-symbols-outlined text-[20px]">chat</span>
+                  <div
+                    v-if="activeMenuId === tenant.id"
+                    class="absolute right-0 top-10 bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 py-1 w-40 overflow-hidden"
+                  >
+                    <button
+                      @click.stop="openDrawerTab(tenant, 'info'); closeDropdown()"
+                      class="w-full text-left px-4 py-2.5 text-sm text-text-primary-light dark:text-text-primary-dark hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
+                    >
+                      <span class="material-symbols-outlined text-[16px]">edit</span>編輯資料
+                    </button>
+                    <button
+                      @click.stop="openDrawerTab(tenant, 'bills'); closeDropdown()"
+                      class="w-full text-left px-4 py-2.5 text-sm text-text-primary-light dark:text-text-primary-dark hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
+                    >
+                      <span class="material-symbols-outlined text-[16px]">receipt_long</span>帳單紀錄
+                    </button>
+                    <button
+                      v-if="tenant.contractId"
+                      @click.stop="openDrawerTab(tenant, 'deposits'); closeDropdown()"
+                      class="w-full text-left px-4 py-2.5 text-sm text-text-primary-light dark:text-text-primary-dark hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
+                    >
+                      <span class="material-symbols-outlined text-[16px]">payments</span>入住押金
                     </button>
                   </div>
                 </div>
@@ -164,16 +182,13 @@
           </tbody>
         </table>
       </div>
-      
-      <div v-if="loading" class="p-12 text-center text-text-secondary-light">
-         <p>載入中...</p>
-      </div>
+
+      <div v-if="loading" class="p-12 text-center text-text-secondary-light"><p>載入中...</p></div>
       <div v-else-if="filteredTenants.length === 0" class="p-12 text-center text-text-secondary-light">
-         <span class="material-symbols-outlined text-4xl mb-2 text-gray-300">person_off</span>
-         <p>找不到符合條件的租客</p>
+        <span class="material-symbols-outlined text-4xl mb-2 text-gray-300">person_off</span>
+        <p>找不到符合條件的租客</p>
       </div>
 
-      <!-- 分頁控制 -->
       <div v-if="totalTenantPages > 1" class="flex items-center justify-between px-4 py-3 border-t border-gray-100 dark:border-gray-700">
         <span class="text-xs text-gray-500">第 {{ tenantPage }} / {{ totalTenantPages }} 頁，共 {{ filteredTenants.length }} 筆</span>
         <div class="flex gap-1">
@@ -188,216 +203,421 @@
       </div>
     </div>
 
+    <!-- ===== 新增租客 Modal (只用於手動新增) ===== -->
     <div v-if="showModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showModal = false"></div>
-      
       <div class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
         <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-          <h2 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">
-            {{ isEditing ? '編輯租客與合約' : '新增租客' }}
-          </h2>
+          <h2 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">新增租客</h2>
           <button @click="showModal = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
             <span class="material-symbols-outlined">close</span>
           </button>
         </div>
-
         <div class="p-6 overflow-y-auto space-y-4">
-          <div v-if="!authStore.user" class="p-3 bg-red-100 text-red-700 text-sm rounded-lg mb-4">
-             系統錯誤：無法識別房東身分，請重新登入。
-          </div>
-
+          <div v-if="!authStore.user" class="p-3 bg-red-100 text-red-700 text-sm rounded-lg mb-4">系統錯誤：無法識別房東身分，請重新登入。</div>
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium text-text-secondary-light mb-1">姓名</label>
               <input v-model="form.name" type="text" class="form-input" placeholder="租客姓名">
             </div>
             <div>
-               <label class="block text-sm font-medium text-text-secondary-light mb-1">承租房源</label>
-               <select v-model="form.room" @change="onRoomSelect" class="form-input">
-                  <option value="" disabled>請選擇房源</option>
-                  <option v-if="currentEditingRoom" :value="currentEditingRoom.name">
-                    {{ currentEditingRoom.name }} (目前承租)
-                  </option>
-                  <option v-for="room in vacantRooms" :key="room.id" :value="room.name">
-                    {{ room.name }} ({{ room.price }}元)
-                  </option>
-                  <option v-if="form.room && !isRoomInList(form.room)" :value="form.room">
-                    {{ form.room }} (未知房源)
-                  </option>
-               </select>
-               <p v-if="vacantRooms.length === 0 && !currentEditingRoom" class="text-xs text-orange-500 mt-1">目前沒有閒置房源，請先至房源管理新增。</p>
+              <label class="block text-sm font-medium text-text-secondary-light mb-1">承租房源</label>
+              <select v-model="form.room" @change="onRoomSelect" class="form-input">
+                <option value="" disabled>請選擇房源</option>
+                <option v-for="room in vacantRooms" :key="room.id" :value="room.name">{{ room.name }} ({{ room.price }}元)</option>
+                <option v-if="form.room && !isRoomInList(form.room)" :value="form.room">{{ form.room }} (未知房源)</option>
+              </select>
+              <p v-if="vacantRooms.length === 0" class="text-xs text-orange-500 mt-1">目前沒有閒置房源</p>
             </div>
           </div>
-
           <div>
             <label class="block text-sm font-medium text-text-secondary-light mb-1">聯絡電話</label>
             <input v-model="form.phone" type="tel" class="form-input" placeholder="0912-345-678">
           </div>
-
           <div>
             <label class="block text-sm font-medium text-text-secondary-light mb-1">電子郵件 (選填)</label>
             <input v-model="form.email" type="email" class="form-input" placeholder="tenant@example.com">
           </div>
-
           <div class="border-t border-gray-100 dark:border-gray-800 pt-2">
-             <p class="text-xs font-bold text-text-secondary-light uppercase mb-3">租約設定</p>
-             <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-sm font-medium text-text-secondary-light mb-1">起租日</label>
-                  <input v-model="form.leaseStart" type="date" class="form-input">
+            <p class="text-xs font-bold text-text-secondary-light uppercase mb-3">租約設定</p>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-text-secondary-light mb-1">起租日</label>
+                <input v-model="form.leaseStart" type="date" class="form-input">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-text-secondary-light mb-1">租期（年）</label>
+                <select v-model.number="form.leaseDuration" class="form-input">
+                  <option :value="0.5">0.5 年（6 個月）</option>
+                  <option :value="1">1 年</option>
+                  <option :value="1.5">1.5 年</option>
+                  <option :value="2">2 年</option>
+                  <option :value="3">3 年</option>
+                </select>
+              </div>
+            </div>
+            <div class="mt-3 flex items-center gap-2 text-sm text-text-secondary-light bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-2">
+              <span class="material-symbols-outlined text-[16px]">event</span>
+              到期日：<span class="font-semibold text-text-primary-light dark:text-text-primary-dark">{{ form.leaseEnd || '—' }}</span>
+              <span class="ml-auto text-xs">(住滿 {{ Math.round((form.leaseDuration || 1) * 365) }} 天)</span>
+            </div>
+            <div class="mt-3 flex items-center gap-2 text-sm text-text-secondary-light bg-blue-50 dark:bg-blue-900/10 rounded-lg px-3 py-2 border border-blue-100 dark:border-blue-900/30">
+              <span class="material-symbols-outlined text-[16px] text-blue-400">event_available</span>
+              繳費截止日：每月 <span class="font-semibold text-blue-700 dark:text-blue-300">{{ authStore.userProfile?.settings?.paymentDay ?? 5 }}</span> 號（依房東設定）
+            </div>
+            <div class="grid grid-cols-2 gap-4 mt-3">
+              <div>
+                <label class="block text-sm font-medium text-text-secondary-light mb-1">每月租金 (NT$)</label>
+                <input v-model.number="form.rent" type="number" class="form-input" placeholder="自動帶入房源價格">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-text-secondary-light mb-1">押金月數</label>
+                <select v-model.number="form.depositMonths" class="form-input">
+                  <option :value="1">1 個月</option>
+                  <option :value="2">2 個月（慣例）</option>
+                  <option :value="3">3 個月</option>
+                </select>
+              </div>
+            </div>
+            <div v-if="form.rent && form.rent > 0" class="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-700 text-sm">
+              <p class="font-semibold text-amber-800 dark:text-amber-300 mb-2 flex items-center gap-1">
+                <span class="material-symbols-outlined text-[16px]">payments</span>入住應收款項
+              </p>
+              <div class="space-y-1 text-amber-700 dark:text-amber-400">
+                <div class="flex justify-between" v-for="n in (form.depositMonths || 2)" :key="n">
+                  <span>押金（第 {{ n }} 個月）</span>
+                  <span class="font-medium">NT$ {{ (form.rent || 0).toLocaleString() }}</span>
                 </div>
-                <div>
-                  <label class="block text-sm font-medium text-text-secondary-light mb-1">租期（年）</label>
-                  <select v-model.number="form.leaseDuration" class="form-input">
-                    <option :value="0.5">0.5 年（6 個月）</option>
-                    <option :value="1">1 年</option>
-                    <option :value="1.5">1.5 年</option>
-                    <option :value="2">2 年</option>
-                    <option :value="3">3 年</option>
-                  </select>
+                <div class="flex justify-between border-t border-amber-200 dark:border-amber-700 pt-1 mt-1">
+                  <span>首月租金</span>
+                  <span class="font-medium">NT$ {{ (form.rent || 0).toLocaleString() }}</span>
                 </div>
-             </div>
-             <!-- 到期日（唯讀，自動計算） -->
-             <div class="mt-3 flex items-center gap-2 text-sm text-text-secondary-light bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-2">
-               <span class="material-symbols-outlined text-[16px]">event</span>
-               到期日：<span class="font-semibold text-text-primary-light dark:text-text-primary-dark">{{ form.leaseEnd || '—' }}</span>
-               <span class="ml-auto text-xs">(住滿 {{ Math.round((form.leaseDuration || 1) * 365) }} 天)</span>
-             </div>
-             <div class="grid grid-cols-2 gap-4 mt-3">
-                <div>
-                  <label class="block text-sm font-medium text-text-secondary-light mb-1">每月租金 (NT$)</label>
-                  <input v-model.number="form.rent" type="number" class="form-input" placeholder="自動帶入房源價格">
+                <div class="flex justify-between font-bold text-amber-900 dark:text-amber-200 pt-1">
+                  <span>合計應收</span>
+                  <span>NT$ {{ (((form.depositMonths || 2) + 1) * (form.rent || 0)).toLocaleString() }}</span>
                 </div>
-                <div>
-                  <label class="block text-sm font-medium text-text-secondary-light mb-1">押金月數</label>
-                  <select v-model.number="form.depositMonths" class="form-input">
-                    <option :value="1">1 個月</option>
-                    <option :value="2">2 個月（慣例）</option>
-                    <option :value="3">3 個月</option>
-                  </select>
-                </div>
-             </div>
-             <!-- 入住款項摘要 -->
-             <div v-if="form.rent && form.rent > 0" class="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-700 text-sm">
-               <p class="font-semibold text-amber-800 dark:text-amber-300 mb-2 flex items-center gap-1">
-                 <span class="material-symbols-outlined text-[16px]">payments</span>
-                 入住應收款項
-               </p>
-               <div class="space-y-1 text-amber-700 dark:text-amber-400">
-                 <div class="flex justify-between" v-for="n in (form.depositMonths || 2)" :key="n">
-                   <span>押金（第 {{ n }} 個月）</span>
-                   <span class="font-medium">NT$ {{ (form.rent || 0).toLocaleString() }}</span>
-                 </div>
-                 <div class="flex justify-between border-t border-amber-200 dark:border-amber-700 pt-1 mt-1">
-                   <span>首月租金</span>
-                   <span class="font-medium">NT$ {{ (form.rent || 0).toLocaleString() }}</span>
-                 </div>
-                 <div class="flex justify-between font-bold text-amber-900 dark:text-amber-200 pt-1">
-                   <span>合計應收</span>
-                   <span>NT$ {{ (((form.depositMonths || 2) + 1) * (form.rent || 0)).toLocaleString() }}</span>
-                 </div>
-               </div>
-             </div>
+              </div>
+            </div>
           </div>
-          
           <div class="border-t border-gray-100 dark:border-gray-800 pt-2">
-             <p class="text-xs font-bold text-text-secondary-light uppercase mb-3">其他資訊</p>
-             <div class="space-y-3">
-                <div>
-                  <label class="block text-sm font-medium text-text-secondary-light mb-1">緊急聯絡人</label>
-                  <input v-model="form.emergencyContact" type="text" class="form-input" placeholder="姓名 - 關係 - 電話">
-                </div>
-                <div>
-                  <label class="block text-sm font-medium text-text-secondary-light mb-1">備註</label>
-                  <textarea v-model="form.note" class="form-input min-h-[80px]" placeholder="例如：養一隻貓、習慣晚歸..."></textarea>
-                </div>
-             </div>
+            <p class="text-xs font-bold text-text-secondary-light uppercase mb-3">其他資訊</p>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-sm font-medium text-text-secondary-light mb-1">緊急聯絡人</label>
+                <input v-model="form.emergencyContact" type="text" class="form-input" placeholder="姓名 - 關係 - 電話">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-text-secondary-light mb-1">備註</label>
+                <textarea v-model="form.note" class="form-input min-h-[80px]" placeholder="例如：養一隻貓、習慣晚歸..."></textarea>
+              </div>
+            </div>
           </div>
         </div>
-
         <div class="p-6 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
-          <button 
-            @click="showModal = false"
-            class="px-5 py-2 rounded-xl text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 font-medium transition-colors"
-          >
-            取消
-          </button>
-          <button 
-            @click="saveTenant"
-            :disabled="isSaving"
-            class="px-5 py-2 rounded-xl bg-primary text-white font-bold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors disabled:opacity-50"
-          >
-            {{ isSaving ? '處理中...' : (isEditing ? '儲存並同步合約' : '新增租客') }}
+          <button @click="showModal = false" class="px-5 py-2 rounded-xl text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 font-medium transition-colors">取消</button>
+          <button @click="saveTenant" :disabled="isSaving" class="px-5 py-2 rounded-xl bg-primary text-white font-bold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors disabled:opacity-50">
+            {{ isSaving ? '處理中...' : '新增租客' }}
           </button>
         </div>
       </div>
     </div>
 
-  <!-- 押金收款 Modal -->
-  <div v-if="showDepositModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showDepositModal = false"></div>
-    <div class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-md shadow-2xl flex flex-col">
-      <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-        <div>
-          <h2 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">入住款項收款確認</h2>
-          <p class="text-sm text-text-secondary-light mt-0.5">{{ depositTenant?.name }} — {{ depositTenant?.room }}</p>
-        </div>
-        <button @click="showDepositModal = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-          <span class="material-symbols-outlined">close</span>
-        </button>
-      </div>
+    <!-- ===== 租客詳情 Drawer ===== -->
+    <Transition name="drawer-slide">
+      <div v-if="showDrawer" class="fixed inset-0 z-[150] flex justify-end">
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="closeDrawer"></div>
 
-      <div class="p-6 space-y-3">
-        <div
-          v-for="(item, idx) in depositItems"
-          :key="idx"
-          class="flex items-center justify-between p-4 rounded-xl border transition-colors"
-          :class="item.status === 'paid'
-            ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-            : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'"
-        >
-          <div>
-            <p class="font-semibold text-sm text-text-primary-light dark:text-text-primary-dark">{{ item.label }}</p>
-            <p class="text-xs text-text-secondary-light">NT$ {{ item.amount.toLocaleString() }}</p>
-            <p v-if="item.paidAt" class="text-xs text-green-600 dark:text-green-400 mt-0.5">
-              {{ item.paidAt }}
-            </p>
-          </div>
-          <div>
-            <span v-if="item.status === 'paid'" class="flex items-center gap-1 text-green-700 dark:text-green-400 text-sm font-bold">
-              <span class="material-symbols-outlined text-[18px]">check_circle</span>
-              已收款
-            </span>
-            <button
-              v-else
-              @click="markDepositPaid(idx)"
-              :disabled="isMarkingPaid"
-              class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
-            >
-              <span class="material-symbols-outlined text-[14px]">payments</span>
-              標記已收
+        <div class="drawer-panel relative bg-white dark:bg-card-dark w-full max-w-[500px] flex flex-col h-full shadow-2xl">
+
+          <!-- Drawer Header -->
+          <div class="flex items-center gap-4 px-6 py-5 border-b border-gray-100 dark:border-gray-800 shrink-0">
+            <div
+              class="w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-lg"
+              :class="drawerTenant?.isOnlineUser ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-200'"
+            >{{ drawerTenant?.name?.[0] }}</div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <h2 class="font-bold text-lg text-text-primary-light dark:text-text-primary-dark truncate">{{ drawerTenant?.name }}</h2>
+                <span v-if="drawerTenant?.isOnlineUser" class="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0">已綁定帳號</span>
+                <span
+                  class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium"
+                  :class="paymentStatusStyles[drawerTenant?.paymentStatus || 'pending']"
+                >{{ paymentStatusLabels[drawerTenant?.paymentStatus || 'pending'] }}</span>
+              </div>
+              <p class="text-sm text-text-secondary-light truncate">{{ drawerTenant?.room || '未設定房源' }} · {{ drawerTenant?.phone }}</p>
+            </div>
+            <button @click="closeDrawer" class="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 shrink-0">
+              <span class="material-symbols-outlined">close</span>
             </button>
           </div>
-        </div>
 
-        <!-- 總計 -->
-        <div class="border-t border-gray-100 dark:border-gray-700 pt-3 flex justify-between text-sm font-bold">
-          <span class="text-text-secondary-light">應收總計</span>
-          <span>NT$ {{ depositItems.reduce((s, i) => s + i.amount, 0).toLocaleString() }}</span>
-        </div>
-        <div class="flex justify-between text-sm font-bold text-green-600">
-          <span>已收金額</span>
-          <span>NT$ {{ depositItems.filter(i => i.status === 'paid').reduce((s, i) => s + i.amount, 0).toLocaleString() }}</span>
+          <!-- Tabs -->
+          <div class="flex border-b border-gray-100 dark:border-gray-800 px-2 shrink-0">
+            <button
+              v-for="tab in drawerTabs"
+              :key="tab.value"
+              @click="switchDrawerTab(tab.value)"
+              class="px-4 py-3 text-sm font-medium border-b-2 transition-colors relative top-[1px]"
+              :class="drawerTab === tab.value ? 'border-primary text-primary' : 'border-transparent text-text-secondary-light hover:text-gray-600 dark:hover:text-gray-300'"
+            >{{ tab.label }}</button>
+          </div>
+
+          <!-- Tab Content -->
+          <div class="flex-1 overflow-y-auto">
+
+            <!-- Tab: 基本資料 -->
+            <div v-if="drawerTab === 'info'" class="p-6 space-y-5">
+
+              <!-- View mode -->
+              <template v-if="!drawerEditing">
+                <!-- 租客資訊 -->
+                <div class="space-y-3">
+                  <p class="text-xs font-bold text-text-secondary-light uppercase">租客資訊</p>
+                  <div class="grid grid-cols-2 gap-3 text-sm">
+                    <div class="bg-surface-light dark:bg-surface-dark rounded-xl p-3">
+                      <p class="text-text-secondary-light text-xs mb-1">聯絡電話</p>
+                      <p class="font-medium">{{ drawerTenant?.phone || '—' }}</p>
+                    </div>
+                    <div class="bg-surface-light dark:bg-surface-dark rounded-xl p-3">
+                      <p class="text-text-secondary-light text-xs mb-1">電子郵件</p>
+                      <p class="font-medium truncate">{{ drawerTenant?.email || '—' }}</p>
+                    </div>
+                    <div class="bg-surface-light dark:bg-surface-dark rounded-xl p-3 col-span-2">
+                      <p class="text-text-secondary-light text-xs mb-1">緊急聯絡人</p>
+                      <p class="font-medium">{{ drawerTenant?.emergencyContact || '—' }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 合約資訊 -->
+                <div class="space-y-3">
+                  <p class="text-xs font-bold text-text-secondary-light uppercase">租約資訊</p>
+                  <div class="bg-surface-light dark:bg-surface-dark rounded-xl p-4 space-y-3 text-sm">
+                    <div class="flex justify-between">
+                      <span class="text-text-secondary-light">承租房源</span>
+                      <span class="font-medium">{{ drawerTenant?.room || '未設定' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-text-secondary-light">租期</span>
+                      <span class="font-medium">{{ drawerTenant?.leaseStart || '—' }} ~ {{ drawerTenant?.leaseEnd || '—' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-text-secondary-light">每月租金</span>
+                      <span class="font-semibold text-text-primary-light dark:text-text-primary-dark">NT$ {{ (drawerTenant?.rent || 0).toLocaleString() }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-text-secondary-light">繳費截止日</span>
+                      <span class="font-medium">每月 {{ authStore.userProfile?.settings?.paymentDay ?? 5 }} 號</span>
+                    </div>
+                  </div>
+                  <span v-if="isExpiringSoon(drawerTenant?.leaseEnd || '')" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-orange-100 text-orange-700 text-xs font-medium">
+                    <span class="material-symbols-outlined text-[14px]">alarm</span>租約即將到期（60天內）
+                  </span>
+                </div>
+
+                <!-- 備註 -->
+                <div v-if="drawerTenant?.note" class="space-y-2">
+                  <p class="text-xs font-bold text-text-secondary-light uppercase">備註</p>
+                  <p class="text-sm text-text-secondary-light bg-surface-light dark:bg-surface-dark rounded-xl p-3">{{ drawerTenant.note }}</p>
+                </div>
+
+                <!-- 編輯按鈕 -->
+                <button
+                  @click="enterDrawerEdit"
+                  class="w-full py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center gap-2 transition-colors"
+                >
+                  <span class="material-symbols-outlined text-[18px]">edit</span>編輯租客資料與合約
+                </button>
+              </template>
+
+              <!-- Edit mode -->
+              <template v-else>
+                <div class="flex items-center justify-between mb-2">
+                  <p class="font-semibold text-text-primary-light dark:text-text-primary-dark">編輯租客與合約</p>
+                  <button @click="drawerEditing = false" class="text-sm text-text-secondary-light hover:text-gray-700 dark:hover:text-gray-300">取消</button>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium text-text-secondary-light mb-1">姓名</label>
+                    <input v-model="form.name" type="text" class="form-input">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-text-secondary-light mb-1">承租房源</label>
+                    <select v-model="form.room" @change="onRoomSelect" class="form-input">
+                      <option value="" disabled>請選擇房源</option>
+                      <option v-if="currentEditingRoom" :value="currentEditingRoom.name">{{ currentEditingRoom.name }} (目前承租)</option>
+                      <option v-for="room in vacantRooms" :key="room.id" :value="room.name">{{ room.name }} ({{ room.price }}元)</option>
+                      <option v-if="form.room && !isRoomInList(form.room)" :value="form.room">{{ form.room }} (未知房源)</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-text-secondary-light mb-1">聯絡電話</label>
+                  <input v-model="form.phone" type="tel" class="form-input">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-text-secondary-light mb-1">電子郵件 (選填)</label>
+                  <input v-model="form.email" type="email" class="form-input">
+                </div>
+                <div class="border-t border-gray-100 dark:border-gray-800 pt-2">
+                  <p class="text-xs font-bold text-text-secondary-light uppercase mb-3">租約設定</p>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-sm font-medium text-text-secondary-light mb-1">起租日</label>
+                      <input v-model="form.leaseStart" type="date" class="form-input">
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-text-secondary-light mb-1">租期（年）</label>
+                      <select v-model.number="form.leaseDuration" class="form-input">
+                        <option :value="0.5">0.5 年</option>
+                        <option :value="1">1 年</option>
+                        <option :value="1.5">1.5 年</option>
+                        <option :value="2">2 年</option>
+                        <option :value="3">3 年</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="mt-3 flex items-center gap-2 text-sm text-text-secondary-light bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-2">
+                    <span class="material-symbols-outlined text-[16px]">event</span>
+                    到期日：<span class="font-semibold text-text-primary-light dark:text-text-primary-dark">{{ form.leaseEnd || '—' }}</span>
+                  </div>
+                  <div class="mt-3 flex items-center gap-2 text-sm text-text-secondary-light bg-blue-50 dark:bg-blue-900/10 rounded-lg px-3 py-2 border border-blue-100 dark:border-blue-900/30">
+                    <span class="material-symbols-outlined text-[16px] text-blue-400">event_available</span>
+                    繳費截止日：每月 <span class="font-semibold text-blue-700 dark:text-blue-300">{{ authStore.userProfile?.settings?.paymentDay ?? 5 }}</span> 號（依房東設定）
+                  </div>
+                  <div class="grid grid-cols-2 gap-4 mt-3">
+                    <div>
+                      <label class="block text-sm font-medium text-text-secondary-light mb-1">每月租金 (NT$)</label>
+                      <input v-model.number="form.rent" type="number" class="form-input">
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-text-secondary-light mb-1">押金月數</label>
+                      <select v-model.number="form.depositMonths" class="form-input">
+                        <option :value="1">1 個月</option>
+                        <option :value="2">2 個月（慣例）</option>
+                        <option :value="3">3 個月</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div class="border-t border-gray-100 dark:border-gray-800 pt-2">
+                  <p class="text-xs font-bold text-text-secondary-light uppercase mb-3">其他資訊</p>
+                  <div class="space-y-3">
+                    <div>
+                      <label class="block text-sm font-medium text-text-secondary-light mb-1">緊急聯絡人</label>
+                      <input v-model="form.emergencyContact" type="text" class="form-input" placeholder="姓名 - 關係 - 電話">
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-text-secondary-light mb-1">備註</label>
+                      <textarea v-model="form.note" class="form-input min-h-[80px]"></textarea>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex gap-3 pt-2 sticky bottom-0 bg-white dark:bg-card-dark pb-2">
+                  <button @click="drawerEditing = false" class="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">取消</button>
+                  <button @click="saveTenant" :disabled="isSaving" class="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-bold shadow-md hover:bg-blue-700 transition-colors disabled:opacity-50">
+                    {{ isSaving ? '處理中...' : '儲存並同步合約' }}
+                  </button>
+                </div>
+              </template>
+            </div>
+
+            <!-- Tab: 帳單紀錄 -->
+            <div v-if="drawerTab === 'bills'" class="p-4 space-y-3">
+              <div v-if="drawerBillsLoading" class="py-12 text-center text-text-secondary-light">
+                <span class="material-symbols-outlined animate-spin text-3xl mb-2">sync</span>
+                <p class="text-sm">載入帳單中...</p>
+              </div>
+              <div v-else-if="drawerBills.length === 0" class="py-12 text-center text-text-secondary-light">
+                <span class="material-symbols-outlined text-4xl text-gray-300 mb-2">receipt_long</span>
+                <p class="text-sm">目前沒有帳單記錄</p>
+              </div>
+              <div v-else>
+                <div
+                  v-for="bill in drawerBills"
+                  :key="bill.id"
+                  class="flex items-center justify-between p-4 rounded-xl border transition-colors"
+                  :class="bill.status === 'completed' ? 'border-green-100 dark:border-green-900/30 bg-green-50/50 dark:bg-green-900/10' : bill.status === 'overdue' ? 'border-red-100 dark:border-red-900/30 bg-red-50/50 dark:bg-red-900/10' : 'border-gray-100 dark:border-gray-800 bg-surface-light dark:bg-surface-dark'"
+                >
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="font-semibold text-sm text-text-primary-light dark:text-text-primary-dark">{{ bill.monthStr }}</span>
+                      <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">{{ bill.category }}</span>
+                    </div>
+                    <div class="flex items-center gap-3 mt-1">
+                      <span class="text-xs text-text-secondary-light">NT$ {{ bill.amount.toLocaleString() }}</span>
+                      <span v-if="bill.dueDate" class="text-xs text-text-secondary-light">截止 {{ bill.dueDate }}</span>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <span
+                      class="text-xs px-2 py-1 rounded-full font-medium"
+                      :class="bill.status === 'completed' ? 'bg-green-100 text-green-700' : bill.status === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'"
+                    >{{ bill.status === 'completed' ? '已收款' : bill.status === 'overdue' ? '已逾期' : '待收款' }}</span>
+                    <button
+                      v-if="bill.status !== 'completed'"
+                      @click="markDrawerBillPaid(bill)"
+                      :disabled="markingBillId === bill.id"
+                      class="text-xs px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors font-medium"
+                    >{{ markingBillId === bill.id ? '處理中' : '標記已收' }}</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab: 入住押金 -->
+            <div v-if="drawerTab === 'deposits'" class="p-6 space-y-3">
+              <div v-if="!drawerTenant?.contractId" class="py-12 text-center text-text-secondary-light">
+                <span class="material-symbols-outlined text-4xl text-gray-300 mb-2">description</span>
+                <p class="text-sm">尚未建立合約</p>
+              </div>
+              <div v-else-if="depositItems.length === 0" class="py-12 text-center text-text-secondary-light">
+                <span class="material-symbols-outlined text-4xl text-gray-300 mb-2">payments</span>
+                <p class="text-sm">無押金/入住款項記錄</p>
+              </div>
+              <template v-else>
+                <div
+                  v-for="(item, idx) in depositItems"
+                  :key="idx"
+                  class="flex items-center justify-between p-4 rounded-xl border transition-colors"
+                  :class="item.status === 'paid' ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'"
+                >
+                  <div>
+                    <p class="font-semibold text-sm text-text-primary-light dark:text-text-primary-dark">{{ item.label }}</p>
+                    <p class="text-xs text-text-secondary-light">NT$ {{ item.amount.toLocaleString() }}</p>
+                    <p v-if="item.paidAt" class="text-xs text-green-600 dark:text-green-400 mt-0.5">{{ item.paidAt }}</p>
+                  </div>
+                  <div>
+                    <span v-if="item.status === 'paid'" class="flex items-center gap-1 text-green-700 dark:text-green-400 text-sm font-bold">
+                      <span class="material-symbols-outlined text-[18px]">check_circle</span>已收款
+                    </span>
+                    <button
+                      v-else
+                      @click="markDepositPaid(idx)"
+                      :disabled="isMarkingPaid"
+                      class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
+                    >
+                      <span class="material-symbols-outlined text-[14px]">payments</span>標記已收
+                    </button>
+                  </div>
+                </div>
+                <div class="border-t border-gray-100 dark:border-gray-700 pt-3 flex justify-between text-sm font-bold">
+                  <span class="text-text-secondary-light">應收總計</span>
+                  <span>NT$ {{ depositItems.reduce((s, i) => s + i.amount, 0).toLocaleString() }}</span>
+                </div>
+                <div class="flex justify-between text-sm font-bold text-green-600">
+                  <span>已收金額</span>
+                  <span>NT$ {{ depositItems.filter(i => i.status === 'paid').reduce((s, i) => s + i.amount, 0).toLocaleString() }}</span>
+                </div>
+              </template>
+            </div>
+
+          </div>
         </div>
       </div>
-
-      <div class="p-6 border-t border-gray-100 dark:border-gray-700 flex justify-end">
-        <button @click="showDepositModal = false" class="px-5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-200 transition-colors">
-          關閉
-        </button>
-      </div>
-    </div>
-  </div>
+    </Transition>
 
   </div>
 </template>
@@ -418,6 +638,8 @@ import {
   serverTimestamp,
   where,
   getDocs,
+  orderBy,
+  limit,
 } from 'firebase/firestore';
 
 // --- Type Definitions ---
@@ -457,13 +679,24 @@ interface Room {
   price: number;
 }
 
+interface DrawerBill {
+  id: string;
+  date: string;
+  monthStr: string;
+  category: string;
+  amount: number;
+  status: 'completed' | 'pending' | 'overdue';
+  dueDate?: string;
+}
+
 // --- State ---
 const authStore = useAuthStore();
 const toast = useToastStore();
 const tenants = ref<Tenant[]>([]);
-const availableRooms = ref<Room[]>([]); // [新增] 儲存所有房源
+const availableRooms = ref<Room[]>([]);
 const loading = ref(true);
-const isSaving = ref(false); // [新增]
+const isSaving = ref(false);
+const billStatusMap = ref<Record<string, 'normal' | 'unpaid' | 'overdue'>>({});
 
 // --- Subscription Handlers ---
 let unsubscribeTenants: any = null;
@@ -519,6 +752,39 @@ const paymentDotStyles: any = {
 
 // --- Firestore Integration ---
 
+// 讀取本月帳單狀態，建立 tenantDocId -> status 對照表
+const refreshBillStatuses = async () => {
+  const uid = authStore.effectiveUid;
+  const today = new Date().toISOString().split('T')[0] as string;
+  const currentMonth = today.slice(0, 7);
+  try {
+    const snap = await getDocs(query(
+      collection(db, 'bills'),
+      where('landlordId', '==', uid),
+      where('date', '>=', `${currentMonth}-01`),
+      where('date', '<=', `${currentMonth}-31`),
+      where('type', '==', 'income')
+    ));
+    const map: Record<string, 'normal' | 'unpaid' | 'overdue'> = {};
+    snap.forEach(d => {
+      const data = d.data();
+      const tid = data.relatedTenantDocId as string;
+      if (!tid) return;
+      const cur = map[tid];
+      if (data.status === 'overdue' || (data.dueDate && data.dueDate < today)) {
+        map[tid] = 'overdue';
+      } else if (data.status === 'completed') {
+        if (!cur) map[tid] = 'normal';
+      } else {
+        if (cur !== 'overdue') map[tid] = 'unpaid';
+      }
+    });
+    billStatusMap.value = map;
+  } catch (e) {
+    console.warn('Bill status fetch error:', e);
+  }
+};
+
 // 讀取房源列表 (用於下拉選單)
 const fetchRooms = async () => {
   if (!authStore.user) return;
@@ -531,15 +797,13 @@ const fetchRooms = async () => {
 };
 
 const startListeners = () => {
-  if (unsubscribeTenants) return; // 避免重複啟動
+  if (unsubscribeTenants) return;
 
   const uid = authStore.effectiveUid;
   const myCode = authStore.userProfile?.landlordCode;
 
-  // 0. 讀取房源
   fetchRooms();
 
-  // 1. 監聽手動建立的租約 (Tenants)，同時 join contracts 中的 deposits
   const qTenants = query(collection(db, 'tenants'), where('landlordId', '==', uid));
   unsubscribeTenants = onSnapshot(qTenants, async (snapshot) => {
     const manualTenants = await Promise.all(snapshot.docs.map(async (d) => {
@@ -555,7 +819,6 @@ const startListeners = () => {
     updateCombinedList(manualTenants, onlineUsers.value);
   });
 
-  // 2. 監聽線上綁定的用戶 (Users)，僅在 landlordCode 已載入時啟動
   if (myCode) {
     const qUsers = query(collection(db, 'users'), where('boundLandlordCode', '==', myCode));
     unsubscribeUsers = onSnapshot(qUsers, (snapshot) => {
@@ -581,16 +844,11 @@ const startListeners = () => {
 
 onMounted(() => {
   if (!authStore.user) return;
-
   if (authStore.userProfile) {
     startListeners();
   } else {
-    // userProfile 尚未載入，等待它就緒
     const stop = watch(() => authStore.userProfile, (profile) => {
-      if (profile) {
-        stop();
-        startListeners();
-      }
+      if (profile) { stop(); startListeners(); }
     });
   }
 });
@@ -602,19 +860,17 @@ const updateCombinedList = (manual: Tenant[], online: Tenant[]) => {
   manualTenantsList.value = manual;
   const manualPhones = new Set(manual.map(t => t.phone).filter(Boolean));
   const manualUids = new Set(manual.map(t => t.uid).filter(Boolean));
-  // 已建立 tenant 文件的線上用戶不再顯示為獨立列
-  const uniqueOnline = online.filter(u =>
-    !manualPhones.has(u.phone) && !manualUids.has(u.uid)
-  );
+  const uniqueOnline = online.filter(u => !manualPhones.has(u.phone) && !manualUids.has(u.uid));
   tenants.value = [...manual, ...uniqueOnline];
   loading.value = false;
+  refreshBillStatuses();
 };
 
-// Watchers for list syncing
 watch([manualTenantsList, onlineUsers], ([newManual, newOnline]) => {
   const manualPhones = new Set(newManual.map(t => t.phone));
   const uniqueOnline = newOnline.filter(u => !manualPhones.has(u.phone));
   tenants.value = [...newManual, ...uniqueOnline];
+  refreshBillStatuses();
 });
 
 onUnmounted(() => {
@@ -622,35 +878,31 @@ onUnmounted(() => {
   if (unsubscribeUsers) unsubscribeUsers();
 });
 
-// --- Save & Logic (Critical Fixes) ---
+// --- Save Tenant (handles both new & edit) ---
 const saveTenant = async () => {
   if (!authStore.user) return;
   if (!form.value.name) { toast.warning('請填寫完整資料'); return; }
   if (!form.value.room) { toast.warning('請選擇房源'); return; }
-  
+
   isSaving.value = true;
 
   try {
     const tenantData: any = {
-       ...form.value,
-       landlordId: authStore.effectiveUid,
-       updatedAt: serverTimestamp()
+      ...form.value,
+      landlordId: authStore.effectiveUid,
+      updatedAt: serverTimestamp()
     };
-    
-    // 移除不需寫入 tenants 集合的 UI 輔助欄位
-    const isOnlineProfile = tenantData.isOnlineUser;
-    const targetUid = tenantData.uid; // 如果是線上用戶，這是他的 User UID
-    
-    delete tenantData.isOnlineUser;
-    delete tenantData.id; 
-    delete tenantData.uid; // 雖然我們需要它來建合約，但不需要存在 tenant 集合內 (或可選擇保留)
 
-    // 1. 處理 Tenants Collection (租客檔案)
-    // let tenantDocId = form.value.id;
-    
+    const isOnlineProfile = tenantData.isOnlineUser;
+    const targetUid = tenantData.uid;
+
+    delete tenantData.isOnlineUser;
+    delete tenantData.id;
+    delete tenantData.uid;
+
+    // 1. 處理 Tenants Collection
     if (isEditing.value && form.value.id) {
       if (isOnlineProfile) {
-        // 線上用戶：先查是否已有 tenant 文件，避免重複建立
         const existQ = query(
           collection(db, 'tenants'),
           where('uid', '==', targetUid),
@@ -659,26 +911,19 @@ const saveTenant = async () => {
         const existSnap = await getDocs(existQ);
         if (existSnap.empty) {
           const newDoc = await addDoc(collection(db, 'tenants'), {
-            ...tenantData,
-            uid: targetUid,
-            createdAt: serverTimestamp(),
-            paymentStatus: 'normal',
+            ...tenantData, uid: targetUid, createdAt: serverTimestamp(), paymentStatus: 'normal',
           });
-          // 更新 form.value.id 方便後面回存 contractId
           form.value.id = newDoc.id;
           toast.success('已建立租客檔案');
         } else {
-          // 已存在，直接更新
           const existId = existSnap.docs[0]!.id;
           form.value.id = existId;
           await updateDoc(doc(db, 'tenants', existId), tenantData);
         }
       } else {
-        // 更新現有 Tenant
         await updateDoc(doc(db, 'tenants', form.value.id), tenantData);
       }
     } else {
-      // 純手動新增：先以電話查重
       const dupQ = query(
         collection(db, 'tenants'),
         where('phone', '==', form.value.phone),
@@ -691,33 +936,26 @@ const saveTenant = async () => {
         return;
       }
       const newDoc = await addDoc(collection(db, 'tenants'), {
-        ...tenantData,
-        createdAt: serverTimestamp(),
-        paymentStatus: 'normal',
+        ...tenantData, createdAt: serverTimestamp(), paymentStatus: 'normal',
       });
       form.value.id = newDoc.id;
     }
 
-    // 2. 處理 Rooms Collection (房源狀態同步)
-    // 找出選定的房間 ID
+    // 2. 處理 Rooms Collection
     const selectedRoom = availableRooms.value.find(r => r.name === form.value.room);
     if (selectedRoom) {
-      const roomRef = doc(db, 'rooms', selectedRoom.id);
-      await updateDoc(roomRef, {
+      await updateDoc(doc(db, 'rooms', selectedRoom.id), {
         status: 'occupied',
         tenantName: form.value.name,
         leaseEnd: form.value.leaseEnd,
-        // 如果需要可以存 tenantId: tenantDocId
       });
-      // TODO: 如果換房間，應把舊房間設回 vacant (這裡簡化暫不處理)
     }
 
-    // 3. 處理 Contracts Collection（所有租客都建立，含手動新增）
+    // 3. 處理 Contracts Collection
     {
       const tenantDocId = form.value.id!;
       const contractsRef = collection(db, 'contracts');
 
-      // 查既有合約：線上用戶用 tenantId，手動用 tenantDocId
       const qContract = targetUid
         ? query(contractsRef, where('landlordId', '==', authStore.effectiveUid), where('tenantId', '==', targetUid), where('status', '==', 'active'))
         : query(contractsRef, where('landlordId', '==', authStore.effectiveUid), where('tenantDocId', '==', tenantDocId), where('status', '==', 'active'));
@@ -746,7 +984,7 @@ const saveTenant = async () => {
         depositMonths,
         startDate: form.value.leaseStart,
         endDate: form.value.leaseEnd,
-        paymentDay: 5,
+        paymentDay: authStore.userProfile?.settings?.paymentDay ?? 5,
         status: 'active',
         updatedAt: serverTimestamp()
       };
@@ -765,28 +1003,40 @@ const saveTenant = async () => {
         contractId = newContract.id;
       }
 
-      // 回存 contractId 到 tenants 文件
       await updateDoc(doc(db, 'tenants', tenantDocId), { contractId });
     }
 
-    // 重新抓取房源狀態 (因為狀態變了)
     await fetchRooms();
+    toast.success(isEditing.value ? '租客資料已更新' : '租客已新增');
     showModal.value = false;
+    drawerEditing.value = false;
+
+    // 若在 drawer 編輯模式，回到 view 模式並刷新 drawer tenant
+    if (showDrawer.value && drawerTenant.value) {
+      // onSnapshot 會自動更新 tenants.value，drawer tenant 會在下一 tick 反映
+    }
 
   } catch (error) {
-    console.error("Error saving tenant:", error);
-    toast.error("儲存失敗: " + error);
+    console.error('Error saving tenant:', error);
+    toast.error('儲存失敗: ' + error);
   } finally {
     isSaving.value = false;
   }
 };
 
 // --- Computed & Helpers ---
+const tenantsWithStatus = computed(() => {
+  const map = billStatusMap.value;
+  return tenants.value.map(t => {
+    const billStatus = map[t.id];
+    return billStatus ? { ...t, paymentStatus: billStatus } : t;
+  });
+});
+
 const stats = computed(() => {
   const today = new Date();
   const sixtyDaysLater = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000);
-  const activeTenants = tenants.value.filter(t => t.paymentStatus !== 'pending');
-
+  const activeTenants = tenantsWithStatus.value.filter(t => t.paymentStatus !== 'pending');
   return {
     total: activeTenants.length,
     expiring: activeTenants.filter(t => {
@@ -799,7 +1049,7 @@ const stats = computed(() => {
 });
 
 const filteredTenants = computed(() => {
-  return tenants.value.filter(t => {
+  return tenantsWithStatus.value.filter(t => {
     const q = searchQuery.value.toLowerCase();
     const matchSearch = t.name.toLowerCase().includes(q) ||
                         t.room.toLowerCase().includes(q) ||
@@ -815,12 +1065,8 @@ const filteredTenants = computed(() => {
 // --- 分頁 ---
 const TENANT_PAGE_SIZE = 15;
 const tenantPage = ref(1);
-
-// 搜尋或篩選變化時重置頁碼
 watch([searchQuery, currentFilter], () => { tenantPage.value = 1; });
-
 const totalTenantPages = computed(() => Math.ceil(filteredTenants.value.length / TENANT_PAGE_SIZE));
-
 const pagedTenants = computed(() => {
   const start = (tenantPage.value - 1) * TENANT_PAGE_SIZE;
   return filteredTenants.value.slice(start, start + TENANT_PAGE_SIZE);
@@ -830,132 +1076,192 @@ const isExpiringSoon = (dateStr: string) => {
   if (!dateStr) return false;
   const today = new Date();
   const targetDate = new Date(dateStr);
-  const diffTime = targetDate.getTime() - today.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const diffDays = Math.ceil((targetDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   return diffDays > 0 && diffDays <= 60;
 };
 
-// --- Modal Logic ---
+// --- New Tenant Modal ---
 const showModal = ref(false);
 const isEditing = ref(false);
 const form = ref<Partial<Tenant>>({
-  name: '',
-  room: '',
-  phone: '',
-  email: '',
-  leaseStart: todayStr(),
-  leaseEnd: calcLeaseEnd(todayStr(), 1),
-  leaseDuration: 1,
-  rent: 0,
-  depositMonths: 2,
-  paymentStatus: 'normal',
-  emergencyContact: '',
-  note: ''
+  name: '', room: '', phone: '', email: '',
+  leaseStart: todayStr(), leaseEnd: calcLeaseEnd(todayStr(), 1),
+  leaseDuration: 1, rent: 0, depositMonths: 2,
+  paymentStatus: 'normal', emergencyContact: '', note: ''
 });
 
-// 自動計算到期日
 watch(
   [() => form.value.leaseStart, () => form.value.leaseDuration],
   ([start, duration]) => {
-    if (start && duration) {
-      form.value.leaseEnd = calcLeaseEnd(start, duration);
-    }
+    if (start && duration) form.value.leaseEnd = calcLeaseEnd(start, duration);
   }
 );
 
-// Computed properties for Dropdown logic
 const vacantRooms = computed(() => availableRooms.value.filter(r => r.status === 'vacant'));
 const currentEditingRoom = computed(() => {
-  // 如果正在編輯，且該租客已經有房間，就算該房間狀態是 occupied，也要顯示出來給他選
   if (!form.value.room) return null;
   return availableRooms.value.find(r => r.name === form.value.room);
 });
-
-const isRoomInList = (roomName: string) => {
-  return availableRooms.value.some(r => r.name === roomName);
-};
-
-// 選擇房間時自動帶入價格
+const isRoomInList = (roomName: string) => availableRooms.value.some(r => r.name === roomName);
 const onRoomSelect = () => {
   const r = availableRooms.value.find(room => room.name === form.value.room);
-  if (r) {
-    form.value.rent = Number(r.price);
-  }
+  if (r) form.value.rent = Number(r.price);
 };
 
-const openModal = (tenant?: Tenant) => {
-  fetchRooms(); // 確保房源資料最新
-  if (tenant) {
-    isEditing.value = true;
-    form.value = JSON.parse(JSON.stringify(tenant));
-    // 如果沒有 rent 資料，嘗試從房源補
-    if (!form.value.rent && form.value.room) {
-       const r = availableRooms.value.find(room => room.name === form.value.room);
-       if (r) form.value.rent = r.price;
-    }
-  } else {
-    isEditing.value = false;
-    const today = todayStr();
-    form.value = {
-      name: '',
-      room: '',
-      phone: '',
-      leaseStart: today,
-      leaseEnd: calcLeaseEnd(today, 1),
-      leaseDuration: 1,
-      rent: 0,
-      depositMonths: 2,
-      paymentStatus: 'normal'
-    };
-  }
+const openNewTenantModal = () => {
+  fetchRooms();
+  isEditing.value = false;
+  const today = todayStr();
+  form.value = {
+    name: '', room: '', phone: '', email: '',
+    leaseStart: today, leaseEnd: calcLeaseEnd(today, 1),
+    leaseDuration: 1, rent: 0, depositMonths: 2,
+    paymentStatus: 'normal', emergencyContact: '', note: ''
+  };
   showModal.value = true;
 };
 
-// --- Dropdown Logic ---
+// --- Drawer State ---
+const showDrawer = ref(false);
+const drawerTenant = ref<Tenant | null>(null);
+const drawerTab = ref<'info' | 'bills' | 'deposits'>('info');
+const drawerEditing = ref(false);
+const drawerBills = ref<DrawerBill[]>([]);
+const drawerBillsLoading = ref(false);
+const markingBillId = ref<string | null>(null);
+
+const drawerTabs = [
+  { label: '基本資料', value: 'info' },
+  { label: '帳單紀錄', value: 'bills' },
+  { label: '入住押金', value: 'deposits' },
+];
+
+const openDrawer = (tenant: Tenant) => {
+  drawerTenant.value = { ...tenant };
+  drawerTab.value = 'info';
+  drawerEditing.value = false;
+  showDrawer.value = true;
+  fetchRooms();
+};
+
+const openDrawerTab = (tenant: Tenant, tab: 'info' | 'bills' | 'deposits') => {
+  drawerTenant.value = { ...tenant };
+  drawerTab.value = tab;
+  drawerEditing.value = false;
+  showDrawer.value = true;
+  fetchRooms();
+  if (tab === 'bills') fetchDrawerBills();
+  if (tab === 'deposits') loadDepositItems(tenant);
+};
+
+const switchDrawerTab = (tab: string) => {
+  drawerTab.value = tab as any;
+  if (tab === 'bills' && drawerBills.value.length === 0) fetchDrawerBills();
+  if (tab === 'deposits' && drawerTenant.value) loadDepositItems(drawerTenant.value);
+};
+
+const closeDrawer = () => {
+  showDrawer.value = false;
+  drawerEditing.value = false;
+};
+
+const enterDrawerEdit = () => {
+  if (!drawerTenant.value) return;
+  isEditing.value = true;
+  form.value = JSON.parse(JSON.stringify(drawerTenant.value));
+  if (!form.value.rent && form.value.room) {
+    const r = availableRooms.value.find(room => room.name === form.value.room);
+    if (r) form.value.rent = r.price;
+  }
+  drawerEditing.value = true;
+};
+
+// --- Drawer Bills ---
+const fetchDrawerBills = async () => {
+  if (!drawerTenant.value) return;
+  drawerBillsLoading.value = true;
+  drawerBills.value = [];
+  try {
+    const tid = drawerTenant.value.id;
+    const uid = authStore.effectiveUid;
+    // 必須帶 landlordId 條件，否則 Firestore 安全規則 list 評估會失敗
+    const snap = await getDocs(query(
+      collection(db, 'bills'),
+      where('landlordId', '==', uid),
+      where('relatedTenantDocId', '==', tid),
+      where('type', '==', 'income'),
+      orderBy('date', 'desc'),
+      limit(20)
+    ));
+    drawerBills.value = snap.docs.map(d => {
+      const data = d.data();
+      return {
+        id: d.id,
+        date: data.date,
+        monthStr: data.date ? data.date.slice(0, 7).replace('-', '年 ') + '月' : '—',
+        category: data.category || '—',
+        amount: Number(data.amount) || 0,
+        status: data.status || 'pending',
+        dueDate: data.dueDate || ''
+      } as DrawerBill;
+    });
+  } catch (e) {
+    console.warn('Drawer bills fetch error:', e);
+  } finally {
+    drawerBillsLoading.value = false;
+  }
+};
+
+const markDrawerBillPaid = async (bill: DrawerBill) => {
+  markingBillId.value = bill.id;
+  try {
+    const today = new Date().toISOString().split('T')[0]!;
+    await updateDoc(doc(db, 'bills', bill.id), {
+      status: 'completed',
+      paymentDate: today,
+      updatedAt: serverTimestamp()
+    });
+    bill.status = 'completed';
+    toast.success('已標記收款完成');
+    refreshBillStatuses();
+  } catch {
+    toast.error('更新失敗，請稍後再試');
+  } finally {
+    markingBillId.value = null;
+  }
+};
+
+// --- Dropdown ---
 const activeMenuId = ref<string | null>(null);
 const toggleMenu = (id: string) => {
   activeMenuId.value = activeMenuId.value === id ? null : id;
 };
-const closeDropdown = () => {
-  activeMenuId.value = null;
-};
+const closeDropdown = () => { activeMenuId.value = null; };
 
-// --- Deposit Modal Logic ---
-const showDepositModal = ref(false);
-const depositTenant = ref<Tenant | null>(null);
+// --- Deposit Logic (used in drawer deposits tab) ---
 const depositItems = ref<DepositItem[]>([]);
 const isMarkingPaid = ref(false);
 
-const openDepositModal = async (tenant: Tenant) => {
-  depositTenant.value = tenant;
+const loadDepositItems = async (tenant: Tenant) => {
+  depositItems.value = [];
   if (tenant.contractId) {
     const snap = await getDoc(doc(db, 'contracts', tenant.contractId));
-    if (snap.exists()) {
-      depositItems.value = (snap.data().deposits as DepositItem[]) || [];
-    }
+    if (snap.exists()) depositItems.value = (snap.data().deposits as DepositItem[]) || [];
   } else {
     depositItems.value = tenant.deposits || [];
   }
-  showDepositModal.value = true;
 };
 
 const markDepositPaid = async (idx: number) => {
-  if (!depositTenant.value?.contractId) return;
+  if (!drawerTenant.value?.contractId) return;
   isMarkingPaid.value = true;
   try {
-    const tenant = depositTenant.value;
+    const tenant = drawerTenant.value;
     const item = depositItems.value[idx]!;
     const todayDate = new Date().toISOString().split('T')[0]!;
     const nowLabel = new Date().toLocaleDateString('zh-TW');
-
     depositItems.value[idx] = { ...item, status: 'paid', paidAt: nowLabel };
-
-    // 1. 更新合約的 deposits 陣列
-    await updateDoc(doc(db, 'contracts', tenant.contractId!), {
-      deposits: depositItems.value
-    });
-
-    // 2. 在 bills 建立已收帳目
+    await updateDoc(doc(db, 'contracts', tenant.contractId!), { deposits: depositItems.value });
     await addDoc(collection(db, 'bills'), {
       landlordId: authStore.effectiveUid,
       tenantId: tenant.uid || null,
@@ -972,7 +1278,6 @@ const markDepositPaid = async (idx: number) => {
       history: [],
       createdAt: serverTimestamp(),
     });
-
     toast.success(`已標記「${item.label}」收款完成`);
   } catch {
     toast.error('更新失敗，請稍後再試');
@@ -992,10 +1297,27 @@ const getDepositLabel = (tenant: Tenant): string => {
 const getDepositBadgeClass = (tenant: Tenant): string => {
   const deps = tenant.deposits || [];
   const paid = deps.filter(d => d.status === 'paid').length;
-  if (paid === deps.length && deps.length > 0)
-    return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300';
-  if (paid === 0)
-    return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';
+  if (paid === deps.length && deps.length > 0) return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300';
+  if (paid === 0) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';
   return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
 };
 </script>
+
+<style scoped>
+.drawer-slide-enter-active,
+.drawer-slide-leave-active {
+  transition: opacity 0.2s ease;
+}
+.drawer-slide-enter-active .drawer-panel,
+.drawer-slide-leave-active .drawer-panel {
+  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.drawer-slide-enter-from,
+.drawer-slide-leave-to {
+  opacity: 0;
+}
+.drawer-slide-enter-from .drawer-panel,
+.drawer-slide-leave-to .drawer-panel {
+  transform: translateX(100%);
+}
+</style>

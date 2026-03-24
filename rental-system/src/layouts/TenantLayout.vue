@@ -87,6 +87,7 @@ const menuItems = computed(() => [
   { name: '社區公告', to: { name: 'TenantAnnouncements' }, icon: 'campaign', hasNotification: false },
   { name: '報修申請', to: { name: 'TenantRepairs' }, icon: 'build_circle', hasNotification: false },
   { name: '聯繫房東', to: { name: 'ContactLandlord' }, icon: 'support_agent', hasNotification: hasNewReply.value },
+  { name: '大樓資訊', to: { name: 'TenantBuildingInfo' }, icon: 'apartment', hasNotification: false },
 ]);
 
 const isActive = (to: any) => {
