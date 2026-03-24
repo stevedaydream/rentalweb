@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(git:*)",
+      "Bash(head -20 grep -r PDF.py /c/Users/User/AndroidStudioProjects/rentalweb/rental-system --include=*.js --include=*.ts --include=*.json)",
+      "Bash(rm /c/Users/User/AndroidStudioProjects/rentalweb/rental-system/src/components/HelloWorld.vue /c/Users/User/AndroidStudioProjects/rentalweb/rental-system/src/assets/vue.svg /c/Users/User/AndroidStudioProjects/rentalweb/rental-system/public/vite.svg /c/Users/User/AndroidStudioProjects/rentalweb/rental-system/functions/PDF.py /c/Users/User/AndroidStudioProjects/rentalweb/rental-system/functions/firebase-debug.log /c/Users/User/AndroidStudioProjects/rentalweb/rental-system/.firebase/hosting.ZGlzdA.cache /c/Users/User/AndroidStudioProjects/rentalweb/rental-system/netlify.toml)",
+      "Bash(rm -rf /c/Users/User/AndroidStudioProjects/rentalweb/rental-system/src/dataconnect-generated /c/Users/User/AndroidStudioProjects/rentalweb/rental-system/dataconnect /c/Users/User/AndroidStudioProjects/rentalweb/rental-system/routes)",
+      "Bash(npm run:*)",
+      "Bash(npx vite:*)",
+      "Bash(python:*)",
+      "Bash(npx tsc:*)",
+      "Bash(node -e \"require\\(''@line/bot-sdk''\\); console.log\\(''ok''\\)\")",
+      "Bash(\"C:/Users/User/AndroidStudioProjects/rentalweb/rental-system/.env.production\")",
+      "Bash(firebase projects:list)",
+      "Bash(node -e \"require\\(''@line/bot-sdk''\\); require\\(''firebase-admin''\\); require\\(''firebase-functions''\\); console.log\\(''all deps ok''\\)\")",
+      "Bash(firebase deploy:*)",
+      "Bash(grep -c '\"\"resolved\"\"' package-lock.json)",
+      "Bash(grep -c '\"\"integrity\"\"' package-lock.json)",
+      "Bash(node:*)",
+      "Bash(npm why:*)",
+      "Bash(npm --version)",
+      "Bash(ls:*)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":8080\")",
+      "Bash(findstr \"LISTENING\")",
+      "Bash(tasklist:*)",
+      "Bash(powershell -Command \"Get-Process -Id 35020 | Select-Object Id, ProcessName, MainWindowTitle\")",
+      "Bash(powershell -Command \"Stop-Process -Id 35020 -Force\")",
+      "Bash(cd:*)",
+      "Bash(curl -s http://localhost:4000/functions)",
+      "Bash(curl -s http://localhost:5001/)",
+      "Bash(curl:*)",
+      "Bash(node -e \"require\\(''''./index.js''''\\)\")",
+      "Bash(npx firebase:*)",
+      "Bash(node -e \":*)"
+    ]
+  }
+}

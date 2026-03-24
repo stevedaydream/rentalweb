@@ -1,39 +1,39 @@
 <template>
   <div class="min-h-screen bg-background-light dark:bg-background-dark flex">
     
-    <aside 
-      class="fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-card-dark border-r border-gray-200 dark:border-gray-800 transition-transform duration-300 transform lg:translate-x-0 lg:static lg:block"
+    <aside
+      class="fixed inset-y-0 left-0 z-50 w-64 bg-ink-800 transition-transform duration-300 transform lg:translate-x-0 lg:static lg:block"
       :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'"
     >
       <div class="h-full flex flex-col">
-        <div class="h-20 flex items-center px-6 border-b border-gray-100 dark:border-gray-800">
+        <div class="h-20 flex items-center px-6 border-b border-ink-700">
           <div class="flex flex-col gap-1">
-            <img :src="logoSrc" alt="Logo" class="h-10 w-auto" />
-            <span class="text-[10px] w-fit px-2 py-0.5 bg-green-100 text-green-600 rounded-full font-bold ml-1">租客專用版</span>
+            <img :src="logoSrc" alt="Logo" class="h-10 w-auto brightness-0 invert" />
+            <span class="text-[10px] w-fit px-2 py-0.5 bg-gold-500/20 text-gold-300 rounded-full font-bold ml-1">租客專用版</span>
           </div>
         </div>
         <nav class="flex-1 overflow-y-auto p-4 space-y-1">
-          <router-link 
-            v-for="item in menuItems" 
+          <router-link
+            v-for="item in menuItems"
             :key="item.name"
             :to="item.to"
             class="flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl transition-colors group relative"
-            :class="isActive(item.to) ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-200' : 'text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800'"
+            :class="isActive(item.to) ? 'bg-gold-500/15 text-gold-300' : 'text-ink-300 hover:bg-ink-700 hover:text-ink-100'"
             @click="isSidebarOpen = false"
           >
             <div class="flex items-center">
               <span class="material-symbols-outlined mr-3 text-[20px]">{{ item.icon }}</span>
               {{ item.name }}
             </div>
-            
-            <span v-if="item.hasNotification" class="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-sm shadow-red-500/50"></span>
+
+            <span v-if="item.hasNotification" class="w-2 h-2 bg-gold-400 rounded-full animate-pulse"></span>
           </router-link>
         </nav>
 
-        <div class="p-4 border-t border-gray-100 dark:border-gray-800">
-          <button 
+        <div class="p-4 border-t border-ink-700">
+          <button
             @click="handleLogout"
-            class="w-full flex items-center px-4 py-3 text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+            class="w-full flex items-center px-4 py-3 text-sm font-medium text-ink-400 hover:bg-ink-700 hover:text-red-400 rounded-xl transition-colors"
           >
             <span class="material-symbols-outlined mr-3">logout</span>
             登出系統
@@ -49,9 +49,9 @@
     ></div>
 
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
-      <header class="lg:hidden flex items-center justify-between p-4 bg-white dark:bg-card-dark border-b border-gray-200 dark:border-gray-800">
-        <img :src="logoSrc" alt="Logo" class="h-8 w-auto" />
-        <button @click="isSidebarOpen = true" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+      <header class="lg:hidden flex items-center justify-between p-4 bg-ink-800 border-b border-ink-700">
+        <img :src="logoSrc" alt="Logo" class="h-8 w-auto brightness-0 invert" />
+        <button @click="isSidebarOpen = true" class="p-2 rounded-lg text-ink-300 hover:bg-ink-700">
           <span class="material-symbols-outlined">menu</span>
         </button>
       </header>

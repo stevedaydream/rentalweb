@@ -16,31 +16,24 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
             <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">房號</label>
-            <div class="relative">
-              <input 
-                v-model="form.roomNo" 
-                list="room-options" 
-                class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors" 
-                placeholder="選擇房號" 
-                required 
-              />
-              <datalist id="room-options">
-                <option v-for="item in roomList" :key="item" :value="item" />
-              </datalist>
-            </div>
+            <select
+              v-model="form.roomNo"
+              @change="onRoomSelect(form.roomNo)"
+              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors"
+              required
+            >
+              <option value="" disabled>選擇房號</option>
+              <option v-for="r in rooms" :key="r.id" :value="r.name">{{ r.name }}</option>
+            </select>
           </div>
           <div>
             <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">地址</label>
-            <input 
-              v-model="form.address" 
-              list="address-options" 
-              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors" 
-              placeholder="地址" 
-              required 
+            <input
+              v-model="form.address"
+              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors"
+              placeholder="地址（選擇房號後自動帶入）"
+              required
             />
-            <datalist id="address-options">
-              <option v-for="item in addressList" :key="item" :value="item" />
-            </datalist>
           </div>
         </div>
 
@@ -117,27 +110,57 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import axios from 'axios'
-// [修改開始]：引入共用的 PDF 下載工具
+import { collection, query, where, getDocs } from 'firebase/firestore'
+import { db, auth } from '../../firebase/config'
+import { useAuthStore } from '../../stores/auth'
+import { useToastStore } from '../../stores/toast'
 import { downloadPdfFromBlob } from '../pdfHelper.js'
-// [修改結束]
 
+const toast = useToastStore()
+const authStore = useAuthStore()
 const downloading = ref(false)
-const roomList = ref([401, 402, 403, 501, 502, 503, 504])
-const addressList = ref([
-  '基隆市中山區復興路389-3號',
-  '桃園市桃園區復興路83號10樓'
-])
+
+// rooms loaded from Firestore: { id, name, address, tenantName }
+const rooms = ref([])
+
+async function loadRooms(uid) {
+  if (!uid) return
+  try {
+    const q = query(collection(db, 'rooms'), where('landlordId', '==', uid))
+    const snap = await getDocs(q)
+    rooms.value = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+  } catch (e) {
+    console.error('載入房間失敗', e)
+  }
+}
 
 const form = ref({
   roomNo: '',
   tenant: '',
-  landlord: '王子建(Steve)',
+  landlord: '',
   deposit: 1000,
   address: '',
   startDate: new Date().toISOString().split('T')[0]
 })
+
+watch(() => authStore.effectiveUid, uid => {
+  if (uid) loadRooms(uid)
+}, { immediate: true })
+
+// When landlord profile loads, fill landlord name
+watch(() => authStore.userProfile, profile => {
+  if (profile?.name) form.value.landlord = profile.name
+}, { immediate: true })
+
+// When room is selected, auto-fill address and tenant
+function onRoomSelect(roomName) {
+  const r = rooms.value.find(x => x.name === roomName)
+  if (!r) return
+  form.value.address = r.address || ''
+  form.value.tenant = r.tenantName || ''
+}
 
 const computedEndDate = computed(() => {
   if (!form.value.startDate) return ''
@@ -160,24 +183,22 @@ const apiBase = import.meta.env.VITE_API_BASE
 const generatePDF = async () => {
   // [修改開始]
   downloading.value = true
-  
-  if (form.value.address && !addressList.value.includes(form.value.address)) {
-    addressList.value.push(form.value.address)
-  }
-
   try {
+    const token = await auth.currentUser?.getIdToken()
     const res = await axios.post(
-      `${apiBase}/generatePdf`, 
+      `${apiBase}/generatePdf`,
       {
         ...form.value,
         endDate: computedEndDate.value,
         today: formatROCDate(new Date()),
         templateType: 'Deposit',
       },
-      { 
-        // 使用 blob 接收資料，方便 pdfHelper 處理
-        responseType: 'blob', 
-        headers: { 'Content-Type': 'application/json' }
+      {
+        responseType: 'blob',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
       }
     )
 
@@ -192,7 +213,7 @@ const generatePDF = async () => {
 
   } catch (err) {
     const errorMsg = err.message || 'PDF 下載失敗，請確認後端服務是否啟動';
-    alert(errorMsg);
+    toast.error(errorMsg);
     console.error('[PDF Helper Error]', err);
   } finally {
     downloading.value = false

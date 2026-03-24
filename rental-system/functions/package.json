@@ -9,11 +9,12 @@
     "logs": "firebase functions:log"
   },
   "engines": {
-    "node": "24"
+    "node": "22"
   },
   "main": "index.js",
   "dependencies": {
-    "@dataconnect/admin-generated": "file:src/dataconnect-admin-generated",
+    "@google-cloud/firestore": "^8.3.0",
+    "@line/bot-sdk": "^10.6.0",
     "@sparticuz/chromium": "^143.0.0",
     "cors": "^2.8.5",
     "firebase-admin": "^13.6.0",

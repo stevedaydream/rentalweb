@@ -2,21 +2,23 @@
   <div v-if="!authStore.loading">
     <router-view></router-view>
   </div>
-  
+
   <div v-else class="min-h-screen flex items-center justify-center bg-background-light dark:bg-background-dark">
     <div class="flex flex-col items-center gap-4">
       <img :src="logoSrc" alt="Logo" class="h-20 w-auto mb-4 animate-pulse" />
-      <div class="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      <div class="w-12 h-12 border-4 border-gold-500 border-t-transparent rounded-full animate-spin"></div>
       <p class="text-text-secondary-light animate-pulse font-medium">系統初始化中...</p>
     </div>
   </div>
+
+  <ToastContainer />
 </template>
 
 <script setup lang="ts">
 import { onMounted } from 'vue';
 import { useAuthStore } from './stores/auth';
-// 引入 Logo 資源
 import logoSrc from './assets/logo.svg'
+import ToastContainer from './components/ToastContainer.vue'
 
 const authStore = useAuthStore();
 

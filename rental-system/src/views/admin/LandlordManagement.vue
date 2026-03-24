@@ -43,7 +43,7 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
-            <tr v-for="landlord in filteredLandlords" :key="landlord.id" class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+            <tr v-for="landlord in paginatedLandlords" :key="landlord.id" class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
               <td class="px-6 py-4">
                 <div class="flex items-center">
                   <div class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 flex items-center justify-center font-bold mr-3 text-lg">
@@ -71,27 +71,65 @@
                 {{ formatDate(landlord.createdAt) }}
               </td>
               <td class="px-6 py-4 text-right">
-                <button 
-                  @click="confirmDelete(landlord)"
-                  class="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors"
-                  title="刪除此帳號 (Delete)"
-                >
-                  <span class="material-symbols-outlined">delete</span>
-                </button>
+                <div class="flex items-center justify-end gap-1">
+                  <button
+                    @click="authStore.startImpersonation({ uid: landlord.id, name: landlord.name, landlordCode: landlord.landlordCode })"
+                    class="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 p-2 rounded-lg transition-colors"
+                    title="以此房東身份模擬操作"
+                  >
+                    <span class="material-symbols-outlined">manage_accounts</span>
+                  </button>
+                  <button
+                    @click="confirmDelete(landlord)"
+                    class="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors"
+                    title="刪除此帳號"
+                  >
+                    <span class="material-symbols-outlined">delete</span>
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
         </table>
+
+        <!-- 分頁控制 -->
+        <div v-if="totalPages > 1" class="flex items-center justify-between px-6 py-4 border-t border-gray-100 dark:border-gray-700">
+          <span class="text-sm text-gray-500">
+            第 {{ currentPage }} / {{ totalPages }} 頁，共 {{ filteredLandlords.length }} 筆
+          </span>
+          <div class="flex gap-1">
+            <button
+              @click="currentPage--"
+              :disabled="currentPage === 1"
+              class="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >上一頁</button>
+            <button
+              v-for="p in totalPages" :key="p"
+              @click="currentPage = p"
+              class="px-3 py-1.5 text-sm rounded-lg border transition-colors"
+              :class="p === currentPage
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'"
+            >{{ p }}</button>
+            <button
+              @click="currentPage++"
+              :disabled="currentPage === totalPages"
+              class="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >下一頁</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { db } from '../../firebase/config';
-import { 
-  collection, 
+import { useToastStore } from '../../stores/toast';
+import { useAuthStore } from '../../stores/auth';
+import {
+  collection,
   getDocs, 
   query, 
   where, 
@@ -110,6 +148,8 @@ interface Landlord {
   tenantCount: number;
 }
 
+const toast = useToastStore();
+const authStore = useAuthStore();
 const landlords = ref<Landlord[]>([]);
 const loading = ref(true);
 const searchQuery = ref('');
@@ -173,7 +213,7 @@ const fetchLandlords = async () => {
     landlords.value = rawLandlords;
   } catch (error) {
     console.error("Error fetching landlords:", error);
-    alert('資料讀取失敗，請檢查權限');
+    toast.error('資料讀取失敗，請檢查權限');
   } finally {
     loading.value = false;
   }
@@ -183,15 +223,28 @@ onMounted(() => {
   fetchLandlords();
 });
 
-// === 2. 搜尋與過濾 ===
+// === 2. 搜尋、過濾與分頁 ===
+const PAGE_SIZE = 10;
+const currentPage = ref(1);
+
 const filteredLandlords = computed(() => {
   if (!searchQuery.value) return landlords.value;
   const q = searchQuery.value.toLowerCase();
-  return landlords.value.filter(l => 
-    l.name.toLowerCase().includes(q) || 
-    l.email.toLowerCase().includes(q) || 
+  return landlords.value.filter(l =>
+    l.name.toLowerCase().includes(q) ||
+    l.email.toLowerCase().includes(q) ||
     l.landlordCode.toLowerCase().includes(q)
   );
+});
+
+// 搜尋變化時重置頁碼
+watch(searchQuery, () => { currentPage.value = 1; });
+
+const totalPages = computed(() => Math.ceil(filteredLandlords.value.length / PAGE_SIZE));
+
+const paginatedLandlords = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE;
+  return filteredLandlords.value.slice(start, start + PAGE_SIZE);
 });
 
 // === 3. 操作邏輯 ===
@@ -214,15 +267,15 @@ const confirmDelete = async (landlord: Landlord) => {
       // 前端移除該筆資料，不需重新整理
       landlords.value = landlords.value.filter(l => l.id !== landlord.id);
       
-      alert('刪除成功');
+      toast.success('刪除成功');
     } catch (error) {
       console.error(error);
-      alert('刪除失敗');
+      toast.error('刪除失敗');
     } finally {
       loading.value = false;
     }
   } else {
-    if (input !== null) alert('驗證碼錯誤，取消操作');
+    if (input !== null) toast.warning('驗證碼錯誤，取消操作');
   }
 };
 </script>

@@ -186,8 +186,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { db } from '../../firebase/config';
-import { 
-  collection, 
+import { useToastStore } from '../../stores/toast';
+import {
+  collection,
   getDocs, 
   query, 
   where, 
@@ -208,6 +209,7 @@ interface User {
   roomCount?: number;         // Aux for UI
 }
 
+const toast = useToastStore();
 const tenants = ref<User[]>([]);
 const landlords = ref<User[]>([]);
 const loading = ref(true);
@@ -245,7 +247,7 @@ const fetchData = async () => {
 
   } catch (error) {
     console.error("Error fetching data:", error);
-    alert('資料讀取失敗');
+    toast.error('資料讀取失敗');
   } finally {
     loading.value = false;
   }
@@ -322,11 +324,11 @@ const submitAssignment = async () => {
       tenants.value[idx]!.boundLandlordCode = targetLandlordCode.value;
     }
 
-    alert(`配對成功！\n已將 ${selectedTenant.value.name} 指派給 ${getLandlordName(targetLandlordCode.value)}`);
+    toast.success(`配對成功！已將 ${selectedTenant.value.name} 指派給 ${getLandlordName(targetLandlordCode.value)}`);
     showModal.value = false;
   } catch (error) {
     console.error(error);
-    alert('配對失敗，請稍後再試');
+    toast.error('配對失敗，請稍後再試');
   } finally {
     assigning.value = false;
   }
@@ -339,7 +341,7 @@ const confirmDelete = async (tenant: User) => {
       tenants.value = tenants.value.filter(t => t.id !== tenant.id);
     } catch (e) {
       console.error(e);
-      alert('刪除失敗');
+      toast.error('刪除失敗');
     }
   }
 };

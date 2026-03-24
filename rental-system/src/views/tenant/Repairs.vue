@@ -87,6 +87,7 @@
 import { ref, onMounted } from 'vue';
 import { db } from '../../firebase/config';
 import { useAuthStore } from '../../stores/auth';
+import { useToastStore } from '../../stores/toast';
 // [修改] 增加 getDocs, limit 引用
 import { 
   collection, 
@@ -101,6 +102,7 @@ import {
 } from 'firebase/firestore';
 
 const authStore = useAuthStore();
+const toast = useToastStore();
 const requests = ref<any[]>([]);
 const loading = ref(true);
 const isSubmitting = ref(false);
@@ -154,7 +156,7 @@ onMounted(async () => {
 });
 
 const submitRequest = async () => {
-  if (!form.value.title || !form.value.description) return alert('請完整填寫內容');
+  if (!form.value.title || !form.value.description) { toast.warning('請完整填寫內容'); return; }
   
   isSubmitting.value = true;
   try {
@@ -171,7 +173,7 @@ const submitRequest = async () => {
     form.value = { category: '水電設備', title: '', description: '' };
   } catch (err) {
     console.error(err);
-    alert('送出失敗');
+    toast.error('送出失敗');
   } finally {
     isSubmitting.value = false;
   }

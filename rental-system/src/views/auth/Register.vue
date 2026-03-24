@@ -10,36 +10,45 @@
       <form @submit.prevent="handleRegister" class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-text-secondary-light mb-1">Email</label>
-          <input 
-            v-model="email" 
-            type="email" 
+          <input
+            v-model="email"
+            type="email"
             required
-            class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+            @blur="validateEmail"
+            :class="['w-full px-4 py-3 rounded-xl border bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all',
+              emailError ? 'border-red-400 dark:border-red-500' : 'border-gray-200 dark:border-gray-700']"
             placeholder="name@example.com"
           >
+          <p v-if="emailError" class="mt-1 text-xs text-red-500">{{ emailError }}</p>
         </div>
-        
+
         <div>
           <label class="block text-sm font-medium text-text-secondary-light mb-1">設定密碼</label>
-          <input 
-            v-model="password" 
-            type="password" 
+          <input
+            v-model="password"
+            type="password"
             required
             minlength="6"
-            class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+            @blur="validatePassword"
+            :class="['w-full px-4 py-3 rounded-xl border bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all',
+              passwordError ? 'border-red-400 dark:border-red-500' : 'border-gray-200 dark:border-gray-700']"
             placeholder="至少 6 位數"
           >
+          <p v-if="passwordError" class="mt-1 text-xs text-red-500">{{ passwordError }}</p>
         </div>
 
         <div>
           <label class="block text-sm font-medium text-text-secondary-light mb-1">確認密碼</label>
-          <input 
-            v-model="confirmPassword" 
-            type="password" 
+          <input
+            v-model="confirmPassword"
+            type="password"
             required
-            class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+            @blur="validateConfirmPassword"
+            :class="['w-full px-4 py-3 rounded-xl border bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all',
+              confirmPasswordError ? 'border-red-400 dark:border-red-500' : 'border-gray-200 dark:border-gray-700']"
             placeholder="再次輸入密碼"
           >
+          <p v-if="confirmPasswordError" class="mt-1 text-xs text-red-500">{{ confirmPasswordError }}</p>
         </div>
 
         <button 
@@ -67,13 +76,41 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useAuthStore } from '../../stores/auth';
+import { useToastStore } from '../../stores/toast';
 
 const authStore = useAuthStore();
+const toast = useToastStore();
 
 const email = ref('');
 const password = ref('');
 const confirmPassword = ref('');
 const loading = ref(false);
+
+const emailError = ref('');
+const passwordError = ref('');
+const confirmPasswordError = ref('');
+
+const validateEmail = () => {
+  if (!email.value) { emailError.value = 'Email 為必填'; return false; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)) { emailError.value = 'Email 格式不正確'; return false; }
+  emailError.value = '';
+  return true;
+};
+
+const validatePassword = () => {
+  if (!password.value) { passwordError.value = '密碼為必填'; return false; }
+  if (password.value.length < 6) { passwordError.value = '密碼至少需要 6 個字元'; return false; }
+  passwordError.value = '';
+  if (confirmPassword.value) validateConfirmPassword();
+  return true;
+};
+
+const validateConfirmPassword = () => {
+  if (!confirmPassword.value) { confirmPasswordError.value = '請再次輸入密碼'; return false; }
+  if (confirmPassword.value !== password.value) { confirmPasswordError.value = '兩次密碼輸入不一致'; return false; }
+  confirmPasswordError.value = '';
+  return true;
+};
 
 const roleTitle = computed(() => {
   if (authStore.selectedRole === 'landlord') return '房東';
@@ -82,17 +119,15 @@ const roleTitle = computed(() => {
 });
 
 const handleRegister = async () => {
-  if (password.value !== confirmPassword.value) {
-    alert('兩次密碼輸入不一致');
-    return;
-  }
+  const valid = validateEmail() && validatePassword() && validateConfirmPassword();
+  if (!valid) return;
 
   loading.value = true;
   try {
     await authStore.registerEmail(email.value, password.value);
     // 註冊成功後，store 會自動導向 Onboarding (因為是新用戶)
   } catch (e: any) {
-    alert('註冊失敗: ' + e.message);
+    toast.error('註冊失敗: ' + e.message);
   } finally {
     loading.value = false;
   }

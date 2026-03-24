@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
+import { visualizer } from 'rollup-plugin-visualizer'
 
 export default defineConfig({
   plugins: [vue(),
@@ -23,7 +24,15 @@ export default defineConfig({
           }
         ]
       }
-    })],
+    }),
+    // Bundle 分析（僅在 npm run analyze 時啟用）
+    process.env.ANALYZE === 'true' && visualizer({
+      open: true,
+      filename: 'dist/stats.html',
+      gzipSize: true,
+      brotliSize: true,
+    }),
+  ],
   build: {
     rollupOptions: {
       output: {
@@ -40,6 +49,6 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0', // [關鍵] 允許透過 IP (如 127.0.0.1) 訪問
-    port: 5173,      // 確保 Port 固定 (可選)
+    port: 5174,      // 確保 Port 固定 (可選)
   }
 })

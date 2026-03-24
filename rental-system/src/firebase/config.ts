@@ -1,10 +1,10 @@
 // src/firebase/config.ts
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage'; // [新增] 引入 Storage
+import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getStorage, connectStorageEmulator } from 'firebase/storage';
+import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 
-// 請替換為您的 Firebase 專案設定
 const firebaseConfig = {
   apiKey: "AIzaSyAVRqlmXqHpY5zSWjHgYbESTdXPBPSsg8w",
   authDomain: "rental-8897a.firebaseapp.com",
@@ -15,11 +15,18 @@ const firebaseConfig = {
   measurementId: "G-NC6MHSWKEW"
 };
 
-
 const app = initializeApp(firebaseConfig);
 
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app); // [新增] 初始化 Storage
+const storage = getStorage(app);
+const functions = getFunctions(app, 'asia-east1');
 
-export { auth, db, storage }; // [修改] 匯出 storage
+if (import.meta.env.DEV) {
+  connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+  connectFirestoreEmulator(db, 'localhost', 8080);
+  connectFunctionsEmulator(functions, 'localhost', 5001);
+  connectStorageEmulator(storage, 'localhost', 9199);
+}
+
+export { auth, db, storage, functions };

@@ -46,12 +46,37 @@
         <table class="w-full text-sm text-left">
           <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50">
             <tr>
-              <th class="px-6 py-4">抄表/建立日期</th>
-              <th class="px-6 py-4">房號</th>
-              <th class="px-6 py-4">計費區間</th>
+              <th class="px-6 py-4">
+                <button @click="setSort('createdAt')" class="flex items-center gap-1 hover:text-text-primary-light dark:hover:text-white transition-colors">
+                  抄表/建立日期
+                  <span class="material-symbols-outlined text-[14px]">{{ sortKey === 'createdAt' ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}</span>
+                </button>
+              </th>
+              <th class="px-6 py-4">
+                <button @click="setSort('roomName')" class="flex items-center gap-1 hover:text-text-primary-light dark:hover:text-white transition-colors">
+                  房號
+                  <span class="material-symbols-outlined text-[14px]">{{ sortKey === 'roomName' ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}</span>
+                </button>
+              </th>
+              <th class="px-6 py-4">
+                <button @click="setSort('periodEnd')" class="flex items-center gap-1 hover:text-text-primary-light dark:hover:text-white transition-colors">
+                  計費區間
+                  <span class="material-symbols-outlined text-[14px]">{{ sortKey === 'periodEnd' ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}</span>
+                </button>
+              </th>
               <th class="px-6 py-4 text-right">區間讀數</th>
-              <th class="px-6 py-4 text-right">用量</th>
-              <th class="px-6 py-4 text-right">費用</th>
+              <th class="px-6 py-4 text-right">
+                <button @click="setSort('usage')" class="flex items-center gap-1 ml-auto hover:text-text-primary-light dark:hover:text-white transition-colors">
+                  用量
+                  <span class="material-symbols-outlined text-[14px]">{{ sortKey === 'usage' ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}</span>
+                </button>
+              </th>
+              <th class="px-6 py-4 text-right">
+                <button @click="setSort('cost')" class="flex items-center gap-1 ml-auto hover:text-text-primary-light dark:hover:text-white transition-colors">
+                  費用
+                  <span class="material-symbols-outlined text-[14px]">{{ sortKey === 'cost' ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}</span>
+                </button>
+              </th>
               <th class="px-6 py-4 text-center">操作</th>
             </tr>
           </thead>
@@ -147,6 +172,9 @@
 import { ref, computed, onMounted } from 'vue';
 import { db } from '../../firebase/config';
 import { collection, query, orderBy, getDocs, deleteDoc, doc, Timestamp } from 'firebase/firestore';
+import { useToastStore } from '../../stores/toast';
+
+const toast = useToastStore();
 
 // --- Types ---
 interface MeterRecord {
@@ -171,6 +199,8 @@ const selectedMonth = ref('all');
 const selectedRoom = ref('all');
 const showModal = ref(false);
 const selectedItem = ref<MeterRecord | null>(null);
+const sortKey = ref<'createdAt' | 'roomName' | 'periodEnd' | 'usage' | 'cost'>('createdAt');
+const sortDir = ref<'asc' | 'desc'>('desc');
 
 // --- Lifecycle ---
 onMounted(async () => {
@@ -208,17 +238,35 @@ const uniqueRooms = computed(() => {
 });
 
 const filteredList = computed(() => {
-  return list.value.filter(item => {
-    // Month Filter
+  const filtered = list.value.filter(item => {
     if (selectedMonth.value !== 'all' && item.createdAt) {
       const date = item.createdAt.toDate();
       const str = `${date.getFullYear()}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
       if (str !== selectedMonth.value) return false;
     }
-    // Room Filter
     if (selectedRoom.value !== 'all' && item.roomName !== selectedRoom.value) return false;
-    
     return true;
+  });
+
+  return [...filtered].sort((a, b) => {
+    let valA: number | string;
+    let valB: number | string;
+    if (sortKey.value === 'createdAt') {
+      valA = a.createdAt?.toDate().getTime() ?? 0;
+      valB = b.createdAt?.toDate().getTime() ?? 0;
+    } else if (sortKey.value === 'roomName') {
+      valA = a.roomName ?? '';
+      valB = b.roomName ?? '';
+    } else if (sortKey.value === 'periodEnd') {
+      valA = a.periodEnd ?? '';
+      valB = b.periodEnd ?? '';
+    } else {
+      valA = a[sortKey.value] ?? 0;
+      valB = b[sortKey.value] ?? 0;
+    }
+    if (valA < valB) return sortDir.value === 'asc' ? -1 : 1;
+    if (valA > valB) return sortDir.value === 'asc' ? 1 : -1;
+    return 0;
   });
 });
 
@@ -226,6 +274,15 @@ const totalUsage = computed(() => filteredList.value.reduce((sum, item) => sum +
 const totalCost = computed(() => filteredList.value.reduce((sum, item) => sum + item.cost, 0));
 
 // --- Actions ---
+const setSort = (key: typeof sortKey.value) => {
+  if (sortKey.value === key) {
+    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortKey.value = key;
+    sortDir.value = key === 'roomName' || key === 'periodEnd' ? 'asc' : 'desc';
+  }
+};
+
 const formatDate = (ts: Timestamp) => {
   if (!ts) return '-';
   return ts.toDate().toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -248,7 +305,7 @@ const deleteRecord = async (id: string) => {
       list.value = list.value.filter(item => item.id !== id);
     } catch (e) {
       console.error(e);
-      alert('刪除失敗');
+      toast.error('刪除失敗');
     }
   }
 };

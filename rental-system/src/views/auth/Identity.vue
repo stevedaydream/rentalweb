@@ -3,7 +3,10 @@
     <div class="w-full max-w-md bg-white dark:bg-card-dark p-8 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-800">
       
       <div class="text-center mb-8">
-        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/30 text-primary mb-4">
+        <div
+          class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/30 text-primary mb-4 cursor-default select-none"
+          @click="handleIconClick"
+        >
           <span class="material-symbols-outlined text-3xl">home_work</span>
         </div>
         <h1 class="text-2xl font-extrabold text-text-primary-light dark:text-text-primary-dark">
@@ -48,8 +51,20 @@
         </button>
       </div>
 
+      <!-- 找房入口 -->
+      <div class="mt-6 pt-5 border-t border-gray-100 dark:border-gray-700 text-center">
+        <p class="text-sm text-text-secondary-light dark:text-text-secondary-dark mb-3">還在找房？</p>
+        <router-link
+          to="/explore"
+          class="inline-flex items-center gap-2 w-full justify-center p-3 rounded-xl border border-dashed border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-all text-sm text-text-secondary-light hover:text-blue-600 dark:hover:text-blue-400 font-medium"
+        >
+          <span class="material-symbols-outlined text-[18px]">search</span>
+          瀏覽空置房間（無需登入）
+        </router-link>
+      </div>
+
     </div>
-    
+
     <p class="mt-8 text-sm text-text-secondary-light dark:text-text-secondary-dark">
       Designed for Modern Rental Management
     </p>
@@ -57,17 +72,35 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../../stores/auth';
 
 const router = useRouter();
-const authStore = useAuthStore() as any; // 使用 any 斷言解決 Pinia 複雜類型的 TS 報錯
+const authStore = useAuthStore() as any;
 
 const selectRole = (role: string) => {
-  console.log('[Debug] 使用者選擇身分:', role);
-  // 呼叫 Store 函式儲存身分
   authStore.setRole(role);
-  // 導向登入頁面
   router.push({ name: 'Login' });
+};
+
+// 隱藏管理員入口：連點圖示 3 次
+const iconClickCount = ref(0);
+let iconClickTimer: ReturnType<typeof setTimeout> | null = null;
+
+const handleIconClick = () => {
+  iconClickCount.value++;
+  if (iconClickTimer) clearTimeout(iconClickTimer);
+
+  if (iconClickCount.value >= 3) {
+    iconClickCount.value = 0;
+    router.push({ name: 'AdminLogin' });
+    return;
+  }
+
+  // 3 秒內未完成則重置
+  iconClickTimer = setTimeout(() => {
+    iconClickCount.value = 0;
+  }, 3000);
 };
 </script>

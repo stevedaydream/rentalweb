@@ -35,7 +35,7 @@
 
   <div class="section-title">第三條　租金約定及支付</div>
   <p>
-    承租人每月租金為新臺幣 {{rentfee}} 元整，每期應繳納 1 個月租金，並於每月 5 日前支付，不得藉任何理由拖延或拒絕。<br>
+    承租人每月租金為新臺幣 {{rentfee}} 元整，每期應繳納 1 個月租金，並於每月 {{paymentDay}} 日前支付，不得藉任何理由拖延或拒絕。<br>
     出租人於租賃期間亦不得藉任何理由要求調漲租金。<br>
     租金支付方式：現金或轉帳，帳戶資訊詳契約正本。
   </p>
@@ -48,11 +48,11 @@
 
   <div class="section-title">第五條　租賃期間相關費用之約定</div>
   <ul>
-    <li>管理費：無</li>
-    <li>水費：由出租人負擔。</li>
-    <li>電費：由承租人負擔。（備註：公共區域電費由房東負擔）</li>
-    <li>瓦斯費：無</li>
-    <li>網路費：由出租人負擔。</li>
+    <li>管理費：{{feeManagementDisplay}}</li>
+    <li>水費：{{feeWaterDisplay}}</li>
+    <li>電費：{{feeElectricityDisplay}}</li>
+    <li>瓦斯費：{{feeGasDisplay}}</li>
+    <li>網路費：{{feeInternetDisplay}}</li>
   </ul>
 
   <div class="section-title">第六條　稅費負擔之約定</div>
@@ -129,9 +129,7 @@
   </ol>
 
   <div class="section-title">第十六條　出租人提前終止租約</div>
-  <p>
-    租賃期間有下列情形之一者，出租人得提前終止租約，且承租人不得要求任何賠償：
-  </p>
+  <p>租賃期間有下列情形之一者，出租人得提前終止租約，且承租人不得要求任何賠償：</p>
   <ol>
     <li>出租人為重新建築而必要收回。</li>
     <li>承租人遲付租金之總額達二個月之租金額，經出租人定相當期限催告，仍不為支付。</li>
@@ -151,9 +149,7 @@
   </p>
 
   <div class="section-title">第十七條　承租人提前終止租約</div>
-  <p>
-    租賃期間有下列情形之一，致難以繼續居住者，承租人得提前終止租約，出租人不得要求任何賠償：
-  </p>
+  <p>租賃期間有下列情形之一，致難以繼續居住者，承租人得提前終止租約，出租人不得要求任何賠償：</p>
   <ol>
     <li>租賃住宅未合於所約定居住使用，並有修繕之必要，經承租人定相當期限催告，仍不於期限內修繕。</li>
     <li>租賃住宅因不可歸責承租人之事由致一部滅失，且其存餘部分不能達租賃之目的。</li>
@@ -180,14 +176,13 @@
   </p>
 
   <div class="section-title">第二十條　條款疑義處理</div>
-  <p>
-    本契約各條款如有疑義時，應為有利於承租人之解釋。
-  </p>
+  <p>本契約各條款如有疑義時，應為有利於承租人之解釋。</p>
 
   <div class="section-title">第二十一條　其他約定</div>
   <p>
     本契約租賃雙方不同意辦理公證。<br>
-    本契約經辦理公證者，租賃雙方可約定公證書載明下列事項應逕受強制執行。
+    本契約經辦理公證者，租賃雙方可約定公證書載明下列事項應逕受強制執行。<br>
+    {{customArticle21Display}}
   </p>
 
   <div class="section-title">第二十二條　契約及其相關附件效力</div>
@@ -197,9 +192,7 @@
   </p>
 
   <div class="section-title">第二十三條　未盡事宜之處置</div>
-  <p>
-    本契約如有未盡事宜，依有關法令、習慣、平等互惠及誠實信用原則公平解決之。
-  </p>
+  <p>本契約如有未盡事宜，依有關法令、習慣、平等互惠及誠實信用原則公平解決之。</p>
 
   <div class="section-title">附件</div>
   <ul>
@@ -219,18 +212,14 @@
         <th>承租人簽章</th>
       </tr>
       <tr>
-        <td>
-          <img src="{{landlordSignature}}" class="signature-img" alt="出租人簽名" />
-        </td>
-        <td>
-          <img src="{{signature}}" class="signature-img" alt="承租人簽名" />
-        </td>
+        <td><img src="{{landlordSignature}}" class="signature-img" alt="出租人簽名" /></td>
+        <td><img src="{{signature}}" class="signature-img" alt="承租人簽名" /></td>
       </tr>
     </table>
     <p>立契約書人</p>
     <ul>
-        <li>出租人：{{landlord}}，身分證字號：{{landlordId}}，聯絡電話：{{landlordPhone}}</li>
-        <li>承租人：{{tenant}}，身分證字號：{{tenantId}}，聯絡電話：{{tenantPhone}}</li>
+      <li>出租人：{{landlord}}，身分證字號：{{landlordId}}，聯絡電話：{{landlordPhone}}</li>
+      <li>承租人：{{tenant}}，身分證字號：{{tenantId}}，聯絡電話：{{tenantPhone}}</li>
     </ul>
     <p>中華民國 {{today}}</p>
   </div>

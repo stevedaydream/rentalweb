@@ -159,6 +159,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { db } from '../../firebase/config';
+import { useToastStore } from '../../stores/toast';
 import { 
   collection, 
   getDocs, 
@@ -171,6 +172,7 @@ import {
 } from 'firebase/firestore';
 
 const loadingStats = ref(true);
+const toast = useToastStore();
 const generating = ref(false);
 
 const stats = ref({
@@ -276,12 +278,12 @@ const generateTestLandlord = async () => {
     }
 
     await batch.commit();
-    alert(`測試資料生成成功！\n虛擬房東 UID: ${fakeUid}\n請重新整理數據查看變化。`);
+    toast.success(`測試資料生成成功！虛擬房東 UID: ${fakeUid}`);
     fetchStats();
 
   } catch (error: any) {
     console.error("Error generating test data:", error);
-    alert('生成失敗: ' + error.message);
+    toast.error('生成失敗: ' + error.message);
   } finally {
     generating.value = false;
   }
@@ -319,11 +321,11 @@ const deleteTestData = async () => {
         totalDeleted += snap.size;
       }
 
-      alert(`清理完成，共刪除 ${totalDeleted} 筆測試資料。`);
+      toast.success(`清理完成，共刪除 ${totalDeleted} 筆測試資料。`);
       fetchStats();
     } catch (e) {
       console.error(e);
-      alert('刪除過程發生錯誤');
+      toast.error('刪除過程發生錯誤');
     } finally {
       generating.value = false;
     }
@@ -333,7 +335,7 @@ const deleteTestData = async () => {
 // 3-3. 清除日誌 (模擬)
 const clearSystemLogs = () => {
   if(confirm('確定要清除系統日誌嗎？(模擬)')) {
-    alert('日誌清理指令已發送');
+    toast.info('日誌清理指令已發送');
   }
 };
 </script>

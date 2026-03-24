@@ -9,7 +9,7 @@
           </h1>
           <button 
             @click="openProfileModal"
-            class="text-gray-400 hover:text-primary transition-colors p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center"
+            class="text-ink-300 hover:text-gold-600 transition-colors p-1.5 rounded-full hover:bg-surface-light dark:hover:bg-surface-dark flex items-center justify-center"
             title="編輯個人資料"
           >
             <span class="material-symbols-outlined text-[20px]">edit_square</span>
@@ -28,7 +28,7 @@
     <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
 
       <div class="md:col-span-12 lg:col-span-4 space-y-6">
-        <div class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800 h-full">
+        <div class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-ink-100 dark:border-ink-800 h-full">
           <div v-if="loading.rental" class="animate-pulse space-y-4">
              <div class="h-16 w-16 bg-gray-200 rounded-full"></div>
              <div class="h-4 bg-gray-200 w-1/2 rounded"></div>
@@ -37,7 +37,7 @@
 
           <div v-else-if="rentalInfo.hasData">
             <div class="flex items-center gap-4 mb-6">
-              <div class="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600 font-bold text-2xl">
+              <div class="w-16 h-16 rounded-full bg-gold-100 dark:bg-gold-900/30 flex items-center justify-center text-gold-700 font-bold text-2xl">
                  <span class="material-symbols-outlined text-3xl">home</span>
               </div>
               <div>
@@ -47,15 +47,15 @@
             </div>
             
             <div class="space-y-3 text-sm">
-              <div class="flex justify-between py-2 border-b border-gray-50 dark:border-gray-800">
+              <div class="flex justify-between py-2 border-b border-ink-50 dark:border-ink-800">
                 <span class="text-text-secondary-light">租賃期間</span>
                 <span class="font-medium">{{ rentalInfo.leaseStart }} ~ {{ rentalInfo.leaseEnd }}</span>
               </div>
-              <div class="flex justify-between py-2 border-b border-gray-50 dark:border-gray-800">
+              <div class="flex justify-between py-2 border-b border-ink-50 dark:border-ink-800">
                 <span class="text-text-secondary-light">每月租金</span>
                 <span class="font-medium">NT$ {{ rentalInfo.rent.toLocaleString() }}</span>
               </div>
-              <div class="flex justify-between py-2 border-b border-gray-50 dark:border-gray-800">
+              <div class="flex justify-between py-2 border-b border-ink-50 dark:border-ink-800">
                 <span class="text-text-secondary-light">繳費日</span>
                 <span class="font-medium">每月 {{ rentalInfo.paymentDay }} 號</span>
               </div>
@@ -66,10 +66,30 @@
             </div>
           </div>
 
+          <!-- 已綁定房東，等待建立合約 -->
+          <div v-else-if="userProfile.landlordId" class="text-center py-6 space-y-4">
+            <div class="w-14 h-14 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center mx-auto">
+              <span class="material-symbols-outlined text-3xl text-blue-400">pending</span>
+            </div>
+            <div>
+              <p class="font-semibold text-text-primary-light dark:text-text-primary-dark">
+                已綁定房東：{{ userProfile.landlordName || '載入中...' }}
+              </p>
+              <p class="text-sm text-text-secondary-light mt-1">等待房東建立您的租約資訊</p>
+            </div>
+            <button
+              @click="$router.push({ name: 'ContactLandlord' })"
+              class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-medium hover:bg-blue-100 transition-colors"
+            >
+              <span class="material-symbols-outlined text-[18px]">chat</span>
+              聯繫房東
+            </button>
+          </div>
+          <!-- 完全未綁定 -->
           <div v-else class="text-center py-8 text-gray-400">
-             <span class="material-symbols-outlined text-4xl mb-2">home_work</span>
-             <p>目前尚無有效的租約資訊</p>
-             <p class="text-xs mt-2">請聯繫房東確認合約狀態</p>
+            <span class="material-symbols-outlined text-4xl mb-2">home_work</span>
+            <p>尚未綁定房東</p>
+            <p class="text-xs mt-2">請向房東索取綁定代碼後，至個人資料頁綁定</p>
           </div>
         </div>
       </div>
@@ -78,7 +98,7 @@
         <div class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800 h-full flex flex-col">
           
           <div v-if="loading.bill" class="flex-1 flex items-center justify-center">
-             <span class="material-symbols-outlined animate-spin text-3xl text-gray-300">progress_activity</span>
+             <span class="material-symbols-outlined animate-spin text-3xl text-ink-200">progress_activity</span>
           </div>
 
           <div v-else-if="currentBill.hasData" class="h-full flex flex-col">
@@ -101,7 +121,7 @@
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
-              <div class="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl space-y-2">
+              <div class="p-4 bg-surface-light dark:bg-surface-dark rounded-xl space-y-2">
                 <p class="text-sm font-bold text-text-secondary-light mb-2">電費使用詳情</p>
                 <div class="flex justify-between text-sm">
                   <span>本期度數</span>
@@ -111,13 +131,20 @@
                   <span>上期度數</span>
                   <span class="text-text-secondary-light">{{ currentBill.meterLast }} 度</span>
                 </div>
-                <div class="flex justify-between text-sm border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
+                <div class="flex justify-between text-sm border-t border-ink-100 dark:border-ink-700 pt-2 mt-2">
                   <span>使用度數</span>
-                  <span class="font-bold text-blue-600">{{ currentBill.usage }} 度</span>
+                  <span class="font-bold text-gold-600">{{ currentBill.usage }} 度</span>
                 </div>
                 <div class="flex justify-between text-sm pt-1">
                    <span>計費方式</span>
-                   <span>{{ currentBill.pricePerUnit }} 元/度</span>
+                   <span>{{ currentBill.modeLabel }}
+                     <span v-if="currentBill.modeLabel === '固定費率'" class="text-text-secondary-light">
+                       ({{ currentBill.pricePerUnit }} 元/度)
+                     </span>
+                     <span v-else-if="currentBill.usage > 0" class="text-text-secondary-light">
+                       (均{{ currentBill.pricePerUnit }} 元/度)
+                     </span>
+                   </span>
                 </div>
                 <div class="flex justify-between font-bold pt-2 text-text-primary-light">
                   <span>電費小計</span>
@@ -137,11 +164,11 @@
             </div>
 
             <div class="mt-auto grid grid-cols-2 gap-4">
-               <button @click="$router.push({ name: 'TenantBills' })" class="py-2.5 px-4 rounded-xl border border-gray-200 dark:border-gray-700 font-medium text-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center justify-center gap-2">
+               <button @click="$router.push({ name: 'TenantBills' })" class="py-2.5 px-4 rounded-xl border border-ink-100 dark:border-ink-700 font-medium text-sm hover:bg-surface-light dark:hover:bg-surface-dark transition-colors flex items-center justify-center gap-2">
                   <span class="material-symbols-outlined text-[18px]">history</span>
                   歷史帳單
                </button>
-               <button @click="$router.push({ name: 'TenantBills' })" class="py-2.5 px-4 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30">
+               <button @click="$router.push({ name: 'TenantBills' })" class="py-2.5 px-4 rounded-xl bg-gold-500 text-white font-bold text-sm hover:bg-gold-600 transition-colors shadow-md shadow-gold-500/20">
                   前往繳費
                </button>
             </div>
@@ -156,22 +183,54 @@
         </div>
       </div>
 
+      <!-- 入住款項卡片（有未繳押金時才顯示） -->
+      <div v-if="pendingDeposits.length > 0" class="md:col-span-12">
+        <div class="bg-amber-50 dark:bg-amber-900/20 rounded-2xl p-5 border border-amber-200 dark:border-amber-800">
+          <h3 class="font-bold text-base flex items-center gap-2 text-amber-800 dark:text-amber-300 mb-3">
+            <span class="material-symbols-outlined text-[20px]">payments</span>
+            入住款項待確認
+          </h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div
+              v-for="item in pendingDeposits"
+              :key="item.label"
+              class="flex items-center justify-between bg-white dark:bg-card-dark rounded-xl px-4 py-3 border"
+              :class="item.status === 'paid' ? 'border-green-200 dark:border-green-800' : 'border-amber-200 dark:border-amber-700'"
+            >
+              <div>
+                <p class="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">{{ item.label }}</p>
+                <p class="text-xs text-text-secondary-light">NT$ {{ item.amount.toLocaleString() }}</p>
+              </div>
+              <span
+                class="text-xs px-2.5 py-1 rounded-full font-bold"
+                :class="item.status === 'paid'
+                  ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                  : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'"
+              >
+                {{ item.status === 'paid' ? '已收款' : '待確認' }}
+              </span>
+            </div>
+          </div>
+          <p class="text-xs text-amber-600 dark:text-amber-400 mt-3">款項由房東確認收款後更新，如有疑問請聯繫房東。</p>
+        </div>
+      </div>
+
       <div class="md:col-span-6">
-        <div class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800 h-full">
+        <div class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-ink-100 dark:border-ink-800 h-full">
           <div class="flex justify-between items-center mb-4">
             <h3 class="font-bold text-lg flex items-center gap-2">
               <span class="material-symbols-outlined text-orange-500">campaign</span>
               最新公告
             </h3>
-            <button @click="$router.push({ name: 'TenantAnnouncements' })" class="text-xs text-blue-600 hover:underline">查看全部</button>
+            <button @click="$router.push({ name: 'TenantAnnouncements' })" class="text-xs text-gold-600 hover:underline">查看全部</button>
           </div>
 
           <div v-if="loading.announcement" class="space-y-3">
-             <div v-for="i in 3" :key="i" class="h-16 bg-gray-100 rounded-xl animate-pulse"></div>
+             <div v-for="i in 3" :key="i" class="h-16 bg-surface-light dark:bg-surface-dark rounded-xl animate-pulse"></div>
           </div>
 
           <div v-else-if="announcements.length > 0" class="space-y-3 overflow-y-auto max-h-[300px]">
-            <div v-for="news in announcements" :key="news.id" class="p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-blue-200 transition-colors cursor-pointer bg-white dark:bg-gray-800">
+            <div v-for="news in announcements" :key="news.id" class="p-3 rounded-xl border border-ink-100 dark:border-ink-700 hover:border-gold-300 transition-colors cursor-pointer bg-white dark:bg-ink-800">
                <div class="flex justify-between items-start mb-1">
                   <div class="flex items-center gap-2">
                      <span v-if="news.isPinned" class="bg-red-100 text-red-600 text-[10px] px-1.5 py-0.5 rounded font-bold">置頂</span>
@@ -190,7 +249,7 @@
       </div>
 
       <div class="md:col-span-6">
-        <div class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800 h-full">
+        <div class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-ink-100 dark:border-ink-800 h-full">
           <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
             <span class="material-symbols-outlined text-blue-500">support_agent</span>
             需要協助嗎？
@@ -199,9 +258,9 @@
           <div class="grid grid-cols-2 gap-4 h-[calc(100%-3rem)]">
             <button 
               @click="$router.push({ name: 'TenantRepairs' })"
-              class="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-gray-200 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all group"
+              class="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-ink-100 dark:border-ink-700 hover:border-gold-400 hover:bg-gold-50 dark:hover:bg-gold-900/10 transition-all group"
             >
-               <div class="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+               <div class="w-12 h-12 rounded-full bg-gold-100 text-gold-700 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                   <span class="material-symbols-outlined text-2xl">build</span>
                </div>
                <span class="font-bold text-text-primary-light">我要報修</span>
@@ -210,9 +269,9 @@
 
             <button 
                @click="$router.push({ name: 'ContactLandlord' })" 
-               class="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-gray-200 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/10 transition-all group"
+               class="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-ink-100 dark:border-ink-700 hover:border-gold-400 hover:bg-gold-50 dark:hover:bg-gold-900/10 transition-all group"
             >
-               <div class="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+               <div class="w-12 h-12 rounded-full bg-gold-100 text-gold-700 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                   <span class="material-symbols-outlined text-2xl">chat</span>
                </div>
                <span class="font-bold text-text-primary-light">聯繫房東</span>
@@ -228,7 +287,7 @@
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="isProfileModalOpen = false"></div>
       
       <div class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-md shadow-2xl flex flex-col animate-in fade-in zoom-in duration-200">
-        <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+        <div class="p-6 border-b border-ink-100 dark:border-ink-700 flex justify-between items-center">
           <h2 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">編輯個人資料</h2>
           <button @click="isProfileModalOpen = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
             <span class="material-symbols-outlined">close</span>
@@ -241,14 +300,14 @@
             <input 
               v-model="editForm.name" 
               type="text" 
-              class="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+              class="w-full px-4 py-2 rounded-xl border border-ink-100 dark:border-ink-700 bg-white dark:bg-ink-800 focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none transition-all"
               placeholder="請輸入您的姓名"
             >
           </div>
           
           <div>
             <label class="block text-sm font-medium text-text-secondary-light mb-1">所屬房東</label>
-            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
+            <div class="flex items-center justify-between p-3 bg-surface-light dark:bg-surface-dark rounded-xl border border-ink-100 dark:border-ink-700">
                <div class="flex items-center gap-2">
                   <span class="material-symbols-outlined text-gray-400">person</span>
                   <span :class="userProfile.landlordName ? 'text-text-primary-light font-medium' : 'text-gray-400'">
@@ -258,7 +317,7 @@
                <button 
                   v-if="!userProfile.landlordName"
                   @click="handleBindLandlord"
-                  class="text-xs px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                  class="text-xs px-3 py-1.5 bg-gold-500 text-white rounded-lg hover:bg-gold-600 transition-colors shadow-sm"
                >
                   綁定
                </button>
@@ -277,7 +336,7 @@
             <input 
               v-model="editForm.phone" 
               type="tel" 
-              class="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+              class="w-full px-4 py-2 rounded-xl border border-ink-100 dark:border-ink-700 bg-white dark:bg-ink-800 focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none transition-all"
               placeholder="09xx-xxx-xxx"
             >
           </div>
@@ -292,17 +351,17 @@
           </div>
         </div>
 
-        <div class="p-6 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
+        <div class="p-6 border-t border-ink-100 dark:border-ink-700 flex justify-end gap-3">
           <button 
             @click="isProfileModalOpen = false"
-            class="px-5 py-2 rounded-xl text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 font-medium transition-colors"
+            class="px-5 py-2 rounded-xl text-ink-500 hover:bg-surface-light dark:text-ink-300 dark:hover:bg-surface-dark font-medium transition-colors"
           >
             取消
           </button>
           <button 
             @click="saveProfile"
             :disabled="isSaving"
-            class="px-5 py-2 rounded-xl bg-primary text-white font-bold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors disabled:opacity-50"
+            class="px-5 py-2 rounded-xl bg-gold-500 text-white font-bold shadow-md shadow-gold-500/20 hover:bg-gold-600 transition-colors disabled:opacity-50"
           >
             {{ isSaving ? '儲存中...' : '儲存變更' }}
           </button>
@@ -316,21 +375,23 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
 import { useAuthStore } from '../../stores/auth';
+import { useToastStore } from '../../stores/toast';
 import { db } from '../../firebase/config';
 import { 
-  doc, 
-  updateDoc, 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  orderBy, 
-  limit, 
+  doc,
+  updateDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+  orderBy,
+  limit,
   getDoc,
   // Timestamp // [修改] 新增 Timestamp 引用
 } from 'firebase/firestore';
 
 const authStore = useAuthStore();
+const toast = useToastStore();
 const todayDate = new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
 
 // --- 狀態控制 ---
@@ -366,53 +427,39 @@ const handleBindLandlord = async () => {
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) {
-      alert('找不到此邀請碼對應的房東，請確認後再試。');
+      toast.error('找不到此邀請碼對應的房東，請確認後再試');
       return;
     }
 
-    // [修正] 加入 ! 非空斷言，確保 landlordDoc 存在
     const landlordDoc = querySnapshot.docs[0]!;
     const landlordData = landlordDoc.data();
-    
-    // 2. 更新當前租客的 users 文件
+
     if (authStore.user) {
       const userRef = doc(db, 'users', authStore.user.uid);
-      await updateDoc(userRef, {
-        landlordId: landlordDoc.id,
-        // 可選擇性是否儲存 landlordName，或每次都即時讀取
-      });
-
-      // 3. 更新本地狀態
+      await updateDoc(userRef, { landlordId: landlordDoc.id });
       userProfile.landlordId = landlordDoc.id;
       userProfile.landlordName = landlordData.name || '房東';
-      
-      // 4. 重新讀取相關資料 (公告等)
       fetchDashboardData();
-      alert(`綁定成功！您已加入 ${userProfile.landlordName} 的管理列表。`);
+      toast.success(`已綁定房東：${userProfile.landlordName}`);
     }
   } catch (error) {
-    console.error('綁定失敗:', error);
-    alert('發生錯誤，請稍後再試');
+    toast.error('發生錯誤，請稍後再試');
   }
 };
 
 const handleUnbindLandlord = async () => {
-  if (!confirm('確定要解除與此房東的綁定嗎？解除後將無法查看相關資訊。')) return;
-  
+  if (!confirm('確定要解除與此房東的綁定嗎？')) return;
   try {
     if (authStore.user) {
       const userRef = doc(db, 'users', authStore.user.uid);
-      await updateDoc(userRef, {
-        landlordId: null
-      });
+      await updateDoc(userRef, { landlordId: null });
       userProfile.landlordId = '';
       userProfile.landlordName = '';
-      alert('已解除綁定');
-      // 清空依賴房東的資料
       announcements.value = [];
+      toast.success('已解除房東綁定');
     }
   } catch (error) {
-    console.error('解除失敗:', error);
+    toast.error('操作失敗，請稍後再試');
   }
 };
 
@@ -445,9 +492,9 @@ const saveProfile = async () => {
     }
     
     isProfileModalOpen.value = false;
+    toast.success('個人資料已儲存');
   } catch (error) {
-    console.error('更新失敗:', error);
-    alert('儲存失敗');
+    toast.error('儲存失敗，請稍後再試');
   } finally {
     isSaving.value = false;
   }
@@ -475,6 +522,7 @@ const currentBill = reactive({
   meterCurrent: 0,
   usage: 0,
   pricePerUnit: 0,
+  modeLabel: '固定費率',
   electricAmount: 0,
   totalAmount: 0,
   status: '',
@@ -483,6 +531,9 @@ const currentBill = reactive({
 
 // 3. 公告列表
 const announcements = ref<any[]>([]);
+
+// 4. 入住押金狀態
+const pendingDeposits = ref<{ label: string; amount: number; status: string }[]>([]);
 
 // --- 核心資料讀取 ---
 // [修改] 這是修改後的完整 fetchDashboardData 函式
@@ -527,6 +578,13 @@ const fetchDashboardData = async () => {
       rentalInfo.leaseEnd = data.endDate;
       rentalInfo.rent = Number(data.rent);
       rentalInfo.paymentDay = data.paymentDay || 5;
+
+      // 押金狀態
+      if (Array.isArray(data.deposits) && data.deposits.length > 0) {
+        pendingDeposits.value = data.deposits;
+      } else {
+        pendingDeposits.value = [];
+      }
       
       const today = new Date();
       let nextMonth = today.getMonth() + 1;
@@ -545,32 +603,64 @@ const fetchDashboardData = async () => {
     loading.rental = false;
   }
 
-  // C. 讀取最新帳單 (bills)
+  // C. 讀取本月帳單 (bills)
   try {
+    const thisMonth = new Date().toISOString().slice(0, 7);
     const billsQ = query(
       collection(db, 'bills'),
       where('tenantId', '==', uid),
-      orderBy('dueDate', 'desc'),
-      limit(1)
+      where('type', '==', 'income'),
+      orderBy('date', 'desc')
     );
     const billSnap = await getDocs(billsQ);
-    
+
     if (!billSnap.empty) {
-      const data = billSnap.docs[0]!.data();
-      currentBill.hasData = true;
-      currentBill.period = data.period;
-      currentBill.rentAmount = Number(data.rentAmount);
-      currentBill.meterLast = Number(data.lastMeter || 0);
-      currentBill.meterCurrent = Number(data.currentMeter || 0);
-      currentBill.usage = currentBill.meterCurrent - currentBill.meterLast;
-      currentBill.pricePerUnit = Number(data.pricePerUnit || 5);
-      
-      const electric = Math.round(currentBill.usage * currentBill.pricePerUnit);
-      currentBill.electricAmount = electric;
-      currentBill.totalAmount = currentBill.rentAmount + electric;
-      
-      currentBill.status = data.status;
-      currentBill.dueDate = data.dueDate;
+      const all = billSnap.docs.map(d => ({ id: d.id, ...d.data() as any }));
+      // 優先顯示本月帳單，若無則取最近一筆未繳
+      const monthBills = all.filter((b: any) => b.date?.startsWith(thisMonth));
+      const unpaidBills = all.filter((b: any) => b.status === 'pending' || b.status === 'overdue');
+      const pool = monthBills.length > 0 ? monthBills : unpaidBills;
+
+      if (pool.length > 0) {
+        const rentBill = pool.find((b: any) => b.category === '租金收入');
+        const electricBill = pool.find((b: any) => b.category === '電費');
+        const anyBill = rentBill || electricBill || pool[0];
+
+        currentBill.hasData = true;
+        currentBill.rentAmount = Number(rentBill?.amount) || 0;
+        currentBill.electricAmount = Number(electricBill?.amount) || 0;
+        currentBill.totalAmount = currentBill.rentAmount + currentBill.electricAmount;
+        currentBill.dueDate = anyBill.dueDate || '';
+
+        // 狀態：任一未繳即為 unpaid
+        const allPaid = pool.every((b: any) => b.status === 'completed');
+        currentBill.status = allPaid ? 'paid' : 'unpaid';
+
+        // 電表資料：從 meter_readings 查詢 relatedUsageId
+        if (electricBill?.relatedUsageId) {
+          try {
+            const meterSnap = await getDoc(doc(db, 'meter_readings', electricBill.relatedUsageId));
+            if (meterSnap.exists()) {
+              const m = meterSnap.data();
+              currentBill.meterLast = Number(m['lastReading']) || 0;
+              currentBill.meterCurrent = Number(m['currentReading']) || 0;
+              currentBill.usage = Number(m['usage']) || 0;
+              currentBill.pricePerUnit = (m['cost'] && m['usage']) ? Math.round(m['cost'] / m['usage'] * 100) / 100 : 5;
+              currentBill.period = `${m['periodStart']} ~ ${m['periodEnd']}`;
+              const modeMap: Record<string, string> = { fixed: '固定費率', tiered: '累進費率', bill_share: '帳單分攤', imported: '匯入' };
+              currentBill.modeLabel = modeMap[m['mode']] || m['mode'] || '固定費率';
+            }
+          } catch { /* 查不到不影響主要顯示 */ }
+        } else if (electricBill) {
+          // 電費帳單存在但無 relatedUsageId（如測試資料），從 description 顯示週期
+          currentBill.period = electricBill.description || '';
+        }
+        if (!currentBill.period && anyBill.date) {
+          currentBill.period = anyBill.date.slice(0, 7);
+        }
+      } else {
+        currentBill.hasData = false;
+      }
     } else {
       currentBill.hasData = false;
     }

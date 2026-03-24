@@ -160,16 +160,21 @@
 
           <div v-if="selectedBill?.status !== 'completed'" class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl text-sm space-y-2">
             <p class="font-bold text-gray-700 dark:text-gray-200 border-b border-gray-200 dark:border-gray-600 pb-2 mb-2">匯款資訊</p>
-            <div class="flex justify-between">
-              <span class="text-gray-500">銀行代碼</span>
-              <span class="font-mono font-bold">812 (台新銀行)</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-gray-500">轉帳帳號</span>
-              <div class="flex items-center gap-2">
-                <span class="font-mono font-bold">2888-1002-9988-77</span>
+            <template v-if="landlordBankInfo?.account">
+              <div class="flex justify-between">
+                <span class="text-gray-500">銀行代碼</span>
+                <span class="font-mono font-bold">{{ landlordBankInfo.code || '—' }}</span>
               </div>
-            </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500">轉帳帳號</span>
+                <span class="font-mono font-bold">{{ landlordBankInfo.account }}</span>
+              </div>
+              <div v-if="landlordBankInfo.name" class="flex justify-between">
+                <span class="text-gray-500">戶名</span>
+                <span class="font-mono font-bold">{{ landlordBankInfo.name }}</span>
+              </div>
+            </template>
+            <p v-else class="text-gray-400 text-center py-1">房東尚未設定收款帳戶，請直接聯繫房東</p>
           </div>
           
            <div v-if="selectedBill?.status === 'completed'" class="bg-green-50 dark:bg-green-900/10 p-4 rounded-xl text-center border border-green-100">
@@ -205,15 +210,17 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useAuthStore } from '../../stores/auth'; // 確保路徑正確
+import { useAuthStore } from '../../stores/auth';
+import { useToastStore } from '../../stores/toast';
 import { db } from '../../firebase/config';
-import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  doc, 
-  updateDoc, 
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  doc,
+  getDoc,
+  updateDoc,
   getDocs,
   serverTimestamp,
   orderBy
@@ -239,6 +246,7 @@ interface Bill {
 
 // --- State ---
 const authStore = useAuthStore();
+const toast = useToastStore();
 const bills = ref<Bill[]>([]);
 const loading = ref(true);
 let unsubscribe: any = null;
@@ -246,6 +254,7 @@ let unsubscribe: any = null;
 const currentTab = ref('unpaid');
 const showModal = ref(false);
 const selectedBill = ref<Bill | null>(null);
+const landlordBankInfo = ref<{ code: string; account: string; name: string } | null>(null);
 const billReceiptRef = ref<HTMLElement | null>(null);
 const isGenerating = ref(false);
 
@@ -258,59 +267,41 @@ const tabs = [
 // --- Data Fetching ---
 onMounted(async () => {
   if (!authStore.user) return;
-  
+
   try {
     const uid = authStore.user.uid;
-    
-    // 1. 先找到該使用者的 Tenant ID (對應 tenants collection 的 document ID)
-    // 優先使用 uid 查找 (如果 TenantList 支援線上綁定並寫入 uid)
-    let tenantId = '';
-    
-    const tenantsRef = collection(db, 'tenants');
-    const qByUid = query(tenantsRef, where('uid', '==', uid));
-    const snapByUid = await getDocs(qByUid);
 
-    if (!snapByUid.empty) {
-      // [修改]
-      tenantId = snapByUid.docs[0]!.id;
-    } else {
-      if (authStore.userProfile?.phone) {
-        const qByPhone = query(tenantsRef, where('phone', '==', authStore.userProfile.phone));
-        const snapByPhone = await getDocs(qByPhone);
-        if (!snapByPhone.empty) {
-          // [修改]
-          tenantId = snapByPhone.docs[0]!.id;
-        }
-      }
-    }
-    
-    if (!tenantId) {
-      console.warn("找不到對應的租客檔案 (Tenants Collection)");
-      loading.value = false;
-      return;
-    }
-
-    // 2. 監聽該 Tenant 的 Bills
-    const billsRef = collection(db, 'bills');
-    // 只抓取該房客的帳單，且為 'income' 類型 (房東的收入 = 房客的應繳)
+    // 直接以 auth UID 查詢帳單（Financials 存的是 tenantId: tenant.uid）
     const qBills = query(
-      billsRef, 
-      where('tenantId', '==', tenantId), 
+      collection(db, 'bills'),
+      where('tenantId', '==', uid),
       where('type', '==', 'income'),
       orderBy('date', 'desc')
     );
 
-    unsubscribe = onSnapshot(qBills, (snapshot) => {
-      bills.value = snapshot.docs.map(doc => {
-        const data = doc.data();
+    unsubscribe = onSnapshot(qBills, async (snapshot) => {
+      bills.value = snapshot.docs.map(d => {
+        const data = d.data();
         return {
-          id: doc.id,
+          id: d.id,
           ...data,
-          // 格式化月份顯示
           monthStr: data.date ? data.date.slice(0, 7).replace('-', '年 ') + '月' : '未知月份'
         } as Bill;
       });
       loading.value = false;
+
+      // 載入房東銀行資訊（只需抓一次）
+      if (!landlordBankInfo.value && snapshot.docs.length > 0) {
+        const landlordId = snapshot.docs[0]!.data().landlordId;
+        if (landlordId) {
+          try {
+            const landlordSnap = await getDoc(doc(db, 'users', landlordId));
+            if (landlordSnap.exists()) {
+              landlordBankInfo.value = landlordSnap.data().bankInfo || null;
+            }
+          } catch { /* silent */ }
+        }
+      }
     });
 
   } catch (error) {
@@ -385,11 +376,11 @@ const handlePay = async (bill: Bill) => {
          updatedAt: serverTimestamp()
        });
        
-       alert('繳費成功！系統已更新狀態。');
+       toast.success('繳費成功！系統已更新狀態。');
        // selectedBill.value.status = 'completed'; // Snapshot 會自動更新，不需手動設
      } catch (e) {
        console.error(e);
-       alert('繳費失敗，請檢查網路連線');
+       toast.error('繳費失敗，請檢查網路連線');
      }
   }
 };
@@ -419,7 +410,7 @@ const downloadImage = async () => {
 
   } catch (error) {
     console.error('截圖失敗:', error);
-    alert('截圖失敗，請稍後再試');
+    toast.error('截圖失敗，請稍後再試');
   } finally {
     isGenerating.value = false;
   }

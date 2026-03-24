@@ -28,10 +28,12 @@
 
         <div class="p-4 border-t border-gray-800 bg-gray-950">
           <div class="flex items-center gap-3 mb-4 px-2">
-            <div class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-xs">A</div>
-            <div>
-              <p class="text-sm font-medium">Administrator</p>
-              <p class="text-xs text-gray-500">System Root</p>
+            <div class="w-8 h-8 rounded-full bg-red-800 flex items-center justify-center text-xs font-bold text-white shrink-0">
+              {{ adminInitial }}
+            </div>
+            <div class="min-w-0">
+              <p class="text-sm font-medium truncate">{{ adminName }}</p>
+              <p class="text-xs text-gray-500 truncate">{{ adminEmail }}</p>
             </div>
           </div>
           <button 
@@ -68,16 +70,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useRoute } from 'vue-router';
-// [修改開始]
 import logoSrc from '../assets/logo.svg';
-// [修改結束]
 
 const authStore = useAuthStore();
 const route = useRoute();
 const isSidebarOpen = ref(false);
+
+const adminName = computed(() => authStore.userProfile?.name || '系統管理員');
+const adminEmail = computed(() => authStore.user?.email || '');
+const adminInitial = computed(() => {
+  const name = authStore.userProfile?.name || authStore.user?.email || 'A';
+  return name.charAt(0).toUpperCase();
+});
 
 const menuItems = [
   { name: '系統總覽', to: { name: 'AdminDashboard' }, icon: 'dashboard' },

@@ -55,66 +55,118 @@
         </div>
       </div>
       
-      <div v-if="selectedLandlordId" class="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="space-y-3">
-          <h4 class="font-bold text-sm text-gray-500 uppercase">基礎資料</h4>
-          <button 
-            @click="genRooms" 
-            :disabled="loading" 
-            class="flex items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium text-sm text-gray-700 dark:text-gray-300 gap-2 w-full"
-          >
-            <span class="material-symbols-outlined">meeting_room</span>
-            生成 3~5 間測試房源
-          </button>
-          <button 
-            @click="genTenants" 
-            :disabled="loading" 
-            class="flex items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium text-sm text-gray-700 dark:text-gray-300 gap-2 w-full"
-          >
-            <span class="material-symbols-outlined">group_add</span>
-            生成測試租客 (綁定此房東)
-          </button>
+      <div v-if="selectedLandlordId" class="p-6 space-y-6">
+
+        <!-- Row 1: 基礎資料 + 日常營運 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          <div class="space-y-3">
+            <h4 class="font-bold text-sm text-gray-500 uppercase flex items-center gap-2">
+              <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-600 text-[11px] flex items-center justify-center font-black">1</span>
+              基礎資料
+            </h4>
+            <button @click="genRooms" :disabled="loading"
+              class="flex items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium text-sm text-gray-700 dark:text-gray-300 gap-2 w-full disabled:opacity-50">
+              <span class="material-symbols-outlined">meeting_room</span>生成 3 間測試房源
+            </button>
+            <button @click="genTenants" :disabled="loading || existingRooms.length === 0"
+              class="flex items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium text-sm text-gray-700 dark:text-gray-300 gap-2 w-full disabled:opacity-50">
+              <span class="material-symbols-outlined">group_add</span>
+              生成測試租客
+              <span class="text-xs text-gray-400">(綁定現有房間)</span>
+            </button>
+          </div>
+
+          <div class="space-y-3">
+            <h4 class="font-bold text-sm text-gray-500 uppercase flex items-center gap-2">
+              <span class="w-5 h-5 rounded-full bg-green-100 text-green-600 text-[11px] flex items-center justify-center font-black">3</span>
+              日常營運
+            </h4>
+            <button @click="genRepairs" :disabled="loading || existingRooms.length === 0"
+              class="flex items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium text-sm text-gray-700 dark:text-gray-300 gap-2 w-full disabled:opacity-50">
+              <span class="material-symbols-outlined">home_repair_service</span>生成隨機報修申請
+            </button>
+            <button @click="genAnnouncements" :disabled="loading"
+              class="flex items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium text-sm text-gray-700 dark:text-gray-300 gap-2 w-full disabled:opacity-50">
+              <span class="material-symbols-outlined">campaign</span>生成測試公告
+            </button>
+          </div>
         </div>
 
-        <div class="space-y-3">
-           <h4 class="font-bold text-sm text-gray-500 uppercase">財務數據</h4>
-           <button 
-            @click="genMeterReadings" 
-            :disabled="loading" 
-            class="flex items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium text-sm text-gray-700 dark:text-gray-300 gap-2 w-full"
-          >
-            <span class="material-symbols-outlined">electric_meter</span>
-            生成電表紀錄 (近 4 個月)
-          </button>
-           <button 
-            @click="genBills" 
-            :disabled="loading" 
-            class="flex items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium text-sm text-gray-700 dark:text-gray-300 gap-2 w-full"
-          >
-            <span class="material-symbols-outlined">receipt_long</span>
-            生成帳單 (3個月: 逾期/已繳/未繳)
-          </button>
+        <!-- Row 2: 財務數據模擬 (full width with room selector) -->
+        <div class="border border-blue-100 dark:border-blue-800 rounded-xl overflow-hidden">
+          <div class="px-5 py-3 bg-blue-50 dark:bg-blue-900/10 flex items-center justify-between">
+            <h4 class="font-bold text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
+              <span class="w-5 h-5 rounded-full bg-blue-200 text-blue-700 text-[11px] flex items-center justify-center font-black">2</span>
+              財務數據模擬
+            </h4>
+            <span class="text-xs text-blue-600 dark:text-blue-400">
+              已選 {{ selectedRoomIds.length }} / {{ existingRooms.length }} 間
+            </span>
+          </div>
+
+          <div class="p-5 space-y-4">
+            <!-- Room selector -->
+            <div>
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">選擇要模擬的房間</span>
+                <button @click="toggleAllRooms"
+                  class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                  {{ allSelected ? '取消全選' : '全選' }}
+                </button>
+              </div>
+
+              <div v-if="loadingRooms" class="py-6 text-center text-sm text-gray-400 animate-pulse">
+                載入房間資料...
+              </div>
+              <div v-else-if="existingRooms.length === 0"
+                class="py-6 text-center text-sm text-gray-400 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
+                此房東尚無房源，請先點「生成測試房源」
+              </div>
+              <div v-else class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                <label v-for="room in existingRooms" :key="room.id"
+                  class="flex items-start gap-2 p-3 rounded-lg border cursor-pointer transition-all select-none"
+                  :class="selectedRoomIds.includes(room.id)
+                    ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-600'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-500'">
+                  <input type="checkbox" :checked="selectedRoomIds.includes(room.id)"
+                    @change="toggleRoom(room.id)" class="mt-0.5 accent-blue-600 shrink-0" />
+                  <div class="min-w-0 flex-1">
+                    <p class="font-bold text-sm text-gray-800 dark:text-gray-100 truncate">{{ room.name }}</p>
+                    <p v-if="room.tenantName" class="text-xs text-green-600 dark:text-green-400 truncate">
+                      👤 {{ room.tenantName }}
+                    </p>
+                    <p v-else class="text-xs text-gray-400">空房</p>
+                    <p class="text-xs text-gray-400 font-mono mt-0.5">{{ room.lastMeterReading }} 度</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="flex flex-wrap gap-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+              <button @click="genMeterReadings" :disabled="loading || selectedRoomIds.length === 0"
+                class="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors">
+                <span class="material-symbols-outlined text-[18px]">electric_meter</span>
+                生成電表紀錄 (近 4 個月)
+                <span v-if="selectedRoomIds.length"
+                  class="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded-full">
+                  {{ selectedRoomIds.length }} 間
+                </span>
+              </button>
+              <button @click="genBills" :disabled="loading || !hasTenantsInSelection"
+                class="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors">
+                <span class="material-symbols-outlined text-[18px]">receipt_long</span>
+                生成帳單情境 (3個月)
+                <span v-if="hasTenantsInSelection"
+                  class="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-1.5 py-0.5 rounded-full">
+                  {{ selectedRooms.filter(r => r.tenantId).length }} 位租客
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div class="space-y-3">
-           <h4 class="font-bold text-sm text-gray-500 uppercase">日常營運</h4>
-           <button 
-            @click="genRepairs" 
-            :disabled="loading" 
-            class="flex items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium text-sm text-gray-700 dark:text-gray-300 gap-2 w-full"
-          >
-            <span class="material-symbols-outlined">home_repair_service</span>
-            生成隨機報修申請
-          </button>
-           <button 
-            @click="genAnnouncements" 
-            :disabled="loading" 
-            class="flex items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium text-sm text-gray-700 dark:text-gray-300 gap-2 w-full"
-          >
-            <span class="material-symbols-outlined">campaign</span>
-            生成測試公告
-          </button>
-        </div>
       </div>
       <div v-else class="p-12 text-center text-gray-400">
         <span class="material-symbols-outlined text-4xl mb-2">touch_app</span>
@@ -167,17 +219,98 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { db } from '../../firebase/config';
-import { 
-  collection, getDocs, query, where, addDoc, 
-  serverTimestamp, doc, setDoc, writeBatch
+import { useToastStore } from '../../stores/toast';
+import {
+  collection, getDocs, query, where, addDoc,
+  serverTimestamp, doc, setDoc, writeBatch, updateDoc
 } from 'firebase/firestore';
 
+interface RoomItem {
+  id: string
+  name: string
+  status: string
+  tenantName: string
+  tenantId: string
+  tenantUid: string | null
+  tenantRent: number
+  lastMeterReading: number
+  lastMeterDate: string
+}
+
 // --- State ---
+const toast = useToastStore();
 const loading = ref(false);
 const landlords = ref<any[]>([]);
 const selectedLandlordId = ref('');
+
+// Room selector state
+const existingRooms = ref<RoomItem[]>([]);
+const selectedRoomIds = ref<string[]>([]);
+const loadingRooms = ref(false);
+
+const selectedRooms = computed(() =>
+  existingRooms.value.filter(r => selectedRoomIds.value.includes(r.id))
+);
+const allSelected = computed(() =>
+  existingRooms.value.length > 0 && selectedRoomIds.value.length === existingRooms.value.length
+);
+const hasTenantsInSelection = computed(() =>
+  selectedRooms.value.some(r => r.tenantId)
+);
+
+async function loadLandlordRooms(uid: string) {
+  loadingRooms.value = true;
+  selectedRoomIds.value = [];
+  try {
+    const [roomsSnap, tenantsSnap] = await Promise.all([
+      getDocs(query(collection(db, 'rooms'), where('landlordId', '==', uid))),
+      getDocs(query(collection(db, 'tenants'), where('landlordId', '==', uid))),
+    ]);
+    // Build tenant lookup by room name
+    const tenantsByRoom = new Map<string, any>();
+    tenantsSnap.docs.forEach(d => {
+      const data = d.data();
+      if (data.room) tenantsByRoom.set(data.room, { id: d.id, ...data });
+    });
+    existingRooms.value = roomsSnap.docs.map(d => {
+      const data = d.data();
+      const tenant = tenantsByRoom.get(data.name);
+      return {
+        id: d.id,
+        name: data.name || '未命名',
+        status: data.status || 'vacant',
+        tenantName: tenant?.name || data.tenantName || '',
+        tenantId: tenant?.id || '',
+        tenantUid: tenant?.uid || null,
+        tenantRent: tenant?.rent || 0,
+        lastMeterReading: data.lastMeterReading || 0,
+        lastMeterDate: data.lastMeterDate || '',
+      };
+    });
+  } catch(e) {
+    console.error('loadLandlordRooms error', e);
+  } finally {
+    loadingRooms.value = false;
+  }
+}
+
+watch(selectedLandlordId, uid => {
+  if (uid) loadLandlordRooms(uid);
+  else existingRooms.value = [];
+});
+
+function toggleRoom(id: string) {
+  const idx = selectedRoomIds.value.indexOf(id);
+  if (idx >= 0) selectedRoomIds.value.splice(idx, 1);
+  else selectedRoomIds.value.push(id);
+}
+
+function toggleAllRooms() {
+  if (allSelected.value) selectedRoomIds.value = [];
+  else selectedRoomIds.value = existingRooms.value.map(r => r.id);
+}
 
 // --- Init ---
 onMounted(() => {
@@ -206,9 +339,9 @@ const generateGlobalUser = async (role: 'landlord' | 'tenant') => {
       createdAt: serverTimestamp(),
       isTestData: true
     });
-    alert(`已建立測試${role}，UID: ${fakeUid}`);
+    toast.success(`已建立測試${role}，UID: ${fakeUid}`);
     if(role === 'landlord') fetchLandlords(); // Refresh dropdown
-  } catch(e) { console.error(e); alert('失敗'); } 
+  } catch(e) { console.error(e); toast.error('失敗'); }
   finally { loading.value = false; }
 };
 
@@ -222,162 +355,215 @@ const genRooms = async () => {
     const batch = writeBatch(db);
     const roomsRef = collection(db, 'rooms');
     const floors = ['2', '3', '5'];
-    
+
     for(let i=0; i<3; i++) {
-        const newRef = doc(roomsRef);
-        batch.set(newRef, {
-            landlordId: selectedLandlordId.value,
-            name: `測試公寓 ${floors[i]}0${i+1}`,
-            address: `測試市中正路 ${100+i} 號`,
-            price: 10000 + (i*500),
-            status: 'vacant',
-            layout: '獨立套房',
-            size: 8 + i,
-            createdAt: serverTimestamp(),
-            isTestData: true
-        });
+      const newRef = doc(roomsRef);
+      batch.set(newRef, {
+        landlordId: selectedLandlordId.value,
+        name: `測試公寓 ${floors[i]}0${i+1}`,
+        address: `測試市中正路 ${100+i} 號`,
+        price: 10000 + (i * 500),
+        status: 'vacant',
+        layout: '獨立套房',
+        type: '公寓',
+        size: 8 + i,
+        tenantName: '',
+        lastMeterReading: 0,
+        lastMeterDate: '',
+        images: [],
+        coverImage: '',
+        isPublic: false,
+        createdAt: serverTimestamp(),
+        isTestData: true
+      });
     }
     await batch.commit();
-    alert('已生成 3 間測試房間');
-  } catch(e) { console.error(e); alert('失敗'); }
+    toast.success('已生成 3 間測試房間');
+    await loadLandlordRooms(selectedLandlordId.value);
+  } catch(e) { console.error(e); toast.error('失敗'); }
   finally { loading.value = false; }
 };
 
-// 生成租客 (手動管理名單)
+// 生成租客 (綁定現有房間，並更新房間狀態)
 const genTenants = async () => {
-   if(!selectedLandlordId.value) return;
-   loading.value = true;
-   try {
-     const batch = writeBatch(db);
-     const ref = collection(db, 'tenants');
-     
-     for(let i=1; i<=3; i++) {
-         batch.set(doc(ref), {
-             landlordId: selectedLandlordId.value,
-             name: `測試房客 No.${i}`,
-             phone: `090000000${i}`,
-             room: `測試房-${i}`,
-             paymentStatus: 'normal',
-             leaseStart: '2025-01-01',
-             leaseEnd: '2025-12-31',
-             createdAt: serverTimestamp(),
-             isTestData: true
-         });
-     }
-     await batch.commit();
-     alert('已生成 3 位測試房客');
-   } catch(e) { console.error(e); alert('失敗'); }
-   finally { loading.value = false; }
-};
-
-// 生成電表紀錄 (4個月份)
-const genMeterReadings = async () => {
-  if(!selectedLandlordId.value) return;
+  if(!selectedLandlordId.value || existingRooms.value.length === 0) return;
   loading.value = true;
   try {
-    // 先抓取該房東的房間
-    const roomsQ = query(collection(db, 'rooms'), where('landlordId', '==', selectedLandlordId.value));
-    const roomsSnap = await getDocs(roomsQ);
-    if(roomsSnap.empty) return alert('此房東無房間，請先生成房間');
+    // 只綁定目前空房
+    const vacantRooms = existingRooms.value.filter(r => r.status === 'vacant' || !r.tenantName);
+    if(vacantRooms.length === 0) { toast.warning('此房東名下沒有空房可以綁定租客'); loading.value = false; return; }
 
     const batch = writeBatch(db);
-    const readingsRef = collection(db, 'meter_readings');
-    const months = ['2025-01', '2025-02', '2025-03', '2025-04'];
+    const tenantsRef = collection(db, 'tenants');
+    const count = Math.min(3, vacantRooms.length);
 
-    roomsSnap.forEach(room => {
-        let lastReading = 1000;
-        months.forEach(month => {
-            const currentReading = lastReading + Math.floor(Math.random() * 200) + 50; 
-            const usage = currentReading - lastReading;
-            const cost = usage * 5; // [新增] 簡易計算費用：假設每度 5 元
+    for(let i = 0; i < count; i++) {
+      const room = vacantRooms[i]!;
+      const rent = 8000 + (i + 1) * 500;
+      const tenantName = `測試房客 No.${i + 1}`;
 
-            const docRef = doc(readingsRef);
-            batch.set(docRef, {
-                landlordId: selectedLandlordId.value,
-                roomId: room.id,
-                roomName: room.data().name,
-                yearMonth: month,
-                previousReading: lastReading,
-                currentReading: currentReading,
-                usage: usage,
-                cost: cost,       // [新增] 寫入費用欄位，避免前端報錯
-                status: 'completed',
-                createdAt: serverTimestamp(), // 確保這裡是 createdAt
-                isTestData: true
-            });
-            lastReading = currentReading;
-        });
-    });
-    
+      // 寫入 tenants 集合
+      batch.set(doc(tenantsRef), {
+        landlordId: selectedLandlordId.value,
+        name: tenantName,
+        phone: `090000000${i + 1}`,
+        room: room.name,          // 對應真實房間名稱
+        rent,
+        paymentStatus: 'normal',
+        leaseStart: '2026-01-01',
+        leaseEnd: '2026-12-31',
+        createdAt: serverTimestamp(),
+        isTestData: true
+      });
+
+      // 更新房間狀態
+      batch.update(doc(db, 'rooms', room.id), {
+        status: 'occupied',
+        tenantName,
+      });
+    }
     await batch.commit();
-    alert(`已為 ${roomsSnap.size} 間房間生成 4 個月份電表紀錄`);
-  } catch(e) { console.error(e); alert('失敗'); }
+    toast.success(`已生成 ${count} 位測試房客並綁定房間`);
+    await loadLandlordRooms(selectedLandlordId.value);
+  } catch(e) { console.error(e); toast.error('失敗'); }
+  finally { loading.value = false; }
+};
+
+// 生成電表紀錄 (對選取的房間，近 4 個月)
+const genMeterReadings = async () => {
+  if(selectedRooms.value.length === 0) { toast.warning('請先選擇房間'); return; }
+  loading.value = true;
+  try {
+    const batch = writeBatch(db);
+    const readingsRef = collection(db, 'meter_readings');
+    const now = new Date();
+    const months = Array.from({ length: 4 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - 3 + i, 1);
+      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      return { ym, lastDay };
+    });
+
+    for(const room of selectedRooms.value) {
+      let lastReading = room.lastMeterReading || 1000;
+      let finalReading = lastReading;
+
+      for(const { ym, lastDay } of months) {
+        const currentReading = lastReading + Math.floor(Math.random() * 200) + 50;
+        const usage = currentReading - lastReading;
+        const cost = Math.round(usage * 5);
+        const periodEnd = `${ym}-${String(lastDay).padStart(2, '0')}`;
+
+        batch.set(doc(readingsRef), {
+          landlordId: selectedLandlordId.value,
+          roomId: room.id,
+          roomName: room.name,
+          lastReading,
+          currentReading,
+          usage, cost,
+          periodStart: `${ym}-01`,
+          periodEnd,
+          calcLog: `固定費率: ${usage}度 x $5 = $${cost}`,
+          mode: 'fixed',
+          createdAt: serverTimestamp(),
+          isTestData: true
+        });
+        lastReading = currentReading;
+        finalReading = currentReading;
+      }
+
+      // 回寫最新讀數到房間
+      const last = months[months.length - 1]!;
+      batch.update(doc(db, 'rooms', room.id), {
+        lastMeterReading: finalReading,
+        lastMeterDate: `${last.ym}-${String(last.lastDay).padStart(2, '0')}`,
+      });
+    }
+
+    await batch.commit();
+    toast.success(`已為 ${selectedRooms.value.length} 間房間生成 4 個月份電表紀錄`);
+    await loadLandlordRooms(selectedLandlordId.value);
+  } catch(e) { console.error(e); toast.error('失敗'); }
   finally { loading.value = false; }
 };
 
 // 生成帳單 (3個月不同狀況)
 const genBills = async () => {
-  if(!selectedLandlordId.value) return;
+  const roomsWithTenants = selectedRooms.value.filter(r => r.tenantId);
+  if(roomsWithTenants.length === 0) { toast.warning('所選房間中沒有租客，無法生成帳單'); return; }
   loading.value = true;
   try {
-    // 找 tenants
-    const tenantsQ = query(collection(db, 'tenants'), where('landlordId', '==', selectedLandlordId.value));
-    const tenantsSnap = await getDocs(tenantsQ);
-    if(tenantsSnap.empty) return alert('請先生成租客');
-
     const batch = writeBatch(db);
     const billsRef = collection(db, 'bills');
+    const now = new Date();
+    const mkMonth = (offset: number) => {
+      const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    };
     const scenarios = [
-        { month: '2025-02', status: 'paid', label: '已繳清' },
-        { month: '2025-03', status: 'unpaid', label: '本期未繳' },
-        { month: '2025-04', status: 'overdue', label: '逾期欠費' }
+      { month: mkMonth(-2), status: 'completed', label: '已繳清' },
+      { month: mkMonth(-1), status: 'overdue',   label: '逾期欠費' },
+      { month: mkMonth(0),  status: 'pending',   label: '本月待繳' },
     ];
 
-    tenantsSnap.forEach(tenant => {
-        scenarios.forEach(s => {
-            const docRef = doc(billsRef);
-            batch.set(docRef, {
-                landlordId: selectedLandlordId.value,
-                tenantId: tenant.id,
-                tenantName: tenant.data().name,
-                yearMonth: s.month,
-                amount: 3000 + Math.floor(Math.random()*1000),
-                status: s.status, // paid, unpaid, overdue
-                dueDate: '2025-04-10',
-                createdAt: serverTimestamp(),
-                isTestData: true
-            });
+    for(const room of roomsWithTenants) {
+      const rent = room.tenantRent || 8000;
+      for(const s of scenarios) {
+        batch.set(doc(billsRef), {
+          landlordId: selectedLandlordId.value,
+          tenantId: room.tenantUid || null,
+          relatedTenantDocId: room.tenantId,
+          date: `${s.month}-01`,
+          type: 'income',
+          category: '租金收入',
+          target: `${room.name} ${room.tenantName}`,
+          description: `${s.month} 月份房租`,
+          amount: rent,
+          totalAmount: rent,
+          status: s.status,
+          dueDate: `${s.month}-05`,
+          history: [],
+          createdAt: serverTimestamp(),
+          isTestData: true
         });
-    });
+      }
+    }
 
     await batch.commit();
-    alert('已生成帳單測試資料 (3個月份)');
-  } catch(e) { console.error(e); alert('失敗'); }
+    toast.success(`已為 ${roomsWithTenants.length} 位租客生成 3 個月份帳單`);
+  } catch(e) { console.error(e); toast.error('失敗'); }
   finally { loading.value = false; }
 };
 
 // 生成報修
 const genRepairs = async () => {
-   if(!selectedLandlordId.value) return;
-   loading.value = true;
-   try {
-     const issues = ['冷氣不冷', '馬桶堵塞', '燈泡壞了', '網路連不上'];
-     const statuses = ['pending', 'processing', 'completed', 'rejected'];
-     
-     await addDoc(collection(db, 'repair_requests'), {
-         landlordId: selectedLandlordId.value,
-         tenantName: '測試租客 (Auto)',
-         roomName: '測試房-Auto',
-         issue: issues[Math.floor(Math.random() * issues.length)],
-         description: '這是一個由系統生成的測試報修單。',
-         status: statuses[Math.floor(Math.random() * statuses.length)],
-         priority: 'normal',
-         createdAt: serverTimestamp(),
-         isTestData: true
-     });
-     alert('已生成一筆測試報修單');
-   } catch(e) { console.error(e); alert('失敗'); }
-   finally { loading.value = false; }
+  if(!selectedLandlordId.value || existingRooms.value.length === 0) return;
+  loading.value = true;
+  try {
+    const issues = ['冷氣不冷', '馬桶堵塞', '燈泡壞了', '網路連不上', '熱水器故障', '門鎖損壞'];
+    const statuses = ['pending', 'processing', 'completed', 'rejected'];
+    const priorities = ['high', 'medium', 'low'];
+
+    // 優先使用有租客的房間
+    const occupiedRooms = existingRooms.value.filter(r => r.tenantName);
+    const pool = occupiedRooms.length > 0 ? occupiedRooms : existingRooms.value;
+    const room = pool[Math.floor(Math.random() * pool.length)]!;
+
+    await addDoc(collection(db, 'repair_requests'), {
+      landlordId: selectedLandlordId.value,
+      tenantName: room.tenantName || '未知租客',
+      roomNumber: room.name,
+      roomId: room.id,
+      type: issues[Math.floor(Math.random() * issues.length)],
+      description: '這是一個由系統生成的測試報修單。',
+      status: statuses[Math.floor(Math.random() * statuses.length)],
+      priority: priorities[Math.floor(Math.random() * priorities.length)],
+      createdAt: serverTimestamp(),
+      isTestData: true
+    });
+    toast.success(`已為「${room.name}」生成一筆測試報修單`);
+  } catch(e) { console.error(e); toast.error('失敗'); }
+  finally { loading.value = false; }
 };
 
 // 生成公告
@@ -393,8 +579,8 @@ const genAnnouncements = async () => {
             createdAt: serverTimestamp(),
             isTestData: true
         });
-        alert('已發布測試公告');
-    } catch(e) { console.error(e); alert('失敗'); }
+        toast.success('已發布測試公告');
+    } catch(e) { console.error(e); toast.error('失敗'); }
     finally { loading.value = false; }
 };
 
@@ -405,7 +591,7 @@ const refreshData = () => {
 };
 
 const clearSystemLogs = () => {
-  alert('模擬：系統日誌已清除 (需對接後端 Log 服務)');
+  toast.info('模擬：系統日誌已清除 (需對接後端 Log 服務)');
 };
 
 const deleteTestData = async () => {
@@ -427,11 +613,11 @@ const deleteTestData = async () => {
         totalDeleted += snap.size;
     }
     
-    alert(`清理完成，共刪除 ${totalDeleted} 筆測試資料。`);
+    toast.success(`清理完成，共刪除 ${totalDeleted} 筆測試資料。`);
     fetchLandlords(); // Refresh UI
   } catch(e) {
     console.error(e);
-    alert('刪除過程發生錯誤');
+    toast.error('刪除過程發生錯誤');
   } finally {
     loading.value = false;
   }
@@ -450,7 +636,7 @@ const nukeDatabase = async () => {
   const code = prompt('【嚴重警告】此操作將刪除資料庫中「除了 Admin 以外」的所有資料！\n\n執行後：\n1. 所有房東、租客、房源、帳單等將被清空。\n2. 您 (Admin) 的帳號會被保留，無需重新登入。\n\n請輸入 "NUKE" 以確認執行：');
   
   if(code !== 'NUKE') {
-    if(code !== null) alert('驗證碼錯誤，取消操作。');
+    if(code !== null) toast.warning('驗證碼錯誤，取消操作。');
     return;
   }
 
@@ -522,7 +708,7 @@ const nukeDatabase = async () => {
     }
     if (uCount > 0) await uBatch.commit();
     
-    alert(`系統重置成功！\n\n保留了管理員帳號，並刪除了 ${totalDeleted} 筆其他資料。\n請重新整理頁面以更新狀態。`);
+    toast.success(`系統重置成功！保留了管理員帳號，並刪除了 ${totalDeleted} 筆其他資料。`);
     
     // 不執行登出，僅重新整理
     fetchLandlords();
@@ -530,7 +716,7 @@ const nukeDatabase = async () => {
 
   } catch(e) {
     console.error(e);
-    alert('重置過程發生錯誤，請檢查 Console。');
+    toast.error('重置過程發生錯誤，請檢查 Console。');
   } finally {
     loading.value = false;
   }

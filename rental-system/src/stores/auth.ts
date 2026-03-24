@@ -1,20 +1,20 @@
-// [修改開始]：src/stores/auth.ts
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { auth, db } from '../firebase/config';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
   onAuthStateChanged,
   GoogleAuthProvider,
   signInWithPopup,
   signInWithRedirect,
-  getRedirectResult, 
+  getRedirectResult,
   type User
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { useRouter } from 'vue-router';
+import { useUserStore } from './user';
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
@@ -24,21 +24,29 @@ export const useAuthStore = defineStore('auth', () => {
   const isInitialized = ref(false);
   const router = useRouter();
 
+  // 模擬房東身份（僅 admin 使用）
+  const impersonatingLandlord = ref<{ uid: string; name: string; landlordCode: string } | null>(null);
+  // 有效 UID：模擬中時回傳被模擬房東的 UID，否則回傳自己的 UID
+  const effectiveUid = computed<string>(() => impersonatingLandlord.value?.uid ?? user.value?.uid ?? '');
+
   const setRole = (role: string) => {
     selectedRole.value = role;
     localStorage.setItem('selectedRole', role);
   };
 
   const handleAuthSuccess = async (firebaseUser: User) => {
-    console.log('[Debug] 登入成功:', firebaseUser.uid);
     try {
+      const userStore = useUserStore();
       const docRef = doc(db, 'users', firebaseUser.uid);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
         const profile = docSnap.data();
         userProfile.value = profile;
-        const targetPath = profile.role === 'landlord' ? '/landlord/dashboard' : '/tenant/dashboard';
+        userStore.setProfile(firebaseUser.uid, profile); // 填入快取
+        let targetPath = '/tenant/dashboard';
+        if (profile.role === 'landlord') targetPath = '/landlord/dashboard';
+        else if (profile.role === 'admin') targetPath = '/admin/dashboard';
         router.replace(targetPath).catch(() => {
           window.location.replace(targetPath);
         });
@@ -65,10 +73,19 @@ export const useAuthStore = defineStore('auth', () => {
         user.value = currentUser;
         if (currentUser) {
           try {
-            const docRef = doc(db, 'users', currentUser.uid);
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-              userProfile.value = docSnap.data();
+            const userStore = useUserStore();
+            // 優先從快取取得，避免重複 Firestore 讀取
+            // 注意：Pinia setup store 在外部存取時 ref 會自動 unwrap，不需要 .value
+            const cached = userStore.cache[currentUser.uid];
+            if (cached) {
+              userProfile.value = cached;
+            } else {
+              const docRef = doc(db, 'users', currentUser.uid);
+              const docSnap = await getDoc(docRef);
+              if (docSnap.exists()) {
+                userProfile.value = docSnap.data();
+                userStore.setProfile(currentUser.uid, docSnap.data());
+              }
             }
           } catch (e) {
             console.warn('初始化時讀取用戶資料受阻:', e);
@@ -105,25 +122,41 @@ export const useAuthStore = defineStore('auth', () => {
   };
 
   const logout = async () => {
+    impersonatingLandlord.value = null;
     await signOut(auth);
     user.value = null;
     userProfile.value = null;
     localStorage.removeItem('selectedRole');
+    // 清除 user store 快取
+    try { useUserStore().clear(); } catch { /* store 可能已銷毀 */ }
     router.replace({ name: 'Identity' });
   };
 
-  return { 
-    user, 
-    userProfile, 
-    selectedRole, 
-    loading, 
-    isInitialized, 
-    init, 
-    setRole, 
-    loginWithGoogle, 
-    loginEmail, 
-    registerEmail, 
-    logout 
+  const startImpersonation = (landlord: { uid: string; name: string; landlordCode: string }) => {
+    impersonatingLandlord.value = landlord;
+    router.push({ name: 'LandlordDashboard' });
+  };
+
+  const stopImpersonation = () => {
+    impersonatingLandlord.value = null;
+    router.push({ name: 'AdminDashboard' });
+  };
+
+  return {
+    user,
+    userProfile,
+    selectedRole,
+    loading,
+    isInitialized,
+    impersonatingLandlord,
+    effectiveUid,
+    init,
+    setRole,
+    loginWithGoogle,
+    loginEmail,
+    registerEmail,
+    logout,
+    startImpersonation,
+    stopImpersonation,
   };
 });
-// [修改結束]

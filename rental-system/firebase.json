@@ -1,8 +1,23 @@
 {
   "emulators": {
+    "auth": {
+      "port": 9099
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "functions": {
+      "port": 5001
+    },
+    "hosting": {
+      "port": 5000
+    },
     "ui": {
       "enabled": true,
       "port": 4000
+    },
+    "storage": {
+      "port": 9199
     },
     "singleProjectMode": true
   },
@@ -16,10 +31,14 @@
         ".git",
         "firebase-debug.log",
         "firebase-debug.*.log",
-        "*.local"
+        "*.local",
+        "package-lock.json"
       ]
     }
   ],
+  "storage": {
+    "rules": "storage.rules"
+  },
   "firestore": {
     "database": "(default)",
     "location": "nam5",
@@ -33,10 +52,39 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "headers": [
+      {
+        "source": "**/*.@(js|mjs|css|woff2|woff|ttf|eot)",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        ]
+      },
+      {
+        "source": "**/*.@(png|jpg|jpeg|gif|webp|svg|ico)",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=604800" }
+        ]
+      },
+      {
+        "source": "**",
+        "headers": [
+          { "key": "X-Frame-Options", "value": "DENY" },
+          { "key": "X-Content-Type-Options", "value": "nosniff" },
+          { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+          { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
+        ]
+      },
+      {
+        "source": "/index.html",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        ]
+      }
+    ],
     "rewrites": [
       {
         "source": "/generatePdf",
-        "function": "generatePdf" 
+        "function": "generatePdf"
       },
       {
         "source": "**",

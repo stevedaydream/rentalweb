@@ -35,6 +35,7 @@ const Contract = () => import('../views/landlord/Contract.vue');
 const Receipts = () => import('../views/landlord/Receipts.vue');
 const LandlordSettings = () => import('../views/landlord/Settings.vue');
 const LandlordMessages = () => import('../views/landlord/Messages.vue');
+const InvestmentCalculator = () => import('../views/landlord/InvestmentCalculator.vue');
 
 const TenantDashboard = () => import('../views/tenant/Dashboard.vue');
 const TenantBills = () => import('../views/tenant/Bills.vue');
@@ -42,16 +43,21 @@ const TenantAnnouncements = () => import('../views/tenant/Announcements.vue');
 const TenantRepairs = () => import('../views/tenant/Repairs.vue');
 const TenantContact = () => import('../views/tenant/Contact.vue');
 
+const AdminLogin = () => import('../views/admin/AdminLogin.vue');
 const AdminDashboard = () => import('../views/admin/Dashboard.vue');
 const AdminLandlords = () => import('../views/admin/LandlordManagement.vue');
 const AdminDatabase = () => import('../views/admin/DatabaseManagement.vue');
 const AdminTenants = () => import('../views/admin/TenantManagement.vue');
+
+const RoomExplore = () => import('../views/explore/RoomExplore.vue');
 
 const routes = [
   { path: '/', name: 'Identity', component: Identity },
   { path: '/login', name: 'Login', component: Login },
   { path: '/register', name: 'Register', component: Register },
   { path: '/onboarding', name: 'Onboarding', component: Onboarding, meta: { requiresAuth: true } },
+  { path: '/explore', name: 'RoomExplore', component: RoomExplore },
+  { path: '/admin/login', name: 'AdminLogin', component: AdminLogin },
   
   // 房東系統
   {
@@ -71,6 +77,7 @@ const routes = [
       { path: 'settings', name: 'Settings', component: LandlordSettings },
       { path: 'contract', name: 'Contract', component: Contract },
       { path: 'receipts', name: 'Receipts', component: Receipts },
+      { path: 'investment', name: 'InvestmentCalculator', component: InvestmentCalculator },
     ]
   },
 
@@ -118,6 +125,13 @@ const routes = [
       if (role === 'admin') return { name: 'AdminDashboard' };
       return authStore.user ? { name: 'Onboarding' } : { name: 'Identity' };
     }
+  },
+
+  // 404 catch-all（必須放最後）
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'NotFound',
+    component: () => import('../views/NotFound.vue')
   }
 ];
 
@@ -139,8 +153,9 @@ router.beforeEach(async (to, _from, next) => {
   const firebaseUser = await getCurrentUser();
   const isAuthenticated = !!firebaseUser;
 
-  // 3. 處理已登入用戶嘗試訪問 Auth 頁面
-  const isAuthPage = ['Identity', 'Login', 'Register'].includes(to.name as string);
+  // 3. 處理已登入用戶嘗試訪問 Auth 頁面（/explore 永遠可訪問）
+  if (to.name === 'RoomExplore') return next();
+  const isAuthPage = ['Identity', 'Login', 'Register', 'AdminLogin'].includes(to.name as string);
   if (isAuthenticated && isAuthPage) {
     const userRole = authStore.userProfile?.role;
     if (userRole === 'landlord') return next({ name: 'LandlordDashboard' });
@@ -161,6 +176,10 @@ router.beforeEach(async (to, _from, next) => {
     const requiredRole = to.meta.role as string;
 
     if (userRole !== requiredRole) {
+      // Admin 正在模擬房東時，允許進入房東路由
+      if (userRole === 'admin' && requiredRole === 'landlord' && authStore.impersonatingLandlord) {
+        return next();
+      }
       console.warn(`[Guard] 角色不符，目前是: ${userRole}`);
       if (userRole === 'landlord') return next({ name: 'LandlordDashboard' });
       if (userRole === 'tenant') return next({ name: 'TenantDashboard' });
