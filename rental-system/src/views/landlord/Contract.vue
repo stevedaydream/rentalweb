@@ -307,8 +307,23 @@
                 ・月租 NT${{ Number(c.rentfee).toLocaleString() }}
               </p>
             </div>
-            <div class="text-xs text-text-secondary-light shrink-0">
-              簽署：{{ formatDate(c.signedAt) }}
+            <div class="flex flex-col items-end gap-1.5 shrink-0">
+              <span class="text-xs text-text-secondary-light">簽署：{{ formatDate(c.signedAt) }}</span>
+              <div class="flex gap-2">
+                <button
+                  @click="previewContract = c"
+                  class="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors">
+                  <span class="material-symbols-outlined text-sm">visibility</span>
+                  查閱
+                </button>
+                <button
+                  @click="redownloadContract(c)"
+                  :disabled="redownloading === c.id"
+                  class="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 transition-colors disabled:opacity-50">
+                  <span class="material-symbols-outlined text-sm">{{ redownloading === c.id ? 'hourglass_empty' : 'download' }}</span>
+                  {{ redownloading === c.id ? '產生中...' : '重新下載' }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -320,6 +335,37 @@
   <!-- Modals -->
   <Signature v-model:visible="showSignModal" @confirm="setSignature" />
   <ContractTemplateModal v-model:show="showTemplateModal" @saved="onTemplateSaved" />
+
+  <!-- 合約查閱 Modal -->
+  <Teleport to="body">
+    <div v-if="previewContract"
+      class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto"
+      @click.self="previewContract = null">
+      <div class="w-full max-w-3xl bg-white dark:bg-card-dark rounded-2xl shadow-2xl my-8">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+          <h2 class="font-bold text-text-primary-light dark:text-text-primary-dark">
+            合約查閱 — {{ previewContract.tenant }} · {{ previewContract.roomNo }}
+          </h2>
+          <div class="flex items-center gap-2">
+            <button
+              @click="redownloadContract(previewContract); previewContract = null"
+              :disabled="redownloading !== null"
+              class="flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 transition-colors disabled:opacity-50">
+              <span class="material-symbols-outlined text-sm">download</span>
+              下載 PDF
+            </button>
+            <button @click="previewContract = null"
+              class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+              <span class="material-symbols-outlined text-gray-500">close</span>
+            </button>
+          </div>
+        </div>
+        <div class="p-6 overflow-y-auto max-h-[75vh]">
+          <Preview :form="previewContract" />
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -368,6 +414,8 @@ const selectedTenantId = ref('')
 // ---- History ----
 const signedContracts = ref([])
 const loadingHistory = ref(false)
+const redownloading = ref(null)
+const previewContract = ref(null)
 
 // ---- Form ----
 const form = ref({
@@ -515,24 +563,24 @@ const onTemplateSaved = (tmpl) => {
 }
 
 // ---- Build PDF display strings ----
-const buildPdfPayload = () => {
+const buildPdfPayload = (data = form.value) => {
   function pText(val) {
     if (!val || val === 'none') return '無'
     if (val === 'landlord') return '由出租人負擔'
     if (val === 'tenant') return '由承租人負擔'
     return val
   }
-  const elec = pText(form.value.feeElectricity)
+  const elec = pText(data.feeElectricity)
   return {
-    ...form.value,
-    feeWaterDisplay: pText(form.value.feeWater),
-    feeElectricityDisplay: form.value.feeElectricityNote
-      ? `${elec}（備註：${form.value.feeElectricityNote}）`
+    ...data,
+    feeWaterDisplay: pText(data.feeWater),
+    feeElectricityDisplay: data.feeElectricityNote
+      ? `${elec}（備註：${data.feeElectricityNote}）`
       : elec,
-    feeGasDisplay: pText(form.value.feeGas),
-    feeInternetDisplay: pText(form.value.feeInternet),
-    feeManagementDisplay: pText(form.value.feeManagement),
-    customArticle21Display: form.value.customArticle21 || '',
+    feeGasDisplay: pText(data.feeGas),
+    feeInternetDisplay: pText(data.feeInternet),
+    feeManagementDisplay: pText(data.feeManagement),
+    customArticle21Display: data.customArticle21 || '',
     templateType: 'Contract'
   }
 }
@@ -573,20 +621,12 @@ const submitContract = async () => {
     document.body.removeChild(link)
     window.URL.revokeObjectURL(link.href)
 
-    // Save record to Firestore
+    // Save full form data for future re-download
     await addDoc(collection(db, 'signed_contracts'), {
-      landlordId: authStore.effectiveUid,
-      landlordName: form.value.landlord,
-      tenantName: form.value.tenant,
-      tenantId: form.value.tenantId,
-      tenantPhone: form.value.tenantPhone,
-      roomNo: form.value.roomNo,
-      address: form.value.address,
+      landlordUid: authStore.effectiveUid,
+      ...form.value,
       rentfee: Number(form.value.rentfee) || 0,
       deposit: Number(form.value.deposit) || 0,
-      startDate: form.value.startDate,
-      endDate: form.value.endDate,
-      paymentDay: form.value.paymentDay,
       signedAt: serverTimestamp(),
     })
 
@@ -610,7 +650,7 @@ const loadHistory = async () => {
     const uid = authStore.effectiveUid
     const snap = await getDocs(
       query(collection(db, 'signed_contracts'),
-        where('landlordId', '==', uid),
+        where('landlordUid', '==', uid),
         orderBy('signedAt', 'desc'))
     )
     signedContracts.value = snap.docs.map(d => ({ id: d.id, ...d.data() }))
@@ -618,6 +658,39 @@ const loadHistory = async () => {
     console.error('載入合約記錄失敗:', e)
   } finally {
     loadingHistory.value = false
+  }
+}
+
+const redownloadContract = async (c) => {
+  redownloading.value = c.id
+  try {
+    const token = await auth.currentUser?.getIdToken()
+    const payload = buildPdfPayload(c)
+    const res = await axios.post(`${apiBase}/generatePdf`, payload, {
+      responseType: 'arraybuffer',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+    })
+    let data = res.data
+    if (data && typeof data === 'object' && !(data instanceof ArrayBuffer)) {
+      const keys = Object.keys(data)
+      const uint8 = new Uint8Array(keys.length)
+      for (let i = 0; i < keys.length; i++) uint8[i] = data[i]
+      data = uint8.buffer
+    }
+    const blob = new Blob([data], { type: 'application/pdf' })
+    const link = document.createElement('a')
+    link.href = window.URL.createObjectURL(blob)
+    link.download = `租賃合約_${c.tenant}_${c.startDate}.pdf`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(link.href)
+    toast.success('合約已重新下載')
+  } catch (e) {
+    console.error('重新下載失敗:', e)
+    toast.error('重新下載失敗，請稍後再試')
+  } finally {
+    redownloading.value = null
   }
 }
 

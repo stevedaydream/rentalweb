@@ -22,7 +22,7 @@ if (process.env.FUNCTIONS_EMULATOR === 'true') {
 // 允許的 CORS 來源：模擬器用 localhost，生產環境用 Firebase Hosting 網域
 const ALLOWED_ORIGINS = process.env.FUNCTIONS_EMULATOR === 'true'
   ? ['http://localhost:5000', 'http://localhost:5173', 'http://localhost:5174', 'http://localhost:4173', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174']
-  : ['https://rental-8897a.web.app', 'https://rental-8897a.firebaseapp.com'];
+  : ['https://rental-system-7675e.web.app', 'https://rental-system-7675e.firebaseapp.com'];
 
 // Initialize Firebase Admin SDK (only once)
 if (!getApps().length) {
@@ -280,21 +280,33 @@ async function handleCommand(cmd, tenantUid, config, client, replyToken, db) {
         return true;
       }
       const tenantData = tenantSnap.docs[0].data();
-      const roomId = tenantData.roomId;
+      // 優先用 roomId，若無則用 room 名稱查 rooms collection 取得 id
+      let roomId = tenantData.roomId;
+      let roomDisplayName = tenantData.roomName || tenantData.room || roomId;
+      if (!roomId && tenantData.room) {
+        const roomSnap = await db.collection('rooms')
+          .where('landlordId', '==', tenantData.landlordId)
+          .where('name', '==', tenantData.room).limit(1).get();
+        if (!roomSnap.empty) {
+          roomId = roomSnap.docs[0].id;
+          roomDisplayName = tenantData.room;
+        }
+      }
       if (!roomId) {
         await client.replyMessage({ replyToken, messages: [{ type: 'text', text: '⚠️ 找不到您的房間資料，請聯繫房東確認。' }] });
         return true;
       }
       const meterSnap = await db.collection('meter_readings')
-        .where('roomId', '==', roomId).orderBy('date', 'desc').limit(2).get();
+        .where('roomId', '==', roomId).orderBy('createdAt', 'desc').limit(2).get();
       if (meterSnap.empty) {
         await client.replyMessage({ replyToken, messages: [{ type: 'text', text: '⚡ 尚無電表記錄，請聯繫房東確認。' }] });
         return true;
       }
       const [latest, prev] = meterSnap.docs.map(d => d.data());
-      const usage = prev ? (latest.reading - prev.reading).toFixed(1) : null;
-      let text = `⚡ 電表記錄 - ${tenantData.roomName || roomId}\n━━━━━━━━━━\n最新度數：${latest.reading} 度\n記錄日期：${(latest.date||'').substring(0,10)||'-'}`;
-      if (usage !== null) text += `\n上期度數：${prev.reading} 度\n本期用電：${usage} 度`;
+      const usageVal = prev ? (latest.currentReading - prev.currentReading).toFixed(1) : (latest.usage != null ? Number(latest.usage).toFixed(1) : null);
+      const dateStr = latest.periodEnd || (latest.createdAt?.toDate ? latest.createdAt.toDate().toLocaleDateString('zh-TW') : '-');
+      let text = `⚡ 電表記錄 - ${roomDisplayName}\n━━━━━━━━━━\n最新度數：${latest.currentReading} 度\n抄表日期：${dateStr}`;
+      if (usageVal !== null) text += `\n上期度數：${latest.lastReading} 度\n本期用電：${usageVal} 度`;
       text += '\n━━━━━━━━━━\n如有疑問請聯繫房東';
       await client.replyMessage({ replyToken, messages: [{ type: 'text', text }] });
       return true;
@@ -351,18 +363,39 @@ async function handleCommand(cmd, tenantUid, config, client, replyToken, db) {
       if (!tenantUid) { await client.replyMessage({ replyToken, messages: unbound }); return true; }
       const snap = await db.collection('repair_requests')
         .where('tenantId', '==', tenantUid).orderBy('createdAt', 'desc').limit(5).get();
+
+      const repairPageBtn = {
+        type: 'uri',
+        label: '前往報修頁面',
+        uri: 'https://rental-system-7675e.web.app/tenant/repairs',
+      };
+
       if (snap.empty) {
-        await client.replyMessage({ replyToken, messages: [{ type: 'text', text: '🔧 您目前沒有報修紀錄。' }] });
+        await client.replyMessage({ replyToken, messages: [{
+          type: 'template', altText: '🔧 您目前沒有報修紀錄',
+          template: { type: 'buttons', text: '您目前沒有報修紀錄，如需提交新的報修請點下方按鈕。', actions: [repairPageBtn] },
+        }] });
         return true;
       }
+
       const statusMap = { pending: '待處理', processing: '處理中', resolved: '已解決', closed: '已關閉' };
+      const allDone = snap.docs.every(d => ['resolved', 'closed'].includes(d.data().status));
+
+      if (allDone) {
+        await client.replyMessage({ replyToken, messages: [{
+          type: 'template', altText: '🔧 所有報修已完成',
+          template: { type: 'buttons', text: '您最近的報修項目皆已完成處理，如有新的維修需求請點下方按鈕。', actions: [repairPageBtn] },
+        }] });
+        return true;
+      }
+
       const lines = snap.docs.map(d => {
         const r = d.data();
         const date = r.createdAt?.toDate ? r.createdAt.toDate().toLocaleDateString('zh-TW') : '';
         return `• ${r.type||'報修'} | ${statusMap[r.status]||r.status}\n  ${(r.description||'').substring(0,30)}${date?` (${date})`:''}`;
       }).join('\n');
       await client.replyMessage({ replyToken, messages: [{ type: 'text', text:
-        `🔧 您的報修紀錄\n━━━━━━━━━━\n${lines}\n━━━━━━━━━━\n共 ${snap.size} 筆`,
+        `🔧 您的報修紀錄\n━━━━━━━━━━\n${lines}\n━━━━━━━━━━\n共 ${snap.size} 筆\n\n如需新增或查看詳情：\nhttps://rental-system-7675e.web.app/tenant/repairs`,
       }] });
       return true;
     }
@@ -590,8 +623,8 @@ exports.sendLineBillNotifications = onCall(
   async (request) => {
     if (!request.auth) throw new Error('Unauthenticated');
 
-    const { month } = request.data; // 'YYYY-MM'
-    if (!month) throw new Error('Missing required field: month');
+    const { month, tenantId } = request.data; // month: 'YYYY-MM' (批次用), tenantId: 單一租客 uid (選填)
+    if (!month && !tenantId) throw new Error('Missing required field: month or tenantId');
 
     // 房東的 uid 即為 landlordId
     let config;
@@ -606,23 +639,31 @@ exports.sendLineBillNotifications = onCall(
       channelAccessToken: config.channelAccessToken,
     });
 
-    // Find pending bills for this month
-    const billsSnap = await db.collection('bills')
+    // 查詢帳單：單一租客模式查全部待收/逾期，批次模式只查當月
+    let billsQuery = db.collection('bills')
       .where('landlordId', '==', config.landlordId)
-      .where('status', '==', 'pending')
-      .where('type', '==', 'income')
-      .get();
+      .where('type', '==', 'income');
 
-    const monthBills = billsSnap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .filter(b => b.date && b.date.startsWith(month));
+    if (tenantId) {
+      // 單一租客：查該租客所有未繳帳單
+      billsQuery = billsQuery.where('tenantId', '==', tenantId).where('status', 'in', ['pending', 'overdue']);
+    } else {
+      billsQuery = billsQuery.where('status', '==', 'pending');
+    }
 
-    if (monthBills.length === 0) {
-      return { sent: 0, message: '本月沒有待收帳單' };
+    const billsSnap = await billsQuery.get();
+
+    let targetBills = billsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (!tenantId && month) {
+      targetBills = targetBills.filter(b => b.date && b.date.startsWith(month));
+    }
+
+    if (targetBills.length === 0) {
+      return { sent: 0, message: tenantId ? '該租客目前沒有未繳帳單' : '本月沒有待收帳單' };
     }
 
     // Group by tenantId (auth uid) and look up lineUserId
-    const tenantUids = [...new Set(monthBills.map(b => b.tenantId).filter(Boolean))];
+    const tenantUids = [...new Set(targetBills.map(b => b.tenantId).filter(Boolean))];
     let sent = 0;
 
     for (const uid of tenantUids) {
@@ -631,12 +672,19 @@ exports.sendLineBillNotifications = onCall(
       const userData = userSnap.data();
       if (!userData.lineUserId) continue;
 
-      const tenantBills = monthBills.filter(b => b.tenantId === uid);
-      const totalAmount = tenantBills.reduce((sum, b) => sum + (b.amount || 0), 0);
-      const dueDate = tenantBills[0].dueDate || '';
+      const tenantBills = targetBills.filter(b => b.tenantId === uid);
+      const totalAmount = tenantBills.reduce((sum, b) => sum + (Number(b.totalAmount || b.amount) || 0), 0);
+      const nearestDue = tenantBills.reduce((m, b) => (!m || b.dueDate < m) ? b.dueDate : m, '');
       const name = userData.name || '您';
 
-      const text = `💰 ${month.replace('-', ' 年 ')} 月帳單提醒\n\n${name}，本月帳單共 NT$ ${totalAmount.toLocaleString()} 元，請於 ${dueDate} 前完成繳費。\n\n如有疑問請直接回覆此訊息聯繫房東。`;
+      let text;
+      if (tenantId) {
+        // 單一租客提醒：列出各筆帳單
+        const lines = tenantBills.map(b => `• ${b.description || b.date || '帳單'} NT$${Number(b.totalAmount||b.amount||0).toLocaleString()}${b.status === 'overdue' ? '（已逾期）' : ''}`).join('\n');
+        text = `💰 帳單繳費提醒\n\n${name}，您有 ${tenantBills.length} 筆未繳帳單：\n${lines}\n\n合計：NT$ ${totalAmount.toLocaleString()} 元\n最近截止：${nearestDue || '-'}\n\n如有疑問請直接回覆此訊息聯繫房東。`;
+      } else {
+        text = `💰 ${month.replace('-', ' 年 ')} 月帳單提醒\n\n${name}，本月帳單共 NT$ ${totalAmount.toLocaleString()} 元，請於 ${nearestDue || '-'} 前完成繳費。\n\n如有疑問請直接回覆此訊息聯繫房東。`;
+      }
 
       try {
         await client.pushMessage({ to: userData.lineUserId, messages: [{ type: 'text', text }] });

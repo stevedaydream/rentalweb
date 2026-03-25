@@ -919,7 +919,7 @@ const leaseExpiryLabel = (dateStr?: string): string => {
 };
 
 // --- Modal Core Logic ---
-const getMapLink = (address: string) => `https://www.google.com/maps/search/?api=1&query=$?q=${encodeURIComponent(address)}`;
+const getMapLink = (address: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 
 const openModal = (room?: Room, mode: 'create' | 'edit' | 'view' = 'create') => {
   if (room) {

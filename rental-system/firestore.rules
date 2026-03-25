@@ -191,8 +191,13 @@ service cloud.firestore {
 
     // 已簽署合約存檔 (signed_contracts)
     match /signed_contracts/{id} {
-      allow read, update, delete: if isAdmin() || isLandlordData();
-      allow create: if isAdmin() || isCreatingAsLandlord();
+      allow read: if isAdmin()
+        || resource.data.landlordUid == request.auth.uid
+        || resource.data.tenantId == request.auth.uid;
+      allow update, delete: if isAdmin()
+        || resource.data.landlordUid == request.auth.uid;
+      allow create: if isAdmin()
+        || request.resource.data.landlordUid == request.auth.uid;
     }
 
     // LINE 綁定碼 (line_bindings)

@@ -48,6 +48,15 @@
               </div>
             </div>
             <div>
+              <label class="block text-sm font-medium text-text-secondary-light mb-1">身分證號</label>
+              <input
+                v-model="formData.idNumber"
+                type="text"
+                class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
+                placeholder="A123456789"
+              >
+            </div>
+            <div>
               <label class="block text-sm font-medium text-text-secondary-light mb-1">電子信箱 (帳號)</label>
               <input
                 :value="authStore.user?.email"
@@ -353,6 +362,7 @@ const isSaving = ref(false);
 interface SettingsForm {
   name: string;
   phone: string;
+  idNumber: string;
   description: string;
   bankCode: string;
   bankAccount: string;
@@ -366,6 +376,7 @@ interface SettingsForm {
 const formData = ref<SettingsForm>({
   name: '',
   phone: '',
+  idNumber: '',
   description: '',
   bankCode: '',
   bankAccount: '',
@@ -383,6 +394,7 @@ watchEffect(() => {
     formData.value = {
       name: p.name || '',
       phone: p.phone || '',
+      idNumber: p.idNumber || '',
       description: p.description || '',
       bankCode: p.bankInfo?.code || '',
       bankAccount: p.bankInfo?.account || '',
@@ -406,6 +418,7 @@ const handleSave = async () => {
     const updateData = {
       name: formData.value.name,
       phone: formData.value.phone,
+      idNumber: formData.value.idNumber,
       description: formData.value.description,
       bankInfo: {
         code: formData.value.bankCode,

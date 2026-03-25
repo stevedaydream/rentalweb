@@ -59,10 +59,40 @@
                 <span class="text-text-secondary-light">繳費日</span>
                 <span class="font-medium">每月 {{ rentalInfo.paymentDay }} 號</span>
               </div>
+              <div v-if="rentalInfo.address" class="py-2 border-b border-ink-50 dark:border-ink-800">
+                <span class="text-text-secondary-light text-xs">地址</span>
+                <div class="flex items-center gap-1 mt-0.5">
+                  <span
+                    class="font-medium text-sm leading-snug flex-1 cursor-pointer active:opacity-60 select-text"
+                    @click="copyAddress"
+                    @touchstart.passive="startLongPress"
+                    @touchend.passive="cancelLongPress"
+                    @touchmove.passive="cancelLongPress"
+                    title="點擊複製地址"
+                  >{{ rentalInfo.address }}</span>
+                  <a :href="getMapLink(rentalInfo.address)" target="_blank" rel="noopener noreferrer"
+                    class="flex-shrink-0 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                    title="在 Google 地圖開啟" @click.stop>
+                    <span class="material-symbols-outlined text-[20px]">map</span>
+                  </a>
+                </div>
+              </div>
               <div class="flex justify-between py-2">
                  <span class="text-text-secondary-light">狀態</span>
                  <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-bold">租賃中</span>
               </div>
+            </div>
+            <div v-if="signedContract" class="mt-4 flex gap-2">
+              <button @click="previewContract = signedContract"
+                class="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <span class="material-symbols-outlined text-sm">visibility</span>
+                查閱合約
+              </button>
+              <button @click="downloadSignedContract" :disabled="downloadingContract"
+                class="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors disabled:opacity-50">
+                <span class="material-symbols-outlined text-sm">{{ downloadingContract ? 'hourglass_empty' : 'download' }}</span>
+                {{ downloadingContract ? '產生中...' : '下載 PDF' }}
+              </button>
             </div>
           </div>
 
@@ -184,7 +214,7 @@
       </div>
 
       <!-- 入住款項卡片（有未繳押金時才顯示） -->
-      <div v-if="pendingDeposits.length > 0" class="md:col-span-12">
+      <div v-if="pendingDeposits.some(d => d.status !== 'paid')" class="md:col-span-12">
         <div class="bg-amber-50 dark:bg-amber-900/20 rounded-2xl p-5 border border-amber-200 dark:border-amber-800">
           <h3 class="font-bold text-base flex items-center gap-2 text-amber-800 dark:text-amber-300 mb-3">
             <span class="material-symbols-outlined text-[20px]">payments</span>
@@ -370,13 +400,44 @@
     </div>
 
   </div>
+
+  <!-- 合約查閱 Modal -->
+  <Teleport to="body">
+    <div v-if="previewContract"
+      class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto"
+      @click.self="previewContract = null">
+      <div class="w-full max-w-3xl bg-white dark:bg-card-dark rounded-2xl shadow-2xl my-8">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+          <h2 class="font-bold text-text-primary-light dark:text-text-primary-dark">
+            租賃合約 — {{ previewContract.roomNo }}
+          </h2>
+          <div class="flex items-center gap-2">
+            <button @click="downloadSignedContract(); previewContract = null" :disabled="downloadingContract"
+              class="flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 transition-colors disabled:opacity-50">
+              <span class="material-symbols-outlined text-sm">download</span>
+              下載 PDF
+            </button>
+            <button @click="previewContract = null"
+              class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+              <span class="material-symbols-outlined text-gray-500">close</span>
+            </button>
+          </div>
+        </div>
+        <div class="p-6 overflow-y-auto max-h-[75vh]">
+          <Preview :form="previewContract" />
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, onUnmounted } from 'vue';
+import axios from 'axios';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
-import { db } from '../../firebase/config';
+import { db, auth } from '../../firebase/config';
+import Preview from '../../components/Preview.vue';
 import { 
   doc,
   updateDoc,
@@ -387,7 +448,7 @@ import {
   orderBy,
   limit,
   getDoc,
-  // Timestamp // [修改] 新增 Timestamp 引用
+  onSnapshot,
 } from 'firebase/firestore';
 
 const authStore = useAuthStore();
@@ -506,12 +567,40 @@ const saveProfile = async () => {
 const rentalInfo = reactive({
   hasData: false,
   roomNumber: '',
+  address: '',
   leaseStart: '',
   leaseEnd: '',
   rent: 0,
   paymentDay: 5,
   nextPaymentDate: ''
 });
+
+const getMapLink = (address: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+
+let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+const startLongPress = () => {
+  longPressTimer = setTimeout(async () => {
+    if (!rentalInfo.address) return;
+    try {
+      await navigator.clipboard.writeText(rentalInfo.address);
+      toast.success('地址已複製');
+    } catch {
+      toast.info(rentalInfo.address);
+    }
+  }, 600);
+};
+const cancelLongPress = () => {
+  if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+};
+const copyAddress = async () => {
+  if (!rentalInfo.address) return;
+  try {
+    await navigator.clipboard.writeText(rentalInfo.address);
+    toast.success('地址已複製');
+  } catch {
+    toast.info(rentalInfo.address);
+  }
+};
 
 // 2. 帳單資訊
 const currentBill = reactive({
@@ -534,6 +623,62 @@ const announcements = ref<any[]>([]);
 
 // 4. 入住押金狀態
 const pendingDeposits = ref<{ label: string; amount: number; status: string }[]>([]);
+let unsubscribeDeposits: (() => void) | null = null;
+
+// 5. 已簽署合約
+const signedContract = ref<any>(null);
+const previewContract = ref<any>(null);
+const downloadingContract = ref(false);
+
+const downloadSignedContract = async () => {
+  if (!signedContract.value) return;
+  downloadingContract.value = true;
+  try {
+    const token = await auth.currentUser?.getIdToken();
+    const c = signedContract.value;
+    function pText(val: any) {
+      if (!val || val === 'none') return '無';
+      if (val === 'landlord') return '由出租人負擔';
+      if (val === 'tenant') return '由承租人負擔';
+      return val;
+    }
+    const elec = pText(c.feeElectricity);
+    const payload = {
+      ...c,
+      feeWaterDisplay: pText(c.feeWater),
+      feeElectricityDisplay: c.feeElectricityNote ? `${elec}（備註：${c.feeElectricityNote}）` : elec,
+      feeGasDisplay: pText(c.feeGas),
+      feeInternetDisplay: pText(c.feeInternet),
+      feeManagementDisplay: pText(c.feeManagement),
+      customArticle21Display: c.customArticle21 || '',
+      templateType: 'Contract'
+    };
+    const res = await axios.post('/generatePdf', payload, {
+      responseType: 'arraybuffer',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+    });
+    let data = res.data;
+    if (data && typeof data === 'object' && !(data instanceof ArrayBuffer)) {
+      const keys = Object.keys(data);
+      const uint8 = new Uint8Array(keys.length);
+      for (let i = 0; i < keys.length; i++) uint8[i] = (data as any)[i];
+      data = uint8.buffer;
+    }
+    const blob = new Blob([data], { type: 'application/pdf' });
+    const link = document.createElement('a');
+    link.href = window.URL.createObjectURL(blob);
+    link.download = `租賃合約_${c.tenant}_${c.startDate}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(link.href);
+    toast.success('合約已下載');
+  } catch (e) {
+    toast.error('下載失敗，請稍後再試');
+  } finally {
+    downloadingContract.value = false;
+  }
+};
 
 // --- 核心資料讀取 ---
 // [修改] 這是修改後的完整 fetchDashboardData 函式
@@ -580,15 +725,26 @@ const fetchDashboardData = async () => {
       rentalInfo.leaseStart = data.startDate;
       rentalInfo.leaseEnd = data.endDate;
       rentalInfo.rent = Number(data.rent);
+
+      // 查詢房間地址
+      if (data.landlordId && data.roomNumber) {
+        try {
+          const roomQ = query(collection(db, 'rooms'), where('landlordId', '==', data.landlordId), where('name', '==', data.roomNumber), limit(1));
+          const roomSnap = await getDocs(roomQ);
+          rentalInfo.address = roomSnap.empty ? '' : (roomSnap.docs[0]!.data().address || '');
+        } catch { rentalInfo.address = ''; }
+      }
       // 優先使用房東系統設定的繳費日，其次才是合約靜態值
       rentalInfo.paymentDay = (userProfile as any)._landlordPaymentDay ?? data.paymentDay ?? 5;
 
-      // 押金狀態
-      if (Array.isArray(data.deposits) && data.deposits.length > 0) {
-        pendingDeposits.value = data.deposits;
-      } else {
-        pendingDeposits.value = [];
-      }
+      // 押金狀態 — 即時監聽，房東確認後自動更新
+      const contractDocId = contractSnap.docs[0]!.id;
+      if (unsubscribeDeposits) unsubscribeDeposits();
+      unsubscribeDeposits = onSnapshot(doc(db, 'contracts', contractDocId), (snap) => {
+        if (snap.exists()) {
+          pendingDeposits.value = Array.isArray(snap.data().deposits) ? snap.data().deposits : [];
+        }
+      });
       
       const today = new Date();
       let nextMonth = today.getMonth() + 1;
@@ -605,6 +761,20 @@ const fetchDashboardData = async () => {
     console.error('租約讀取錯誤:', err);
   } finally {
     loading.rental = false;
+  }
+
+  // B2. 查詢已簽署合約備份 (signed_contracts)
+  try {
+    const scQ = query(
+      collection(db, 'signed_contracts'),
+      where('tenantId', '==', uid),
+      orderBy('signedAt', 'desc'),
+      limit(1)
+    );
+    const scSnap = await getDocs(scQ);
+    signedContract.value = scSnap.empty ? null : { id: scSnap.docs[0]!.id, ...scSnap.docs[0]!.data() };
+  } catch {
+    // 索引未建或無資料不影響主畫面
   }
 
   // C. 讀取本月帳單 (bills)
@@ -714,5 +884,9 @@ const fetchDashboardData = async () => {
 
 onMounted(() => {
   fetchDashboardData();
+});
+
+onUnmounted(() => {
+  if (unsubscribeDeposits) unsubscribeDeposits();
 });
 </script>

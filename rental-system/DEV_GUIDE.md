@@ -356,7 +356,78 @@ LINE Bot 沒反應？依序確認：
 
 ---
 
-## 九、常見問題
+## 九、Firebase 手機 Google 登入 Debug 紀錄
+
+> 紀錄日期：2026-03-25｜專案遷移至 `rental-system-7675e` 時發生
+
+### 問題描述
+
+手機瀏覽器點擊「使用 Google 登入」後，跳轉至 404 頁面，無法完成登入。桌機瀏覽器正常。
+
+### 根本原因
+
+**Google Cloud Console 的「已授權的 JavaScript 來源」缺少 `web.app` 網域。**
+
+Firebase 專案同時擁有兩個 Hosting 域名：
+- `rental-system-7675e.firebaseapp.com`（Firebase 預設）
+- `rental-system-7675e.web.app`（主要使用）
+
+Firebase 自動建立的 OAuth 用戶端只加入了 `firebaseapp.com`，沒有加入 `web.app`。當 `signInWithPopup` 從 `web.app` 發起時，Google OAuth 拒絕了這個來源，導致 404。
+
+### 修復步驟
+
+Google Cloud Console → APIs & Services → Credentials → Web client (auto created by Google Service) → 編輯：
+
+**已授權的 JavaScript 來源** 新增：
+```
+https://rental-system-7675e.web.app
+```
+
+儲存後等待 5 分鐘生效。
+
+### 排查過程中走的彎路
+
+| 嘗試 | 結果 |
+|------|------|
+| 改用 `signInWithRedirect` | 反而因 PWA service worker 攔截 callback 造成導向 Login 的無限迴圈 |
+| 加入 `getRedirectResult` | service worker 與 redirect 流程競態，仍舊失敗 |
+| 改 `authDomain` 為 `web.app` | Google OAuth 未設定該 domain 的 handler，仍失敗 |
+| 重建新的 Firebase 專案 | 問題依舊，確認非舊專案資料問題 |
+| AI 建議加 `FirebaseAuthHandler` 路由 + IIFE | 導致空白畫面，反而更壞 |
+| **加入 `web.app` 到授權 JS 來源** | ✅ 解決 |
+
+### 正確架構說明
+
+```
+signInWithPopup 流程（桌機 + 手機均使用）：
+
+web.app（使用者頁面）
+  ↓ 點擊 Google 登入
+  ↓ Firebase 開啟 popup 到 firebaseapp.com/__/auth/handler
+  ↓ 使用者在 popup 選擇 Google 帳號
+  ↓ popup 關閉，signInWithPopup Promise resolve
+  ↓ handleAuthSuccess() 讀取 Firestore profile
+  ↓ 依 role 導向對應 Dashboard
+```
+
+**關鍵設定**：
+- 使用 `signInWithPopup`（不用 `signInWithRedirect`），避免 PWA service worker 干擾
+- `vite.config.ts` 加入 `navigateFallbackDenylist: [/^\/__/]`，讓 service worker 不攔截 Firebase 內部路由
+- `auth.authStateReady()` 確保 Firebase Auth 初始化完成才執行路由守衛
+
+### 新專案部署後必做清單
+
+- [ ] Firebase Console → Authentication → Google Sign-in → 啟用，填入 Support Email
+- [ ] Google Cloud Console → Credentials → Web client → 已授權 JS 來源加入 `https://<project>.web.app`
+- [ ] Google Cloud Console → OAuth consent screen → 確認狀態（Testing 需加測試帳號，或 Publish）
+- [ ] Firebase Console → Authentication → Settings → 授權網域確認有 `<project>.web.app`
+
+---
+
+## 十、常見問題
+
+### Q: 手機 Google 登入導向 404
+新 Firebase 專案的 Google Cloud OAuth 用戶端預設只有 `firebaseapp.com` 來源，需手動加入 `web.app`。詳見第九節。
 
 ### Q: 本地 LINE Webhook 驗證失敗
 確認 Tunnel 有對應到 `localhost:5001`（不是 5173），且模擬器已啟動。URL 需帶 `?lid=UID`，詳細排查見第八節。

@@ -175,6 +175,14 @@
                     >
                       <span class="material-symbols-outlined text-[16px]">payments</span>入住押金
                     </button>
+                    <button
+                      @click.stop="sendBillReminder(tenant); closeDropdown()"
+                      :disabled="sendingReminderId === tenant.id"
+                      class="w-full text-left px-4 py-2.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <span class="material-symbols-outlined text-[16px]">send</span>
+                      {{ sendingReminderId === tenant.id ? '發送中...' : '傳送帳單提醒' }}
+                    </button>
                   </div>
                 </div>
               </td>
@@ -624,7 +632,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { db } from '../../firebase/config';
+import { db, functions } from '../../firebase/config';
+import { httpsCallable } from 'firebase/functions';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
 import {
@@ -697,6 +706,7 @@ const availableRooms = ref<Room[]>([]);
 const loading = ref(true);
 const isSaving = ref(false);
 const billStatusMap = ref<Record<string, 'normal' | 'unpaid' | 'overdue'>>({});
+const sendingReminderId = ref<string | null>(null);
 
 // --- Subscription Handlers ---
 let unsubscribeTenants: any = null;
@@ -751,6 +761,28 @@ const paymentDotStyles: any = {
 };
 
 // --- Firestore Integration ---
+
+// --- 單一租客帳單 LINE 提醒 ---
+const sendBillReminder = async (tenant: Tenant) => {
+  if (!tenant.uid) {
+    toast.warning('此租客尚未綁定系統帳號，無法發送 LINE 通知');
+    return;
+  }
+  sendingReminderId.value = tenant.id;
+  try {
+    const fn = httpsCallable(functions, 'sendLineBillNotifications');
+    const result: any = await fn({ tenantId: tenant.uid });
+    if (result.data?.sent > 0) {
+      toast.success(`已發送帳單提醒給 ${tenant.name}`);
+    } else {
+      toast.info(result.data?.message || `${tenant.name} 目前沒有未繳帳單`);
+    }
+  } catch (e: any) {
+    toast.error(e.message || '發送失敗，請確認 LINE Bot 設定');
+  } finally {
+    sendingReminderId.value = null;
+  }
+};
 
 // 讀取本月帳單狀態，建立 tenantDocId -> status 對照表
 const refreshBillStatuses = async () => {
