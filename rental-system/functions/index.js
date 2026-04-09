@@ -2,6 +2,8 @@
 const { onRequest, onCall } = require("firebase-functions/v2/https");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onObjectFinalized, onObjectDeleted } = require("firebase-functions/v2/storage");
+const { onMessagePublished } = require("firebase-functions/v2/pubsub");
 const logger = require("firebase-functions/logger");
 const puppeteer = require("puppeteer-core");
 const chromium = require("@sparticuz/chromium");
@@ -297,16 +299,23 @@ async function handleCommand(cmd, tenantUid, config, client, replyToken, db) {
         return true;
       }
       const meterSnap = await db.collection('meter_readings')
-        .where('roomId', '==', roomId).orderBy('createdAt', 'desc').limit(2).get();
+        .where('roomId', '==', roomId).orderBy('yearMonth', 'desc').limit(1).get();
       if (meterSnap.empty) {
         await client.replyMessage({ replyToken, messages: [{ type: 'text', text: '⚡ 尚無電表記錄，請聯繫房東確認。' }] });
         return true;
       }
-      const [latest, prev] = meterSnap.docs.map(d => d.data());
-      const usageVal = prev ? (latest.currentReading - prev.currentReading).toFixed(1) : (latest.usage != null ? Number(latest.usage).toFixed(1) : null);
+      const latest = meterSnap.docs[0].data();
+      // 用電量：優先用文件內已計算的 usage，其次從 currentReading - lastReading 自算
+      const usageVal = (latest.usage != null)
+        ? Number(latest.usage).toFixed(1)
+        : (latest.currentReading != null && latest.lastReading != null)
+          ? (latest.currentReading - latest.lastReading).toFixed(1)
+          : null;
       const dateStr = latest.periodEnd || (latest.createdAt?.toDate ? latest.createdAt.toDate().toLocaleDateString('zh-TW') : '-');
-      let text = `⚡ 電表記錄 - ${roomDisplayName}\n━━━━━━━━━━\n最新度數：${latest.currentReading} 度\n抄表日期：${dateStr}`;
-      if (usageVal !== null) text += `\n上期度數：${latest.lastReading} 度\n本期用電：${usageVal} 度`;
+      let text = `⚡ 電表記錄 - ${roomDisplayName}\n━━━━━━━━━━\n抄表期間：${dateStr}\n本期度數：${latest.currentReading} 度`;
+      if (latest.lastReading != null) text += `\n上期度數：${latest.lastReading} 度`;
+      if (usageVal !== null) text += `\n本期用電：${usageVal} 度`;
+      if (latest.cost) text += `\n電費金額：NT$${Number(latest.cost).toLocaleString()}`;
       text += '\n━━━━━━━━━━\n如有疑問請聯繫房東';
       await client.replyMessage({ replyToken, messages: [{ type: 'text', text }] });
       return true;
@@ -367,7 +376,7 @@ async function handleCommand(cmd, tenantUid, config, client, replyToken, db) {
       const repairPageBtn = {
         type: 'uri',
         label: '前往報修頁面',
-        uri: 'https://rental-system-7675e.web.app/tenant/repairs',
+        uri: 'https://rental-system-7675e.web.app/tenant/repairs?openExternalBrowser=1',
       };
 
       if (snap.empty) {
@@ -395,7 +404,7 @@ async function handleCommand(cmd, tenantUid, config, client, replyToken, db) {
         return `• ${r.type||'報修'} | ${statusMap[r.status]||r.status}\n  ${(r.description||'').substring(0,30)}${date?` (${date})`:''}`;
       }).join('\n');
       await client.replyMessage({ replyToken, messages: [{ type: 'text', text:
-        `🔧 您的報修紀錄\n━━━━━━━━━━\n${lines}\n━━━━━━━━━━\n共 ${snap.size} 筆\n\n如需新增或查看詳情：\nhttps://rental-system-7675e.web.app/tenant/repairs`,
+        `🔧 您的報修紀錄\n━━━━━━━━━━\n${lines}\n━━━━━━━━━━\n共 ${snap.size} 筆\n\n如需新增或查看詳情：\nhttps://rental-system-7675e.web.app/tenant/repairs?openExternalBrowser=1`,
       }] });
       return true;
     }
@@ -952,5 +961,197 @@ exports.onReviewCreated = onDocumentCreated(
     }, { merge: true });
 
     logger.info('onReviewCreated: updated public_profiles', { landlordId, avg, count });
+  }
+);
+
+// ============================================================
+// 費用保護機制 (Cost Protection)
+// ============================================================
+
+// ── 設定門檻（依需求調整） ──────────────────────────────────
+const STORAGE_LIMIT_BYTES = 5 * 1024 * 1024 * 1024;  // 5 GB (免費方案上限)
+const STORAGE_WARN_THRESHOLD = 0.8;                    // 80% 時警告
+const STORAGE_BLOCK_THRESHOLD = 0.95;                  // 95% 時封鎖新上傳
+// ───────────────────────────────────────────────────────────
+
+/** 內部：更新 _system/storageStats，必要時設定封鎖旗標並發 LINE 通知 */
+async function _updateStorageStats(deltaBytes) {
+  const db = getFirestore();
+  const statsRef = db.collection('_system').doc('storageStats');
+  const quotaRef = db.collection('_system').doc('quotaControl');
+
+  let newTotal = 0;
+  await db.runTransaction(async (t) => {
+    const stats = await t.get(statsRef);
+    const current = stats.exists ? (stats.data().totalBytes || 0) : 0;
+    newTotal = Math.max(0, current + deltaBytes);
+    t.set(statsRef, { totalBytes: newTotal, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+
+    const ratio = newTotal / STORAGE_LIMIT_BYTES;
+    if (ratio >= STORAGE_BLOCK_THRESHOLD) {
+      t.set(quotaRef, {
+        storageBlocked: true,
+        blockedAt: FieldValue.serverTimestamp(),
+        reason: `Storage ${(ratio * 100).toFixed(1)}% used`,
+      }, { merge: true });
+    } else {
+      // 空間夠用時解除封鎖
+      t.set(quotaRef, { storageBlocked: false }, { merge: true });
+    }
+  });
+
+  const ratio = newTotal / STORAGE_LIMIT_BYTES;
+  const totalMB = (newTotal / 1024 / 1024).toFixed(1);
+  const percent = (ratio * 100).toFixed(1);
+  logger.info('Storage stats updated', { totalMB, percent });
+
+  // 超過警告門檻時，推播 LINE 通知給所有房東
+  if (ratio >= STORAGE_WARN_THRESHOLD) {
+    const isBlocked = ratio >= STORAGE_BLOCK_THRESHOLD;
+    const icon = isBlocked ? '🚫' : '⚠️';
+    const statusText = isBlocked
+      ? `已達 ${percent}%，新上傳已自動封鎖！`
+      : `已達 ${percent}%，即將到達上限`;
+    const msg = `${icon} Firebase Storage 費用警告\n━━━━━━━━━━\n目前使用：${totalMB} MB\n上限：${(STORAGE_LIMIT_BYTES / 1024 / 1024).toFixed(0)} MB\n狀態：${statusText}\n\n請至 Firebase Console 確認用量。`;
+
+    const configsSnap = await getFirestore().collection('line_configs').get();
+    for (const doc of configsSnap.docs) {
+      const cfg = doc.data();
+      if (!cfg.channelAccessToken || !cfg.landlordId) continue;
+      try {
+        const client = new line.messagingApi.MessagingApiClient({ channelAccessToken: cfg.channelAccessToken });
+        await client.pushMessage({ to: cfg.landlordId, messages: [{ type: 'text', text: msg }] });
+      } catch (e) {
+        logger.warn('Cost alert LINE push failed', { landlordId: doc.id, error: e.message });
+      }
+    }
+  }
+}
+
+/**
+ * 追蹤 Storage 上傳：計算已用空間
+ */
+exports.trackStorageOnUpload = onObjectFinalized({ region: 'us-east1' }, async (event) => {
+  const fileSize = parseInt(event.data.size || '0', 10);
+  if (!fileSize) return;
+  logger.info('File uploaded', { name: event.data.name, sizeBytes: fileSize });
+  await _updateStorageStats(fileSize);
+});
+
+/**
+ * 追蹤 Storage 刪除：釋放已用空間
+ */
+exports.trackStorageOnDelete = onObjectDeleted({ region: 'us-east1' }, async (event) => {
+  const fileSize = parseInt(event.data.size || '0', 10);
+  if (!fileSize) return;
+  logger.info('File deleted', { name: event.data.name, sizeBytes: fileSize });
+  await _updateStorageStats(-fileSize);
+});
+
+/**
+ * GCP Budget Alert 接收 (Pub/Sub topic: "budget-alerts")
+ * 設定步驟：GCP Console → Billing → Budgets → 新增 budget → Pub/Sub notifications
+ * Topic 名稱設為 "budget-alerts"
+ */
+exports.budgetAlert = onMessagePublished(
+  { topic: 'budget-alerts', region: 'asia-east1' },
+  async (event) => {
+    const budgetData = event.data.message.json || {};
+    const costUnits = Number(budgetData.costAmount?.units || 0);
+    const budgetUnits = Number(budgetData.budgetAmount?.units || 0);
+    const alertThreshold = Number(budgetData.alertThresholdExceeded || 0);
+
+    logger.warn('GCP Budget alert received', { costUnits, budgetUnits, alertThreshold });
+
+    const db = getFirestore();
+    await db.collection('_system').doc('budgetAlerts').set({
+      lastAlert: FieldValue.serverTimestamp(),
+      costUnits,
+      budgetUnits,
+      alertThreshold,
+    }, { merge: true });
+
+    // 超過 90% 預算時封鎖 Storage
+    if (alertThreshold >= 0.9) {
+      await db.collection('_system').doc('quotaControl').set({
+        storageBlocked: true,
+        blockedAt: FieldValue.serverTimestamp(),
+        reason: `GCP budget ${(alertThreshold * 100).toFixed(0)}%: $${costUnits} / $${budgetUnits}`,
+      }, { merge: true });
+      logger.error('Budget threshold exceeded! Storage blocked.', { costUnits, budgetUnits });
+
+      // 推播緊急通知
+      const msg = `🚨 Firebase 費用緊急警告！\n━━━━━━━━━━\n目前費用：$${costUnits}\n預算上限：$${budgetUnits}\n已達：${(alertThreshold * 100).toFixed(0)}%\n\n⛔ Storage 上傳已自動停用，請盡速至 GCP Console 確認！`;
+      const configsSnap = await db.collection('line_configs').get();
+      for (const doc of configsSnap.docs) {
+        const cfg = doc.data();
+        if (!cfg.channelAccessToken || !cfg.landlordId) continue;
+        try {
+          const client = new line.messagingApi.MessagingApiClient({ channelAccessToken: cfg.channelAccessToken });
+          await client.pushMessage({ to: cfg.landlordId, messages: [{ type: 'text', text: msg }] });
+        } catch (e) {
+          logger.warn('Budget alert LINE push failed', { landlordId: doc.id, error: e.message });
+        }
+      }
+    }
+  }
+);
+
+/**
+ * 每日使用量報告 (每天早上 9:00 台灣時間)
+ * 超過 80% 時主動推播 LINE 通知
+ */
+exports.dailyUsageCheck = onSchedule(
+  { schedule: 'every day 09:00', timeZone: 'Asia/Taipei', region: 'asia-east1' },
+  async () => {
+    const db = getFirestore();
+    const [statsSnap, quotaSnap, budgetSnap] = await Promise.all([
+      db.collection('_system').doc('storageStats').get(),
+      db.collection('_system').doc('quotaControl').get(),
+      db.collection('_system').doc('budgetAlerts').get(),
+    ]);
+
+    const totalBytes = statsSnap.exists ? (statsSnap.data().totalBytes || 0) : 0;
+    const isBlocked = quotaSnap.exists ? (quotaSnap.data().storageBlocked || false) : false;
+    const budgetInfo = budgetSnap.exists ? budgetSnap.data() : null;
+
+    const totalMB = (totalBytes / 1024 / 1024).toFixed(1);
+    const limitMB = (STORAGE_LIMIT_BYTES / 1024 / 1024).toFixed(0);
+    const percent = (totalBytes / STORAGE_LIMIT_BYTES * 100).toFixed(1);
+    const today = new Date().toISOString().split('T')[0];
+
+    logger.info('Daily usage report', { today, totalMB, limitMB, percent, isBlocked });
+
+    await db.collection('_system').doc('dailyReport').set({
+      date: today,
+      storageBytes: totalBytes,
+      storageMB: parseFloat(totalMB),
+      storagePercent: parseFloat(percent),
+      isBlocked,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    // 超過警告門檻才推播（避免每天騷擾）
+    const ratio = totalBytes / STORAGE_LIMIT_BYTES;
+    if (ratio >= STORAGE_WARN_THRESHOLD) {
+      const icon = isBlocked ? '🚫' : '⚠️';
+      let msg = `${icon} [每日報告] Firebase Storage\n━━━━━━━━━━\n日期：${today}\n使用量：${totalMB} MB / ${limitMB} MB\n佔比：${percent}%\n狀態：${isBlocked ? '上傳已封鎖' : '正常（接近上限）'}`;
+      if (budgetInfo?.costUnits) {
+        msg += `\n\nGCP 本月費用：$${budgetInfo.costUnits}`;
+      }
+      msg += '\n\n請至 Firebase Console 確認用量。';
+
+      const configsSnap = await db.collection('line_configs').get();
+      for (const doc of configsSnap.docs) {
+        const cfg = doc.data();
+        if (!cfg.channelAccessToken || !cfg.landlordId) continue;
+        try {
+          const client = new line.messagingApi.MessagingApiClient({ channelAccessToken: cfg.channelAccessToken });
+          await client.pushMessage({ to: cfg.landlordId, messages: [{ type: 'text', text: msg }] });
+        } catch (e) {
+          logger.warn('Daily report LINE push failed', { landlordId: doc.id, error: e.message });
+        }
+      }
+    }
   }
 );

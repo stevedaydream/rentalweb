@@ -24,16 +24,26 @@
       </div>
     </div>
 
+    <!-- 正式環境警告 -->
+    <div v-if="!isLocalhost" class="bg-yellow-50 border-b-2 border-yellow-300 px-4 py-2 flex items-center gap-2 text-yellow-800 text-sm shrink-0">
+      <span class="material-symbols-outlined text-[18px]">warning</span>
+      <span>
+        <strong>注意：</strong>雙帳號隔離功能（localhost vs 127.0.0.1）僅在本地開發環境有效。
+        正式環境中兩個視窗共用同一 Session，<strong>無法同時登入不同帳號</strong>。
+        請在本地執行 <code class="bg-yellow-100 px-1 rounded">npm start</code> 以使用完整模擬功能。
+      </span>
+    </div>
+
     <div class="flex-1 flex overflow-hidden border-b-4 border-gray-300 dark:border-gray-700 h-[60%]">
-      
+
       <div class="flex-1 flex flex-col border-r-4 border-gray-300 dark:border-gray-700 relative group">
         <div class="bg-blue-600 text-white text-xs px-3 py-1 font-bold flex justify-between items-center">
           <span>房東視角 (Landlord View) - {{ leftOrigin }}</span>
           <span class="opacity-50 text-[10px]">Primary Origin</span>
         </div>
-        <iframe 
+        <iframe
           ref="leftFrame"
-          :src="leftUrl" 
+          :src="leftUrl"
           class="w-full h-full bg-white"
           frameborder="0"
         ></iframe>
@@ -47,11 +57,11 @@
       <div class="flex-1 flex flex-col relative group">
         <div class="bg-green-600 text-white text-xs px-3 py-1 font-bold flex justify-between items-center">
           <span>租客視角 (Tenant View) - {{ rightOrigin }}</span>
-          <span class="opacity-50 text-[10px]">Secondary Origin</span>
+          <span class="opacity-50 text-[10px]">{{ isLocalhost ? 'Secondary Origin' : '與左側相同 Origin (正式環境限制)' }}</span>
         </div>
-        <iframe 
+        <iframe
           ref="rightFrame"
-          :src="rightUrl" 
+          :src="rightUrl"
           class="w-full h-full bg-white"
           frameborder="0"
         ></iframe>
@@ -95,10 +105,10 @@ const leftOrigin = currentOrigin;
 const leftUrl = `${leftOrigin}/login`;
 
 // 右側使用替代網域 (localhost <-> 127.0.0.1)
-// 注意：如果您的開發環境不是 localhost/127.0.0.1 (例如用 IP)，這可能需要調整
-const rightOrigin = isLocalhost 
-  ? `http://127.0.0.1:${currentPort}` 
-  : `http://localhost:${currentPort}`;
+// 正式環境無法做到 origin 隔離，退而求其次用相同 origin（顯示警告提示）
+const rightOrigin = isLocalhost
+  ? `http://127.0.0.1:${currentPort}`
+  : currentOrigin;
 const rightUrl = `${rightOrigin}/login`;
 
 const refreshFrames = () => {

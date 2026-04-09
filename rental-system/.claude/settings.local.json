@@ -39,7 +39,8 @@
       "Bash(pnpm dlx:*)",
       "Bash(npx skills:*)",
       "Bash(firebase use:*)",
-      "Bash(firebase functions:artifacts:setpolicy)"
+      "Bash(firebase functions:artifacts:setpolicy)",
+      "Bash(gcloud run:*)"
     ]
   }
 }

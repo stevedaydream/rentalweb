@@ -53,68 +53,107 @@
       </div>
 
       <div class="overflow-x-auto">
-        <div v-if="loading" class="p-12 text-center text-text-secondary-light">
-          <span class="material-symbols-outlined animate-spin text-3xl mb-2">sync</span>
-          <p>載入帳單資料中...</p>
-        </div>
+        <!-- 帳單 tab -->
+        <template v-if="currentTab !== 'meter'">
+          <div v-if="loading" class="p-12 text-center text-text-secondary-light">
+            <span class="material-symbols-outlined animate-spin text-3xl mb-2">sync</span>
+            <p>載入帳單資料中...</p>
+          </div>
 
-        <table v-else class="w-full text-sm text-left">
-          <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50">
-            <tr>
-              <th class="px-6 py-4">帳單月份</th>
-              <th class="px-6 py-4">項目</th>
-              <th class="px-6 py-4">繳費期限</th>
-              <th class="px-6 py-4 text-right">金額</th>
-              <th class="px-6 py-4 text-center">狀態</th>
-              <th class="px-6 py-4 text-center">操作</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
-            <tr v-for="bill in filteredBills" :key="bill.id" class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-              <td class="px-6 py-4">
-                <p class="font-bold text-text-primary-light">{{ bill.monthStr }}</p>
+          <table v-else class="w-full text-sm text-left">
+            <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50">
+              <tr>
+                <th class="px-6 py-4">帳單月份</th>
+                <th class="px-6 py-4">項目</th>
+                <th class="px-6 py-4">繳費期限</th>
+                <th class="px-6 py-4 text-right">金額</th>
+                <th class="px-6 py-4 text-center">狀態</th>
+                <th class="px-6 py-4 text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+              <tr v-for="bill in filteredBills" :key="bill.id" class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                <td class="px-6 py-4">
+                  <p class="font-bold text-text-primary-light">{{ bill.monthStr }}</p>
                 </td>
-              <td class="px-6 py-4">
-                <div class="flex flex-wrap gap-2">
-                  <span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-600 dark:text-gray-300">
-                    {{ bill.category }}
+                <td class="px-6 py-4">
+                  <div class="flex flex-wrap gap-2">
+                    <span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-600 dark:text-gray-300">
+                      {{ bill.category }}
+                    </span>
+                  </div>
+                </td>
+                <td class="px-6 py-4 text-text-secondary-light">
+                  {{ bill.dueDate || '無期限' }}
+                </td>
+                <td class="px-6 py-4 text-right font-bold text-lg text-text-primary-light">
+                  NT$ {{ bill.amount.toLocaleString() }}
+                </td>
+                <td class="px-6 py-4 text-center">
+                  <span
+                    class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
+                    :class="statusStyles[bill.status]"
+                  >
+                    <span class="w-1.5 h-1.5 rounded-full mr-2" :class="statusDotStyles[bill.status]"></span>
+                    {{ statusLabels[bill.status] }}
                   </span>
-                </div>
-              </td>
-              <td class="px-6 py-4 text-text-secondary-light">
-                 {{ bill.dueDate || '無期限' }}
-              </td>
-              <td class="px-6 py-4 text-right font-bold text-lg text-text-primary-light">
-                 NT$ {{ bill.amount.toLocaleString() }}
-              </td>
-              <td class="px-6 py-4 text-center">
-                 <span 
-                  class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
-                  :class="statusStyles[bill.status]"
-                >
-                  <span class="w-1.5 h-1.5 rounded-full mr-2" :class="statusDotStyles[bill.status]"></span>
-                  {{ statusLabels[bill.status] }}
-                </span>
-              </td>
-              <td class="px-6 py-4 text-center">
-                <button 
-                  @click="openModal(bill)"
-                  class="text-primary hover:bg-blue-50 dark:hover:bg-blue-900/20 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
-                >
-                  詳情
-                </button>
-              </td>
-            </tr>
-             <tr v-if="filteredBills.length === 0">
-              <td colspan="6" class="px-6 py-12 text-center text-text-secondary-light">
-                 <div class="flex flex-col items-center">
-                   <span class="material-symbols-outlined text-4xl mb-2 text-gray-300">receipt_long</span>
-                   <p>目前沒有相關帳單紀錄</p>
-                 </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                </td>
+                <td class="px-6 py-4 text-center">
+                  <button
+                    @click="openModal(bill)"
+                    class="text-primary hover:bg-blue-50 dark:hover:bg-blue-900/20 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
+                  >
+                    詳情
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="filteredBills.length === 0">
+                <td colspan="6" class="px-6 py-12 text-center text-text-secondary-light">
+                  <div class="flex flex-col items-center">
+                    <span class="material-symbols-outlined text-4xl mb-2 text-gray-300">receipt_long</span>
+                    <p>目前沒有相關帳單紀錄</p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </template>
+
+        <!-- 用電記錄 tab -->
+        <template v-else>
+          <div v-if="meterLoading" class="p-12 text-center text-text-secondary-light">
+            <span class="material-symbols-outlined animate-spin text-3xl mb-2">sync</span>
+            <p>載入用電記錄中...</p>
+          </div>
+          <table v-else class="w-full text-sm text-left">
+            <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50">
+              <tr>
+                <th class="px-6 py-4">期間</th>
+                <th class="px-6 py-4 text-right">上期度數</th>
+                <th class="px-6 py-4 text-right">本期度數</th>
+                <th class="px-6 py-4 text-right">使用度數</th>
+                <th class="px-6 py-4 text-right">電費</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+              <tr v-for="m in meterReadings" :key="m.id" class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                <td class="px-6 py-4 font-medium text-text-primary-light">{{ m.periodEnd || m.yearMonth || '-' }}</td>
+                <td class="px-6 py-4 text-right text-text-secondary-light">{{ m.lastReading ?? '-' }} 度</td>
+                <td class="px-6 py-4 text-right font-bold">{{ m.currentReading ?? '-' }} 度</td>
+                <td class="px-6 py-4 text-right font-bold text-gold-600">{{ m.usage ?? '-' }} 度</td>
+                <td class="px-6 py-4 text-right font-bold">{{ m.cost ? `NT$ ${Number(m.cost).toLocaleString()}` : '-' }}</td>
+              </tr>
+              <tr v-if="meterReadings.length === 0">
+                <td colspan="5" class="px-6 py-12 text-center text-text-secondary-light">
+                  <div class="flex flex-col items-center">
+                    <span class="material-symbols-outlined text-4xl mb-2 text-gray-300">electric_meter</span>
+                    <p>尚無用電記錄</p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </template>
       </div>
     </div>
 
@@ -209,7 +248,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
 import { db } from '../../firebase/config';
@@ -220,9 +260,11 @@ import {
   onSnapshot,
   doc,
   getDoc,
+  getDocs,
   updateDoc,
   serverTimestamp,
-  orderBy
+  orderBy,
+  limit
 } from 'firebase/firestore';
 import html2canvas from 'html2canvas';
 
@@ -246,21 +288,29 @@ interface Bill {
 // --- State ---
 const authStore = useAuthStore();
 const toast = useToastStore();
+const route = useRoute();
 const bills = ref<Bill[]>([]);
 const loading = ref(true);
 let unsubscribe: any = null;
 
-const currentTab = ref('unpaid');
+const validTabs = ['unpaid', 'history', 'all', 'meter'];
+const initialTab = validTabs.includes(route.query.tab as string) ? (route.query.tab as string) : 'unpaid';
+const currentTab = ref(initialTab);
 const showModal = ref(false);
 const selectedBill = ref<Bill | null>(null);
 const landlordBankInfo = ref<{ code: string; account: string; name: string } | null>(null);
 const billReceiptRef = ref<HTMLElement | null>(null);
 const isGenerating = ref(false);
 
+// 用電記錄
+const meterReadings = ref<any[]>([]);
+const meterLoading = ref(false);
+
 const tabs = [
   { label: '未繳帳單', value: 'unpaid' },
   { label: '已繳/歷史', value: 'history' },
-  { label: '全部', value: 'all' }
+  { label: '全部', value: 'all' },
+  { label: '用電記錄', value: 'meter' },
 ];
 
 // --- Data Fetching ---
@@ -312,6 +362,62 @@ onMounted(async () => {
 onUnmounted(() => {
   if (unsubscribe) unsubscribe();
 });
+
+// 查詢用電記錄（切到 meter tab 時才載入）
+const fetchMeterReadings = async () => {
+  if (!authStore.user) return;
+  meterLoading.value = true;
+  try {
+    const uid = authStore.user.uid;
+    // 1. 從 contracts 取得 landlordId + roomNumber
+    const contractQ = query(
+      collection(db, 'contracts'),
+      where('tenantId', '==', uid),
+      where('status', '==', 'active'),
+      limit(1)
+    );
+    const contractSnap = await getDocs(contractQ);
+    if (contractSnap.empty) { meterLoading.value = false; return; }
+    const contractData = contractSnap.docs[0]!.data();
+
+    // 2. 從 rooms 取得 roomId
+    const roomQ = query(
+      collection(db, 'rooms'),
+      where('landlordId', '==', contractData.landlordId),
+      where('name', '==', contractData.roomNumber),
+      limit(1)
+    );
+    const roomSnap = await getDocs(roomQ);
+    if (roomSnap.empty) { meterLoading.value = false; return; }
+    const roomId = roomSnap.docs[0]!.id;
+
+    // 3. 查詢 meter_readings（前端排序避免 orderBy 索引問題）
+    const meterQ = query(
+      collection(db, 'meter_readings'),
+      where('roomId', '==', roomId),
+      limit(24)
+    );
+    const meterSnap = await getDocs(meterQ);
+    // 依 yearMonth 或 periodEnd 降序排列（前端排序避免索引問題）
+    const docs = meterSnap.docs.map(d => ({ id: d.id, ...d.data() as any }));
+    docs.sort((a, b) => {
+      const ka = a.yearMonth || a.periodEnd || '';
+      const kb = b.yearMonth || b.periodEnd || '';
+      return kb.localeCompare(ka);
+    });
+    meterReadings.value = docs;
+  } catch (err) {
+    console.error('[Meter] 查詢失敗:', err);
+  } finally {
+    meterLoading.value = false;
+  }
+};
+
+watch(currentTab, (tab) => {
+  if (tab === 'meter' && meterReadings.value.length === 0) {
+    fetchMeterReadings();
+  }
+}, { immediate: true });
 
 // --- Computed ---
 const filteredBills = computed(() => {

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls C:/Users/User/AndroidStudioProjects/rentalweb/rental-system/functions/*.js)",
+      "Bash(node -e \":*)",
+      "Bash(firebase deploy:*)",
+      "Bash(gcloud projects:*)",
+      "Bash(firebase functions:artifacts:setpolicy)",
+      "Bash(npm run:*)",
+      "Bash(firebase emulators:start)",
+      "Bash(npx kill-port:*)",
+      "Bash(npm start:*)"
+    ]
+  }
+}

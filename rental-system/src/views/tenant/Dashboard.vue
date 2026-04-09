@@ -180,6 +180,13 @@
                   <span>電費小計</span>
                   <span>NT$ {{ currentBill.electricAmount.toLocaleString() }}</span>
                 </div>
+                <button
+                  @click="$router.push({ name: 'TenantBills', query: { tab: 'meter' } })"
+                  class="w-full mt-2 text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 flex items-center justify-center gap-1 py-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                >
+                  <span class="material-symbols-outlined text-[14px]">history</span>
+                  查看歷史用電記錄
+                </button>
               </div>
 
               <div class="flex flex-col justify-center items-center sm:items-end space-y-1">
@@ -194,11 +201,11 @@
             </div>
 
             <div class="mt-auto grid grid-cols-2 gap-4">
-               <button @click="$router.push({ name: 'TenantBills' })" class="py-2.5 px-4 rounded-xl border border-ink-100 dark:border-ink-700 font-medium text-sm hover:bg-surface-light dark:hover:bg-surface-dark transition-colors flex items-center justify-center gap-2">
+               <button @click="$router.push({ name: 'TenantBills', query: { tab: 'history' } })" class="py-2.5 px-4 rounded-xl border border-ink-100 dark:border-ink-700 font-medium text-sm hover:bg-surface-light dark:hover:bg-surface-dark transition-colors flex items-center justify-center gap-2">
                   <span class="material-symbols-outlined text-[18px]">history</span>
                   歷史帳單
                </button>
-               <button @click="$router.push({ name: 'TenantBills' })" class="py-2.5 px-4 rounded-xl bg-gold-500 text-white font-bold text-sm hover:bg-gold-600 transition-colors shadow-md shadow-gold-500/20">
+               <button @click="$router.push({ name: 'TenantBills', query: { tab: 'unpaid' } })" class="py-2.5 px-4 rounded-xl bg-gold-500 text-white font-bold text-sm hover:bg-gold-600 transition-colors shadow-md shadow-gold-500/20">
                   前往繳費
                </button>
             </div>
@@ -630,6 +637,8 @@ const signedContract = ref<any>(null);
 const previewContract = ref<any>(null);
 const downloadingContract = ref(false);
 
+const apiBase = import.meta.env.VITE_API_BASE
+
 const downloadSignedContract = async () => {
   if (!signedContract.value) return;
   downloadingContract.value = true;
@@ -653,7 +662,7 @@ const downloadSignedContract = async () => {
       customArticle21Display: c.customArticle21 || '',
       templateType: 'Contract'
     };
-    const res = await axios.post('/generatePdf', payload, {
+    const res = await axios.post(`${apiBase}/generatePdf`, payload, {
       responseType: 'arraybuffer',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
     });
@@ -726,12 +735,17 @@ const fetchDashboardData = async () => {
       rentalInfo.leaseEnd = data.endDate;
       rentalInfo.rent = Number(data.rent);
 
-      // 查詢房間地址
+      // 查詢房間地址與 roomId
       if (data.landlordId && data.roomNumber) {
         try {
           const roomQ = query(collection(db, 'rooms'), where('landlordId', '==', data.landlordId), where('name', '==', data.roomNumber), limit(1));
           const roomSnap = await getDocs(roomQ);
-          rentalInfo.address = roomSnap.empty ? '' : (roomSnap.docs[0]!.data().address || '');
+          if (!roomSnap.empty) {
+            rentalInfo.address = roomSnap.docs[0]!.data().address || '';
+            (rentalInfo as any)._roomId = roomSnap.docs[0]!.id;
+          } else {
+            rentalInfo.address = '';
+          }
         } catch { rentalInfo.address = ''; }
       }
       // 優先使用房東系統設定的繳費日，其次才是合約靜態值
@@ -764,17 +778,21 @@ const fetchDashboardData = async () => {
   }
 
   // B2. 查詢已簽署合約備份 (signed_contracts)
+  // signed_contracts 以 landlordUid + roomNo 查詢（無 tenantId Firebase UID）
   try {
-    const scQ = query(
-      collection(db, 'signed_contracts'),
-      where('tenantId', '==', uid),
-      orderBy('signedAt', 'desc'),
-      limit(1)
-    );
-    const scSnap = await getDocs(scQ);
-    signedContract.value = scSnap.empty ? null : { id: scSnap.docs[0]!.id, ...scSnap.docs[0]!.data() };
-  } catch {
-    // 索引未建或無資料不影響主畫面
+    if (userProfile.landlordId && rentalInfo.roomNumber) {
+      const scQ = query(
+        collection(db, 'signed_contracts'),
+        where('landlordUid', '==', userProfile.landlordId),
+        where('roomNo', '==', rentalInfo.roomNumber),
+        orderBy('signedAt', 'desc'),
+        limit(1)
+      );
+      const scSnap = await getDocs(scQ);
+      signedContract.value = scSnap.empty ? null : { id: scSnap.docs[0]!.id, ...scSnap.docs[0]!.data() };
+    }
+  } catch (err) {
+    console.error('signed_contracts 查詢失敗:', err);
   }
 
   // C. 讀取本月帳單 (bills)
@@ -810,24 +828,38 @@ const fetchDashboardData = async () => {
         const allPaid = pool.every((b: any) => b.status === 'completed');
         currentBill.status = allPaid ? 'paid' : 'unpaid';
 
-        // 電表資料：從 meter_readings 查詢 relatedUsageId
+        // 電表資料：優先用 relatedUsageId，否則用 roomId 查最近一筆
+        const applyMeterData = (m: any) => {
+          currentBill.meterLast = Number(m['lastReading']) || 0;
+          currentBill.meterCurrent = Number(m['currentReading']) || 0;
+          currentBill.usage = Number(m['usage']) || (currentBill.meterCurrent - currentBill.meterLast) || 0;
+          currentBill.pricePerUnit = (m['cost'] && m['usage']) ? Math.round(m['cost'] / m['usage'] * 100) / 100 : 5;
+          currentBill.period = (m['periodStart'] && m['periodEnd']) ? `${m['periodStart']} ~ ${m['periodEnd']}` : (m['periodEnd'] || m['yearMonth'] || '');
+          const modeMap: Record<string, string> = { fixed: '固定費率', tiered: '累進費率', bill_share: '帳單分攤', imported: '匯入' };
+          currentBill.modeLabel = modeMap[m['mode']] || m['mode'] || '固定費率';
+        };
+
         if (electricBill?.relatedUsageId) {
           try {
             const meterSnap = await getDoc(doc(db, 'meter_readings', electricBill.relatedUsageId));
-            if (meterSnap.exists()) {
-              const m = meterSnap.data();
-              currentBill.meterLast = Number(m['lastReading']) || 0;
-              currentBill.meterCurrent = Number(m['currentReading']) || 0;
-              currentBill.usage = Number(m['usage']) || 0;
-              currentBill.pricePerUnit = (m['cost'] && m['usage']) ? Math.round(m['cost'] / m['usage'] * 100) / 100 : 5;
-              currentBill.period = `${m['periodStart']} ~ ${m['periodEnd']}`;
-              const modeMap: Record<string, string> = { fixed: '固定費率', tiered: '累進費率', bill_share: '帳單分攤', imported: '匯入' };
-              currentBill.modeLabel = modeMap[m['mode']] || m['mode'] || '固定費率';
-            }
+            if (meterSnap.exists()) applyMeterData(meterSnap.data());
           } catch { /* 查不到不影響主要顯示 */ }
         } else if (electricBill) {
-          // 電費帳單存在但無 relatedUsageId（如測試資料），從 description 顯示週期
-          currentBill.period = electricBill.description || '';
+          // fallback：用 roomId 查最近一筆電表記錄
+          const roomId = (rentalInfo as any)._roomId;
+          if (roomId) {
+            try {
+              const mQ = query(
+                collection(db, 'meter_readings'),
+                where('roomId', '==', roomId),
+                orderBy('yearMonth', 'desc'),
+                limit(1)
+              );
+              const mSnap = await getDocs(mQ);
+              if (!mSnap.empty) applyMeterData(mSnap.docs[0]!.data());
+            } catch { /* 索引未建或無資料 */ }
+          }
+          if (!currentBill.period) currentBill.period = electricBill.description || electricBill.date?.slice(0, 7) || '';
         }
         if (!currentBill.period && anyBill.date) {
           currentBill.period = anyBill.date.slice(0, 7);
