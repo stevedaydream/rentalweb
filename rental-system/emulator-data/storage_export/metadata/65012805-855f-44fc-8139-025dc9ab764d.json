@@ -1,0 +1,19 @@
+{
+  "name": "rooms/1775846175225_4ynue_858059.jpg",
+  "bucket": "rental-system-7675e.firebasestorage.app",
+  "metageneration": 1,
+  "generation": 1775846175246,
+  "contentType": "image/jpeg",
+  "storageClass": "STANDARD",
+  "contentDisposition": "inline",
+  "downloadTokens": [
+    "8f695d7e-1b1b-45e8-9d95-efab19697b78"
+  ],
+  "etag": "5mVWQ599GXz1hJ0ijxi5pWCrC7g",
+  "customMetadata": {},
+  "timeCreated": "2026-04-10T18:36:15.246Z",
+  "updated": "2026-04-10T18:36:15.246Z",
+  "size": 241404,
+  "md5Hash": "8RZGTsnaum7tSfmO5XTBJw==",
+  "crc32c": "2282865308"
+}

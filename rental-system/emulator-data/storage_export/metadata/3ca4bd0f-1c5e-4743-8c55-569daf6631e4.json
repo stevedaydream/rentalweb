@@ -1,0 +1,19 @@
+{
+  "name": "rooms/1775846430770_2sdq2_Tzuyu_12.jpg",
+  "bucket": "rental-system-7675e.firebasestorage.app",
+  "metageneration": 1,
+  "generation": 1775846430800,
+  "contentType": "image/jpeg",
+  "storageClass": "STANDARD",
+  "contentDisposition": "inline",
+  "downloadTokens": [
+    "101db576-5f3e-4ca8-92b3-0425e0c8c41d"
+  ],
+  "etag": "t7hUXv0Ny17txXHs3SMF6nyykPE",
+  "customMetadata": {},
+  "timeCreated": "2026-04-10T18:40:30.800Z",
+  "updated": "2026-04-10T18:40:30.800Z",
+  "size": 727450,
+  "md5Hash": "C6G2tXdbZA39J5dZ6ocG6g==",
+  "crc32c": "603837702"
+}
