@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+DEV_GUIDE.md
+.env.development
+.env.production
