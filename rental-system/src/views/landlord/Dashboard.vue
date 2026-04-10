@@ -4,13 +4,13 @@
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
         <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
-          早安，{{ authStore.userProfile?.name || '房東' }}
+          {{ greeting }}，{{ authStore.userProfile?.name || '房東' }}
         </h1>
         <p class="text-text-secondary-light">這裡是您的物業概況</p>
       </div>
       <div class="flex gap-3">
         <button
-          @click="$router.push({ name: 'RoomManagement' })"
+          @click="$router.push({ name: 'RoomManagement', query: { action: 'new' } })"
           class="px-4 py-2 bg-gold-500 text-white rounded-xl shadow-sm hover:bg-gold-600 transition-colors text-sm font-medium flex items-center"
         >
           <span class="material-symbols-outlined text-[18px] mr-2">add</span>
@@ -49,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
 import { db } from '../../firebase/config';
@@ -74,6 +74,13 @@ import MonthlyTaskCard from '../../components/dashboard/MonthlyTaskCard.vue';
 const authStore = useAuthStore();
 const toast = useToastStore();
 const isLoading = ref(true);
+
+const greeting = computed(() => {
+  const h = new Date().getHours();
+  if (h < 12) return '早安';
+  if (h < 18) return '午安';
+  return '晚安';
+});
 
 const stats = reactive({
   totalRooms: 0,
@@ -167,8 +174,8 @@ const fetchDashboardData = async () => {
     const unpaidTenantIds = new Set<string>();
     billsSnap.forEach(d => {
       const data = d.data();
-      const amount = Number(data.totalAmount) || 0;
-      if (data.status === 'paid') {
+      const amount = Number(data.amount) || 0;
+      if (data.status === 'completed' || data.status === 'paid') {
         financial.paidCount++;
         financial.paidAmount += amount;
       } else if (data.dueDate && data.dueDate < todayStr) {

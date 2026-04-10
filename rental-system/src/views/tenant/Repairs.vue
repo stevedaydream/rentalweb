@@ -11,27 +11,73 @@
     </div>
 
     <div class="space-y-4">
-      <div v-if="loading" class="text-center py-10 text-gray-400">載入中...</div>
-      <div v-else-if="requests.length === 0" class="text-center py-10 text-gray-400">目前沒有報修紀錄</div>
-      
-      <div 
-        v-for="req in requests" 
-        :key="req.id"
-        class="bg-white dark:bg-card-dark p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm"
-      >
-        <div class="flex justify-between items-start mb-3">
-          <div>
-            <h3 class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ req.category }} - {{ req.title }}</h3>
-            <p class="text-xs text-text-secondary-light mt-1">申請時間：{{ formatDate(req.createdAt) }}</p>
-          </div>
-          <span 
-            :class="statusStyles[req.status]"
-            class="px-3 py-1 rounded-full text-xs font-medium"
-          >
-            {{ statusLabels[req.status] }}
-          </span>
+      <div v-if="loading" class="space-y-3">
+        <div v-for="i in 3" :key="i" class="bg-white dark:bg-card-dark p-4 rounded-2xl border border-gray-100 dark:border-gray-800 animate-pulse h-24"></div>
+      </div>
+
+      <div v-else-if="requests.length === 0" class="flex flex-col items-center py-16 text-gray-400 space-y-4">
+        <div class="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+          <span class="material-symbols-outlined text-3xl">build_circle</span>
         </div>
-        <p class="text-sm text-text-secondary-light line-clamp-2">{{ req.description }}</p>
+        <div class="text-center">
+          <p class="font-medium text-gray-500 dark:text-gray-400">目前沒有報修紀錄</p>
+          <p class="text-sm text-gray-400 mt-1">有任何房屋問題都可以在這裡申請</p>
+        </div>
+        <button @click="showNewRequest = true" class="bg-gold-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow shadow-gold-500/20 hover:bg-gold-600 transition-colors">
+          立即新增報修
+        </button>
+      </div>
+
+      <div
+        v-for="req in requests"
+        :key="req.id"
+        class="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden cursor-pointer"
+        @click="toggleExpand(req.id)"
+      >
+        <div class="p-4">
+          <div class="flex justify-between items-start mb-2">
+            <div class="flex-1 min-w-0 pr-3">
+              <div class="flex items-center gap-2 flex-wrap">
+                <h3 class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ req.category }} - {{ req.title }}</h3>
+                <span v-if="req.priority === 'high'" class="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-600 font-bold">緊急</span>
+                <span v-else-if="req.priority === 'medium'" class="text-[10px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-600 font-bold">一般緊急</span>
+              </div>
+              <p class="text-xs text-text-secondary-light mt-1">申請時間：{{ formatDate(req.createdAt) }}</p>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <span
+                :class="statusStyles[req.status]"
+                class="px-3 py-1 rounded-full text-xs font-medium"
+              >
+                {{ statusLabels[req.status] }}
+              </span>
+              <span class="material-symbols-outlined text-[18px] text-ink-300 transition-transform duration-200"
+                :class="expandedId === req.id ? 'rotate-180' : ''">
+                expand_more
+              </span>
+            </div>
+          </div>
+          <p class="text-sm text-text-secondary-light" :class="expandedId === req.id ? '' : 'line-clamp-2'">{{ req.description }}</p>
+        </div>
+
+        <!-- 展開詳情 -->
+        <div v-if="expandedId === req.id" class="border-t border-gray-100 dark:border-gray-800 px-4 py-3 bg-surface-light dark:bg-surface-dark space-y-2 text-sm">
+          <div v-if="req.imageUrl" class="mb-3">
+            <img :src="req.imageUrl" alt="報修圖片" class="rounded-xl max-h-48 object-cover w-full" />
+          </div>
+          <div class="flex items-center gap-2 text-text-secondary-light">
+            <span class="material-symbols-outlined text-[16px]">home</span>
+            <span>房號：{{ req.room || '未提供' }}</span>
+          </div>
+          <div v-if="req.notes" class="flex items-start gap-2 text-text-secondary-light">
+            <span class="material-symbols-outlined text-[16px] mt-0.5">chat_bubble</span>
+            <span>房東回覆：<span class="text-text-primary-light dark:text-text-primary-dark font-medium">{{ req.notes }}</span></span>
+          </div>
+          <div v-if="req.resolvedAt" class="flex items-center gap-2 text-green-600 dark:text-green-400">
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+            <span>處理完成：{{ formatDate(req.resolvedAt) }}</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -65,6 +111,20 @@
           <div>
             <label class="block text-sm font-medium mb-1">詳細說明</label>
             <textarea v-model="form.description" rows="3" class="w-full p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 outline-none"></textarea>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-2">緊急程度</label>
+            <div class="flex gap-2">
+              <button
+                v-for="opt in priorityOptions" :key="opt.value" type="button"
+                @click="form.priority = opt.value"
+                class="flex-1 py-2 rounded-xl text-xs font-medium border transition-colors"
+                :class="form.priority === opt.value ? opt.activeClass : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-text-secondary-light'"
+              >
+                {{ opt.label }}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -109,10 +169,19 @@ const isSubmitting = ref(false);
 const showNewRequest = ref(false);
 const roomNumber = ref(''); // [修改] 新增變數儲存房號
 
+const expandedId = ref<string | null>(null);
+
+const priorityOptions = [
+  { value: 'low', label: '一般', activeClass: 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 text-blue-600' },
+  { value: 'medium', label: '緊急', activeClass: 'border-orange-400 bg-orange-50 dark:bg-orange-900/20 text-orange-600' },
+  { value: 'high', label: '非常緊急', activeClass: 'border-red-400 bg-red-50 dark:bg-red-900/20 text-red-600' },
+];
+
 const form = ref({
   category: '水電設備',
   title: '',
-  description: ''
+  description: '',
+  priority: 'low'
 });
 
 const statusLabels: any = { pending: '待處理', processing: '維修中', completed: '已完成' };
@@ -170,13 +239,17 @@ const submitRequest = async () => {
       createdAt: serverTimestamp()
     });
     showNewRequest.value = false;
-    form.value = { category: '水電設備', title: '', description: '' };
+    form.value = { category: '水電設備', title: '', description: '', priority: 'low' };
   } catch (err) {
     console.error(err);
     toast.error('送出失敗');
   } finally {
     isSubmitting.value = false;
   }
+};
+
+const toggleExpand = (id: string) => {
+  expandedId.value = expandedId.value === id ? null : id;
 };
 
 const formatDate = (ts: any) => {

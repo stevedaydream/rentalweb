@@ -5,7 +5,7 @@
       <div>
         <div class="flex items-center gap-3">
           <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
-            早安，{{ authStore.userProfile?.name || '房客' }}
+            {{ greeting }}，{{ authStore.userProfile?.name || '房客' }}
           </h1>
           <button 
             @click="openProfileModal"
@@ -17,8 +17,8 @@
         </div>
         <p class="text-text-secondary-light">歡迎回到您的家</p>
       </div>
-      <div class="text-right hidden md:block">
-        <p class="text-sm font-bold text-text-primary-light">{{ todayDate }}</p>
+      <div class="text-right">
+        <p class="text-sm font-bold text-text-primary-light hidden md:block">{{ todayDate }}</p>
         <p v-if="rentalInfo.nextPaymentDate" class="text-xs text-text-secondary-light">
           下個繳費日: {{ rentalInfo.nextPaymentDate }}
         </p>
@@ -439,7 +439,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
@@ -461,6 +461,13 @@ import {
 const authStore = useAuthStore();
 const toast = useToastStore();
 const todayDate = new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
+
+const greeting = computed(() => {
+  const h = new Date().getHours();
+  if (h < 12) return '早安';
+  if (h < 18) return '午安';
+  return '晚安';
+});
 
 // --- 狀態控制 ---
 const loading = reactive({

@@ -35,6 +35,25 @@
 
 ---
 
+## BF-003：Dashboard 已收款帳單仍顯示未繳，金額全為 NT$0
+
+- **問題描述**：在帳務管理標記帳單「已收款」後，Dashboard 的帳務概況（未繳筆數/金額）與本月工作清單「確認收款」步驟仍顯示未繳。金額概況亦顯示 NT$0。
+- **根本原因**：`landlord/Dashboard.vue` 的帳單迴圈有兩個欄位對應錯誤：
+  1. **狀態判斷**：只檢查 `data.status === 'paid'`，但帳務管理（`markPaid`、`generateMonthlyBills`）存入的是 `status: 'completed'`，導致已收款帳單落入未繳桶
+  2. **金額欄位**：讀取 `data.totalAmount`，但帳單 schema 存的是 `data.amount`，金額全算為 0
+- **最終解法**：兩行修正
+  ```diff
+  - const amount = Number(data.totalAmount) || 0;
+  - if (data.status === 'paid') {
+  + const amount = Number(data.amount) || 0;
+  + if (data.status === 'completed' || data.status === 'paid') {
+  ```
+- **牽扯檔案**：`src/views/landlord/Dashboard.vue`（`fetchDashboardData` 函式帳務概況區段）
+
+> **注意**：`Financials.vue` 的 `isCollected()` 已正確處理兩種狀態，Dashboard 是獨立讀取，不共用此函式，故需分別修正。
+
+---
+
 ## BF 範本
 
 ### BF-XXX：標題

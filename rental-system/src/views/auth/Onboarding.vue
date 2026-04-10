@@ -99,7 +99,7 @@
           <button
             type="submit"
             :disabled="submitting || (!isLandlord && !landlordFound)"
-            class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors shadow-lg shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="w-full py-3 px-4 bg-gold-500 hover:bg-gold-600 text-white font-bold rounded-xl transition-colors shadow-lg shadow-gold-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {{ submitting ? '資料建立中...' : '完成設定並進入系統' }}
           </button>

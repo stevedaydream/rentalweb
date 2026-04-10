@@ -29,7 +29,17 @@
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark mb-1">密碼</label>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">密碼</label>
+            <button
+              type="button"
+              @click="handleForgotPassword"
+              :disabled="forgotLoading"
+              class="text-xs text-gold-600 hover:text-gold-700 dark:text-gold-400 disabled:opacity-50 transition-colors"
+            >
+              {{ forgotLoading ? '寄送中...' : '忘記密碼？' }}
+            </button>
+          </div>
           <input
             v-model="password"
             type="password"
@@ -84,6 +94,8 @@ import { ref, computed } from 'vue';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
 import { useRouter } from 'vue-router';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { auth } from '../../firebase/config';
 
 const authStore = useAuthStore();
 const toast = useToastStore();
@@ -92,6 +104,22 @@ const router = useRouter();
 const email = ref('');
 const password = ref('');
 const loading = ref(false);
+const forgotLoading = ref(false);
+
+const getFirebaseErrorMessage = (code: string): string => {
+  const map: Record<string, string> = {
+    'auth/user-not-found': '找不到此電子郵件對應的帳號',
+    'auth/wrong-password': '密碼錯誤，請重新輸入',
+    'auth/invalid-credential': '帳號或密碼錯誤，請確認後再試',
+    'auth/invalid-email': '電子郵件格式不正確',
+    'auth/user-disabled': '此帳號已被停用，請聯絡管理員',
+    'auth/too-many-requests': '嘗試次數過多，帳號已暫時鎖定，請稍後再試',
+    'auth/network-request-failed': '網路連線失敗，請檢查網路狀態',
+    'auth/popup-closed-by-user': '登入視窗已關閉，請重新嘗試',
+    'auth/cancelled-popup-request': '登入已取消',
+  };
+  return map[code] || '登入失敗，請稍後再試';
+};
 
 const roleTitle = computed(() => {
   if (authStore.selectedRole === 'landlord') return '房東';
@@ -104,7 +132,7 @@ const handleLogin = async () => {
   try {
     await authStore.loginEmail(email.value, password.value);
   } catch (e: any) {
-    toast.error('登入失敗：' + (e.message || '請確認帳號密碼'));
+    toast.error(getFirebaseErrorMessage(e.code));
   } finally {
     loading.value = false;
   }
@@ -114,7 +142,23 @@ const handleGoogleLogin = async () => {
   try {
     await authStore.loginWithGoogle();
   } catch (e: any) {
-    toast.error('Google 登入失敗：' + (e.message || '請稍後再試'));
+    toast.error(getFirebaseErrorMessage(e.code));
+  }
+};
+
+const handleForgotPassword = async () => {
+  if (!email.value) {
+    toast.warning('請先在上方輸入您的 Email');
+    return;
+  }
+  forgotLoading.value = true;
+  try {
+    await sendPasswordResetEmail(auth, email.value);
+    toast.success('密碼重設信已寄出，請檢查您的信箱');
+  } catch (e: any) {
+    toast.error(getFirebaseErrorMessage(e.code));
+  } finally {
+    forgotLoading.value = false;
   }
 };
 </script>

@@ -2,6 +2,9 @@
   "buckets": [
     {
       "id": "rental-8897a.firebasestorage.app"
+    },
+    {
+      "id": "rental-system-7675e.firebasestorage.app"
     }
   ]
 }

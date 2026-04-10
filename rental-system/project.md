@@ -173,3 +173,6 @@ rental-system/
 | Ver 2.0 | 修復 Google 登入 |
 | Ver 2.4 | 再次修復 Google 登入問題 |
 | 最新 | 設定與環境設定更新、Firestore 規則與 Storage 管理加強 |
+| 2026-04-11 | UX 全面優化：忘記密碼、錯誤訊息友善化、問候語動態化、Onboarding 主色統一、帳務 header 整理、生成帳單確認 Modal、租客報修緊急程度與展開詳情、空狀態改善 |
+| 2026-04-11 | 導覽架構優化：租客手機端改為底部 Tab Bar（含數字 badge）、房東 Sidebar 工具群組折疊 |
+| 2026-04-11 | 租客帳單手機卡片佈局、用電記錄數據卡、繳費/刪除自訂確認 Modal、Dashboard 新增房源帶 query param 自動開啟 |

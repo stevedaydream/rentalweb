@@ -624,8 +624,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { db, storage } from '../../firebase/config';
-import { useAuthStore } from '../../stores/auth'; // [修改] 引入 AuthStore
+import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
+import { useRoute } from 'vue-router';
 import { 
   collection, 
   onSnapshot, 
@@ -662,8 +663,9 @@ interface Room {
 }
 
 // --- State ---
-const authStore = useAuthStore(); // [新增]
+const authStore = useAuthStore();
 const toast = useToastStore();
+const route = useRoute();
 const rooms = ref<Room[]>([]);
 const loading = ref(true);
 
@@ -699,6 +701,10 @@ onMounted(() => {
     const stop = watch(() => authStore.userProfile, (profile) => {
       if (profile) { stop(); startRoomsListener(); }
     });
+  }
+  // 從 Dashboard「新增房源」按鈕帶入 ?action=new 時自動開啟 modal
+  if (route.query.action === 'new') {
+    openModal(undefined, 'create');
   }
 });
 

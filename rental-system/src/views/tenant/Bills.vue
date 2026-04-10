@@ -52,108 +52,195 @@
         </button>
       </div>
 
-      <div class="overflow-x-auto">
-        <!-- 帳單 tab -->
-        <template v-if="currentTab !== 'meter'">
-          <div v-if="loading" class="p-12 text-center text-text-secondary-light">
-            <span class="material-symbols-outlined animate-spin text-3xl mb-2">sync</span>
-            <p>載入帳單資料中...</p>
+      <!-- ── 帳單 tab ── -->
+      <template v-if="currentTab !== 'meter'">
+        <div v-if="loading" class="p-12 text-center text-text-secondary-light">
+          <span class="material-symbols-outlined animate-spin text-3xl mb-2">sync</span>
+          <p>載入帳單資料中...</p>
+        </div>
+
+        <template v-else>
+          <!-- 空狀態 -->
+          <div v-if="filteredBills.length === 0" class="flex flex-col items-center py-14 text-text-secondary-light">
+            <span class="material-symbols-outlined text-5xl mb-3 text-gray-200 dark:text-gray-700">receipt_long</span>
+            <p>目前沒有相關帳單紀錄</p>
           </div>
 
-          <table v-else class="w-full text-sm text-left">
-            <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50">
-              <tr>
-                <th class="px-6 py-4">帳單月份</th>
-                <th class="px-6 py-4">項目</th>
-                <th class="px-6 py-4">繳費期限</th>
-                <th class="px-6 py-4 text-right">金額</th>
-                <th class="px-6 py-4 text-center">狀態</th>
-                <th class="px-6 py-4 text-center">操作</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
-              <tr v-for="bill in filteredBills" :key="bill.id" class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                <td class="px-6 py-4">
-                  <p class="font-bold text-text-primary-light">{{ bill.monthStr }}</p>
-                </td>
-                <td class="px-6 py-4">
-                  <div class="flex flex-wrap gap-2">
-                    <span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-600 dark:text-gray-300">
-                      {{ bill.category }}
-                    </span>
+          <!-- Mobile 卡片列表（< md） -->
+          <div v-else class="md:hidden divide-y divide-gray-100 dark:divide-gray-800">
+            <div
+              v-for="bill in filteredBills"
+              :key="bill.id"
+              class="p-4 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <p class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ bill.monthStr }}</p>
+                    <span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-600 dark:text-gray-300">{{ bill.category }}</span>
                   </div>
-                </td>
-                <td class="px-6 py-4 text-text-secondary-light">
-                  {{ bill.dueDate || '無期限' }}
-                </td>
-                <td class="px-6 py-4 text-right font-bold text-lg text-text-primary-light">
-                  NT$ {{ bill.amount.toLocaleString() }}
-                </td>
-                <td class="px-6 py-4 text-center">
-                  <span
-                    class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
-                    :class="statusStyles[bill.status]"
-                  >
-                    <span class="w-1.5 h-1.5 rounded-full mr-2" :class="statusDotStyles[bill.status]"></span>
+                  <p class="text-xs text-text-secondary-light mt-1 truncate">{{ bill.description }}</p>
+                  <div class="flex items-center gap-1 mt-1.5 text-xs text-text-secondary-light">
+                    <span class="material-symbols-outlined text-[13px]">schedule</span>
+                    截止日：<span :class="bill.status === 'overdue' ? 'text-red-500 font-medium' : ''">{{ bill.dueDate || '無期限' }}</span>
+                  </div>
+                </div>
+                <div class="flex flex-col items-end gap-2 shrink-0">
+                  <p class="text-lg font-extrabold text-text-primary-light dark:text-text-primary-dark">NT$ {{ bill.amount.toLocaleString() }}</p>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" :class="statusStyles[bill.status]">
+                    <span class="w-1.5 h-1.5 rounded-full mr-1.5" :class="statusDotStyles[bill.status]"></span>
                     {{ statusLabels[bill.status] }}
                   </span>
-                </td>
-                <td class="px-6 py-4 text-center">
-                  <button
-                    @click="openModal(bill)"
-                    class="text-gold-600 hover:bg-gold-50 dark:hover:bg-gold-900/20 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
-                  >
-                    詳情
-                  </button>
-                </td>
-              </tr>
-              <tr v-if="filteredBills.length === 0">
-                <td colspan="6" class="px-6 py-12 text-center text-text-secondary-light">
-                  <div class="flex flex-col items-center">
-                    <span class="material-symbols-outlined text-4xl mb-2 text-gray-300">receipt_long</span>
-                    <p>目前沒有相關帳單紀錄</p>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </template>
-
-        <!-- 用電記錄 tab -->
-        <template v-else>
-          <div v-if="meterLoading" class="p-12 text-center text-text-secondary-light">
-            <span class="material-symbols-outlined animate-spin text-3xl mb-2">sync</span>
-            <p>載入用電記錄中...</p>
+                </div>
+              </div>
+              <button
+                @click="openModal(bill)"
+                class="mt-3 w-full py-2 text-sm font-medium text-gold-600 bg-gold-50 dark:bg-gold-900/20 rounded-xl hover:bg-gold-100 dark:hover:bg-gold-900/30 transition-colors"
+              >
+                查看詳情
+              </button>
+            </div>
           </div>
-          <table v-else class="w-full text-sm text-left">
-            <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50">
-              <tr>
-                <th class="px-6 py-4">期間</th>
-                <th class="px-6 py-4 text-right">上期度數</th>
-                <th class="px-6 py-4 text-right">本期度數</th>
-                <th class="px-6 py-4 text-right">使用度數</th>
-                <th class="px-6 py-4 text-right">電費</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
-              <tr v-for="m in meterReadings" :key="m.id" class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                <td class="px-6 py-4 font-medium text-text-primary-light">{{ m.periodEnd || m.yearMonth || '-' }}</td>
-                <td class="px-6 py-4 text-right text-text-secondary-light">{{ m.lastReading ?? '-' }} 度</td>
-                <td class="px-6 py-4 text-right font-bold">{{ m.currentReading ?? '-' }} 度</td>
-                <td class="px-6 py-4 text-right font-bold text-gold-600">{{ m.usage ?? '-' }} 度</td>
-                <td class="px-6 py-4 text-right font-bold">{{ m.cost ? `NT$ ${Number(m.cost).toLocaleString()}` : '-' }}</td>
-              </tr>
-              <tr v-if="meterReadings.length === 0">
-                <td colspan="5" class="px-6 py-12 text-center text-text-secondary-light">
-                  <div class="flex flex-col items-center">
-                    <span class="material-symbols-outlined text-4xl mb-2 text-gray-300">electric_meter</span>
-                    <p>尚無用電記錄</p>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+
+          <!-- Desktop 表格（md+） -->
+          <div class="hidden md:block overflow-x-auto">
+            <table class="w-full text-sm text-left">
+              <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50">
+                <tr>
+                  <th class="px-6 py-4">帳單月份</th>
+                  <th class="px-6 py-4">項目</th>
+                  <th class="px-6 py-4">繳費期限</th>
+                  <th class="px-6 py-4 text-right">金額</th>
+                  <th class="px-6 py-4 text-center">狀態</th>
+                  <th class="px-6 py-4 text-center">操作</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                <tr v-for="bill in filteredBills" :key="bill.id" class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                  <td class="px-6 py-4">
+                    <p class="font-bold text-text-primary-light">{{ bill.monthStr }}</p>
+                  </td>
+                  <td class="px-6 py-4">
+                    <span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-600 dark:text-gray-300">{{ bill.category }}</span>
+                  </td>
+                  <td class="px-6 py-4 text-text-secondary-light" :class="bill.status === 'overdue' ? 'text-red-500 font-medium' : ''">
+                    {{ bill.dueDate || '無期限' }}
+                  </td>
+                  <td class="px-6 py-4 text-right font-bold text-lg text-text-primary-light">
+                    NT$ {{ bill.amount.toLocaleString() }}
+                  </td>
+                  <td class="px-6 py-4 text-center">
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium" :class="statusStyles[bill.status]">
+                      <span class="w-1.5 h-1.5 rounded-full mr-2" :class="statusDotStyles[bill.status]"></span>
+                      {{ statusLabels[bill.status] }}
+                    </span>
+                  </td>
+                  <td class="px-6 py-4 text-center">
+                    <button @click="openModal(bill)" class="text-gold-600 hover:bg-gold-50 dark:hover:bg-gold-900/20 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium">詳情</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </template>
+      </template>
+
+      <!-- ── 用電記錄 tab ── -->
+      <template v-else>
+        <div v-if="meterLoading" class="p-12 text-center text-text-secondary-light">
+          <span class="material-symbols-outlined animate-spin text-3xl mb-2">sync</span>
+          <p>載入用電記錄中...</p>
+        </div>
+
+        <template v-else>
+          <div v-if="meterReadings.length === 0" class="flex flex-col items-center py-14 text-text-secondary-light">
+            <span class="material-symbols-outlined text-5xl mb-3 text-gray-200 dark:text-gray-700">electric_meter</span>
+            <p>尚無用電記錄</p>
+          </div>
+
+          <!-- Mobile 卡片（< md） -->
+          <div v-else class="md:hidden divide-y divide-gray-100 dark:divide-gray-800">
+            <div v-for="m in meterReadings" :key="m.id" class="p-4">
+              <div class="flex justify-between items-center mb-2">
+                <p class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ m.periodEnd || m.yearMonth || '-' }}</p>
+                <p class="text-lg font-extrabold text-gold-600">{{ m.usage ?? '-' }} <span class="text-xs font-normal text-text-secondary-light">度</span></p>
+              </div>
+              <div class="grid grid-cols-3 gap-2 text-xs text-text-secondary-light">
+                <div class="bg-surface-light dark:bg-surface-dark rounded-lg p-2 text-center">
+                  <p>上期</p><p class="font-bold text-text-primary-light dark:text-text-primary-dark mt-0.5">{{ m.lastReading ?? '-' }}</p>
+                </div>
+                <div class="bg-surface-light dark:bg-surface-dark rounded-lg p-2 text-center">
+                  <p>本期</p><p class="font-bold text-text-primary-light dark:text-text-primary-dark mt-0.5">{{ m.currentReading ?? '-' }}</p>
+                </div>
+                <div class="bg-gold-50 dark:bg-gold-900/20 rounded-lg p-2 text-center">
+                  <p class="text-gold-700 dark:text-gold-300">電費</p>
+                  <p class="font-bold text-gold-700 dark:text-gold-300 mt-0.5">{{ m.cost ? `$${Number(m.cost).toLocaleString()}` : '-' }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Desktop 表格（md+） -->
+          <div class="hidden md:block overflow-x-auto">
+            <table class="w-full text-sm text-left">
+              <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50">
+                <tr>
+                  <th class="px-6 py-4">期間</th>
+                  <th class="px-6 py-4 text-right">上期度數</th>
+                  <th class="px-6 py-4 text-right">本期度數</th>
+                  <th class="px-6 py-4 text-right">使用度數</th>
+                  <th class="px-6 py-4 text-right">電費</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                <tr v-for="m in meterReadings" :key="m.id" class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                  <td class="px-6 py-4 font-medium text-text-primary-light">{{ m.periodEnd || m.yearMonth || '-' }}</td>
+                  <td class="px-6 py-4 text-right text-text-secondary-light">{{ m.lastReading ?? '-' }} 度</td>
+                  <td class="px-6 py-4 text-right font-bold">{{ m.currentReading ?? '-' }} 度</td>
+                  <td class="px-6 py-4 text-right font-bold text-gold-600">{{ m.usage ?? '-' }} 度</td>
+                  <td class="px-6 py-4 text-right font-bold">{{ m.cost ? `NT$ ${Number(m.cost).toLocaleString()}` : '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </template>
+    </div>
+
+    <!-- 繳費確認 Modal -->
+    <div v-if="showPayConfirm" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showPayConfirm = false"></div>
+      <div class="relative bg-white dark:bg-card-dark rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-gold-100 dark:bg-gold-900/30 flex items-center justify-center">
+            <span class="material-symbols-outlined text-gold-600">payments</span>
+          </div>
+          <div>
+            <h3 class="font-bold text-text-primary-light dark:text-text-primary-dark">確認繳費</h3>
+            <p class="text-xs text-text-secondary-light">{{ billToConfirm?.monthStr }}</p>
+          </div>
+        </div>
+        <div class="bg-surface-light dark:bg-surface-dark rounded-xl p-4 space-y-2 text-sm">
+          <div class="flex justify-between">
+            <span class="text-text-secondary-light">項目</span>
+            <span class="font-medium">{{ billToConfirm?.category }}</span>
+          </div>
+          <div class="flex justify-between border-t border-gray-100 dark:border-gray-700 pt-2">
+            <span class="font-bold">應繳金額</span>
+            <span class="font-extrabold text-gold-600">NT$ {{ billToConfirm?.amount.toLocaleString() }}</span>
+          </div>
+        </div>
+        <p class="text-xs text-text-secondary-light text-center">確認後系統將記錄您的繳費狀態</p>
+        <div class="flex gap-3">
+          <button @click="showPayConfirm = false"
+            class="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-medium text-ink-600 dark:text-ink-300 hover:bg-surface-light dark:hover:bg-surface-dark transition-colors">
+            取消
+          </button>
+          <button @click="confirmPay"
+            class="flex-1 py-2.5 rounded-xl bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 transition-colors shadow-md shadow-gold-500/20">
+            確認已繳
+          </button>
+        </div>
       </div>
     </div>
 
@@ -233,9 +320,9 @@
             {{ isGenerating ? '處理中...' : '下載圖片' }}
           </button>
           
-          <button 
+          <button
              v-if="selectedBill?.status !== 'completed'"
-             @click="handlePay(selectedBill!)"
+             @click="showModal = false; initPayConfirm(selectedBill!)"
              class="px-5 py-2 rounded-xl bg-gold-500 text-white font-bold shadow-lg shadow-gold-500/30 hover:bg-gold-600 transition-colors"
           >
              前往繳費
@@ -298,6 +385,8 @@ const initialTab = validTabs.includes(route.query.tab as string) ? (route.query.
 const currentTab = ref(initialTab);
 const showModal = ref(false);
 const selectedBill = ref<Bill | null>(null);
+const showPayConfirm = ref(false);
+const billToConfirm = ref<Bill | null>(null);
 const landlordBankInfo = ref<{ code: string; account: string; name: string } | null>(null);
 const billReceiptRef = ref<HTMLElement | null>(null);
 const isGenerating = ref(false);
@@ -469,26 +558,33 @@ const openModal = (bill: Bill) => {
   showModal.value = true;
 };
 
-const handlePay = async (bill: Bill) => {
-  if (confirm(`確定要繳納 ${bill.monthStr} 的帳單 NT$${bill.amount.toLocaleString()} 嗎？`)) {
-     try {
-       const billRef = doc(db, 'bills', bill.id);
-       const today = new Date().toISOString().split('T')[0];
-       
-       await updateDoc(billRef, {
-         status: 'completed',
-         paymentDate: today,
-         updatedAt: serverTimestamp()
-       });
-       
-       toast.success('繳費成功！系統已更新狀態。');
-       // selectedBill.value.status = 'completed'; // Snapshot 會自動更新，不需手動設
-     } catch (e) {
-       console.error(e);
-       toast.error('繳費失敗，請檢查網路連線');
-     }
+const initPayConfirm = (bill: Bill) => {
+  billToConfirm.value = bill;
+  showPayConfirm.value = true;
+};
+
+const confirmPay = async () => {
+  const bill = billToConfirm.value;
+  if (!bill) return;
+  showPayConfirm.value = false;
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    await updateDoc(doc(db, 'bills', bill.id), {
+      status: 'completed',
+      paymentDate: today,
+      updatedAt: serverTimestamp()
+    });
+    toast.success('繳費成功！系統已更新狀態。');
+  } catch (e) {
+    console.error(e);
+    toast.error('繳費失敗，請檢查網路連線');
+  } finally {
+    billToConfirm.value = null;
   }
 };
+
+// 保留舊名稱供外部呼叫（已不使用 confirm()）
+const handlePay = (bill: Bill) => initPayConfirm(bill);
 
 // 下載圖片功能
 const downloadImage = async () => {

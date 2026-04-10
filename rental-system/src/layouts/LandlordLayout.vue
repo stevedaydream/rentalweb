@@ -1,21 +1,26 @@
 <template>
   <div class="min-h-screen bg-background-light dark:bg-background-dark flex">
-    
+
     <aside
       class="fixed inset-y-0 left-0 z-50 w-64 bg-ink-800 transition-transform duration-300 transform lg:translate-x-0 lg:static lg:block"
       :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'"
     >
       <div class="h-full flex flex-col">
-        <div class="h-20 flex items-center px-6 border-b border-ink-700">
+
+        <!-- Logo -->
+        <div class="h-20 flex items-center px-6 border-b border-ink-700 shrink-0">
           <div class="flex flex-col gap-1">
             <img :src="logoSrc" alt="Logo" class="h-10 w-auto brightness-0 invert" />
             <span class="text-[10px] w-fit px-2 py-0.5 bg-gold-500/20 text-gold-300 rounded-full font-bold ml-1">房東管理版</span>
           </div>
         </div>
+
         <nav class="flex-1 overflow-y-auto p-4 space-y-1">
+
+          <!-- ── 主要功能 ── -->
           <router-link
-            v-for="item in menuItems"
-            :key="item.name"
+            v-for="item in primaryItems"
+            :key="item.id"
             :to="item.to"
             class="relative flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-colors group"
             :class="isActive(item.to) ? 'bg-gold-500/15 text-gold-300' : 'text-ink-300 hover:bg-ink-700 hover:text-ink-100'"
@@ -23,35 +28,75 @@
           >
             <span class="material-symbols-outlined mr-3 text-[20px]">{{ item.icon }}</span>
             <span class="flex-1">{{ item.name }}</span>
-
             <span
               v-if="getBadgeCount(item.id) > 0"
               class="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gold-500 text-ink-900"
             >
               {{ getBadgeCount(item.id) > 99 ? '99+' : getBadgeCount(item.id) }}
             </span>
-            <span
-              v-else-if="getBadgeDot(item.id)"
-              class="ml-2 w-2 h-2 rounded-full bg-gold-400"
-            ></span>
-
+            <span v-else-if="getBadgeDot(item.id)" class="ml-2 w-2 h-2 rounded-full bg-gold-400"></span>
           </router-link>
+
+          <!-- ── 工具群組（折疊） ── -->
+          <div class="pt-2">
+            <button
+              @click="isToolsExpanded = !isToolsExpanded"
+              class="w-full flex items-center justify-between px-4 py-2 text-xs font-bold text-ink-500 hover:text-ink-300 uppercase tracking-wider rounded-xl hover:bg-ink-700/50 transition-colors"
+            >
+              <span>工具</span>
+              <span class="material-symbols-outlined text-[16px] transition-transform duration-200" :class="isToolsExpanded ? 'rotate-180' : ''">
+                expand_more
+              </span>
+            </button>
+
+            <div v-show="isToolsExpanded" class="space-y-1 mt-1">
+              <router-link
+                v-for="item in toolItems"
+                :key="item.id"
+                :to="item.to"
+                class="relative flex items-center px-4 py-2.5 text-sm font-medium rounded-xl transition-colors"
+                :class="isActive(item.to) ? 'bg-gold-500/15 text-gold-300' : 'text-ink-400 hover:bg-ink-700 hover:text-ink-100'"
+                @click="isSidebarOpen = false"
+              >
+                <span class="material-symbols-outlined mr-3 text-[18px]">{{ item.icon }}</span>
+                <span class="flex-1">{{ item.name }}</span>
+                <span
+                  v-if="getBadgeCount(item.id) > 0"
+                  class="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gold-500 text-ink-900"
+                >
+                  {{ getBadgeCount(item.id) > 99 ? '99+' : getBadgeCount(item.id) }}
+                </span>
+              </router-link>
+            </div>
+          </div>
+
         </nav>
 
-        <div class="p-4 border-t border-ink-700">
+        <!-- 系統設定 + 登出 -->
+        <div class="p-4 border-t border-ink-700 space-y-1 shrink-0">
+          <router-link
+            :to="{ name: 'Settings' }"
+            class="flex items-center px-4 py-2.5 text-sm font-medium rounded-xl transition-colors"
+            :class="isActive({ name: 'Settings' }) ? 'bg-gold-500/15 text-gold-300' : 'text-ink-400 hover:bg-ink-700 hover:text-ink-100'"
+            @click="isSidebarOpen = false"
+          >
+            <span class="material-symbols-outlined mr-3 text-[18px]">settings</span>
+            系統設定
+          </router-link>
           <button
             @click="handleLogout"
-            class="w-full flex items-center px-4 py-3 text-sm font-medium text-ink-400 hover:bg-ink-700 hover:text-red-400 rounded-xl transition-colors"
+            class="w-full flex items-center px-4 py-2.5 text-sm font-medium text-ink-400 hover:bg-ink-700 hover:text-red-400 rounded-xl transition-colors"
           >
             <span class="material-symbols-outlined mr-3">{{ authStore.impersonatingLandlord ? 'manage_accounts' : 'logout' }}</span>
             {{ authStore.impersonatingLandlord ? '結束模擬' : '登出系統' }}
           </button>
         </div>
+
       </div>
     </aside>
 
-    <div 
-      v-if="isSidebarOpen" 
+    <div
+      v-if="isSidebarOpen"
       @click="isSidebarOpen = false"
       class="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
     ></div>
@@ -88,7 +133,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useNotificationStore } from '../stores/notification';
 import { useRoute } from 'vue-router';
@@ -99,23 +144,36 @@ const notificationStore = useNotificationStore();
 const route = useRoute();
 const isSidebarOpen = ref(false);
 
-const menuItems = [
-  { id: 'dashboard', name: '儀表板', to: { name: 'LandlordDashboard' }, icon: 'dashboard' },
-  { id: 'rooms', name: '房源管理', to: { name: 'RoomManagement' }, icon: 'bedroom_parent' },
-  { id: 'tenants', name: '租客列表', to: { name: 'TenantList' }, icon: 'group', badgeColor: 'bg-orange-500 text-white' },
-  { id: 'announcements', name: '社區公告', to: { name: 'LandlordAnnouncements' }, icon: 'campaign' },
-  { id: 'financials', name: '帳務管理', to: { name: 'Financials' }, icon: 'payments' },
-  { id: 'investment', name: '投資試算', to: { name: 'InvestmentCalculator' }, icon: 'analytics' },
-  { id: 'meter', name: '電表登錄', to: { name: 'MeterReading' }, icon: 'electric_meter' },
-  { id: 'meter-history', name: '電表歷史', to: { name: 'MeterReadingHistory' }, icon: 'history' },
-  { id: 'repairs', name: '報修管理', to: { name: 'RepairRequests' }, icon: 'build' },
-  { id: 'building', name: '大樓資訊', to: { name: 'LandlordBuildingInfo' }, icon: 'apartment' },
-  { id: 'contract', name: '電子合約', to: { name: 'Contract' }, icon: 'history_edu' },
-  { id: 'receipts', name: '收據產生', to: { name: 'Receipts' }, icon: 'receipt' },
-  { id: 'reviews', name: '評價管理', to: { name: 'LandlordReviews' }, icon: 'star' },
-  { id: 'messages', name: '訊息中心', to: { name: 'LandlordMessages' }, icon: 'chat', badgeColor: 'bg-red-500 text-white' },
-  { id: 'settings', name: '系統設定', to: { name: 'Settings' }, icon: 'settings' },
+const primaryItems = [
+  { id: 'dashboard',     name: '儀表板',  to: { name: 'LandlordDashboard' },    icon: 'dashboard' },
+  { id: 'rooms',         name: '房源管理', to: { name: 'RoomManagement' },        icon: 'bedroom_parent' },
+  { id: 'tenants',       name: '租客列表', to: { name: 'TenantList' },            icon: 'group' },
+  { id: 'financials',    name: '帳務管理', to: { name: 'Financials' },            icon: 'payments' },
+  { id: 'meter',         name: '電表登錄', to: { name: 'MeterReading' },          icon: 'electric_meter' },
+  { id: 'repairs',       name: '報修管理', to: { name: 'RepairRequests' },        icon: 'build' },
+  { id: 'messages',      name: '訊息中心', to: { name: 'LandlordMessages' },      icon: 'chat' },
 ];
+
+const toolItems = [
+  { id: 'announcements', name: '社區公告', to: { name: 'LandlordAnnouncements' }, icon: 'campaign' },
+  { id: 'contract',      name: '電子合約', to: { name: 'Contract' },              icon: 'history_edu' },
+  { id: 'receipts',      name: '收據產生', to: { name: 'Receipts' },              icon: 'receipt' },
+  { id: 'meter-history', name: '電表歷史', to: { name: 'MeterReadingHistory' },   icon: 'history' },
+  { id: 'investment',    name: '投資試算', to: { name: 'InvestmentCalculator' },  icon: 'analytics' },
+  { id: 'building',      name: '大樓資訊', to: { name: 'LandlordBuildingInfo' },  icon: 'apartment' },
+  { id: 'reviews',       name: '評價管理', to: { name: 'LandlordReviews' },       icon: 'star' },
+];
+
+// 若目前路由在工具群組內，自動展開
+const toolRouteNames = new Set(toolItems.map(i => i.to.name).concat(['Settings']));
+const isToolsExpanded = ref(toolRouteNames.has(String(route.name)));
+
+// 切換路由時若進入工具頁，自動展開
+watch(() => route.name, (name) => {
+  if (name && toolRouteNames.has(String(name))) {
+    isToolsExpanded.value = true;
+  }
+});
 
 onMounted(() => {
   if (!authStore.user) return;
@@ -126,9 +184,7 @@ onUnmounted(() => {
   notificationStore.stopListeners();
 });
 
-const isActive = (to: any) => {
-  return route.name === to.name;
-};
+const isActive = (to: { name: string }) => route.name === to.name;
 
 const handleLogout = () => {
   if (authStore.impersonatingLandlord) {

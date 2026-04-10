@@ -7,22 +7,33 @@
         <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">帳務管理</h1>
         <p class="text-text-secondary-light">收支紀錄、帳單生成與電費盈虧</p>
       </div>
-      <div class="flex gap-2 flex-wrap">
+      <div class="flex gap-2 flex-wrap items-center">
         <MonthPicker v-model="currentMonth" />
-        <button @click="generateMonthlyBills" :disabled="loading"
+        <button @click="showGenerateConfirm = true" :disabled="loading"
           class="px-3 py-2 bg-ink-700 text-white rounded-lg text-sm font-medium flex items-center gap-1 hover:bg-ink-800 disabled:opacity-50 transition-colors">
           <span class="material-symbols-outlined text-[18px]">magic_button</span>一鍵生成帳單
         </button>
-        <button @click="sendLineNotifications" :disabled="sendingLine || loading"
-          class="px-3 py-2 border border-[#06C755]/40 bg-[#06C755]/10 text-[#06C755] rounded-lg text-sm font-medium flex items-center gap-1 hover:bg-[#06C755]/20 disabled:opacity-50 transition-colors">
-          <span v-if="sendingLine" class="material-symbols-outlined text-[18px] animate-spin">sync</span>
-          <svg v-else class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.105.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/></svg>
-          {{ sendingLine ? '發送中...' : 'LINE 通知租客' }}
-        </button>
-        <button @click="openTaipowerModal"
-          class="px-3 py-2 border border-ink-100 dark:border-ink-700 bg-white dark:bg-ink-800 rounded-lg text-sm font-medium flex items-center gap-1 hover:bg-surface-light dark:hover:bg-surface-dark transition-colors">
-          <span class="material-symbols-outlined text-[18px] text-yellow-500">electric_bolt</span>台電帳單
-        </button>
+        <!-- 更多操作下拉 -->
+        <div class="relative">
+          <button @click.stop="showMoreMenu = !showMoreMenu"
+            class="px-3 py-2 border border-ink-100 dark:border-ink-700 bg-white dark:bg-ink-800 rounded-lg text-sm font-medium flex items-center gap-1 hover:bg-surface-light dark:hover:bg-surface-dark transition-colors">
+            <span class="material-symbols-outlined text-[18px]">more_horiz</span>更多
+          </button>
+          <div v-if="showMoreMenu"
+            class="absolute right-0 top-10 w-44 bg-white dark:bg-ink-800 rounded-xl shadow-xl border border-ink-100 dark:border-ink-700 z-50 overflow-hidden">
+            <button @click="sendLineNotifications(); showMoreMenu = false" :disabled="sendingLine || loading"
+              class="w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-surface-light dark:hover:bg-surface-dark disabled:opacity-50 transition-colors text-[#06C755]">
+              <span v-if="sendingLine" class="material-symbols-outlined text-[16px] animate-spin">sync</span>
+              <svg v-else class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.105.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/></svg>
+              {{ sendingLine ? '發送中...' : 'LINE 通知租客' }}
+            </button>
+            <div class="border-t border-ink-100 dark:border-ink-700"></div>
+            <button @click="openTaipowerModal(); showMoreMenu = false"
+              class="w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-surface-light dark:hover:bg-surface-dark transition-colors text-ink-600 dark:text-ink-200">
+              <span class="material-symbols-outlined text-[18px] text-yellow-500">electric_bolt</span>台電帳單
+            </button>
+          </div>
+        </div>
         <button @click="openModal()"
           class="px-3 py-2 bg-gold-500 text-white rounded-lg text-sm font-medium flex items-center gap-1 hover:bg-gold-600 transition-colors">
           <span class="material-symbols-outlined text-[18px]">add_circle</span>記一筆
@@ -200,6 +211,65 @@
     <TaipowerModal v-model:show="showTaipowerModal" v-model="taipowerForm" @save="saveTaipowerBill" />
     <BillHistoryModal v-model:show="showHistoryModal" :history="selectedHistory" />
 
+    <!-- 一鍵生成帳單確認 Modal -->
+    <div v-if="showGenerateConfirm" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showGenerateConfirm = false"></div>
+      <div class="relative bg-white dark:bg-ink-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+            <span class="material-symbols-outlined text-amber-600">receipt_long</span>
+          </div>
+          <div>
+            <h3 class="font-bold text-text-primary-light dark:text-text-primary-dark">確認生成帳單</h3>
+            <p class="text-xs text-text-secondary-light">{{ currentMonth }} 月份</p>
+          </div>
+        </div>
+        <p class="text-sm text-text-secondary-light">
+          系統將為所有在租房客生成 <strong class="text-text-primary-light dark:text-text-primary-dark">{{ currentMonth }}</strong> 月份的租金與電費帳單。已存在的帳單不會重複建立。
+        </p>
+        <div class="flex gap-3 pt-2">
+          <button @click="showGenerateConfirm = false"
+            class="flex-1 py-2.5 rounded-xl border border-ink-200 dark:border-ink-600 text-sm font-medium text-ink-600 dark:text-ink-300 hover:bg-surface-light dark:hover:bg-surface-dark transition-colors">
+            取消
+          </button>
+          <button @click="confirmGenerateBills"
+            class="flex-1 py-2.5 rounded-xl bg-ink-700 text-white text-sm font-bold hover:bg-ink-800 transition-colors">
+            確認生成
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 刪除確認 Modal -->
+    <div v-if="showDeleteConfirm" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showDeleteConfirm = false"></div>
+      <div class="relative bg-white dark:bg-ink-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+            <span class="material-symbols-outlined text-red-600">delete</span>
+          </div>
+          <div>
+            <h3 class="font-bold text-text-primary-light dark:text-text-primary-dark">確認刪除</h3>
+            <p class="text-xs text-text-secondary-light">此操作無法復原</p>
+          </div>
+        </div>
+        <p class="text-sm text-text-secondary-light">確定要刪除此筆紀錄嗎？刪除後將無法還原。</p>
+        <div class="flex gap-3 pt-2">
+          <button @click="showDeleteConfirm = false"
+            class="flex-1 py-2.5 rounded-xl border border-ink-200 dark:border-ink-600 text-sm font-medium text-ink-600 dark:text-ink-300 hover:bg-surface-light dark:hover:bg-surface-dark transition-colors">
+            取消
+          </button>
+          <button @click="confirmDelete"
+            class="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors">
+            確認刪除
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 點擊外部關閉更多選單 overlay -->
+    <div v-if="showMoreMenu" class="fixed inset-0 z-40" @click="showMoreMenu = false"></div>
+
   </div>
 </template>
 
@@ -255,6 +325,10 @@ const currentTab = ref('all')
 const showModal = ref(false)
 const showTaipowerModal = ref(false)
 const showHistoryModal = ref(false)
+const showGenerateConfirm = ref(false)
+const showMoreMenu = ref(false)
+const showDeleteConfirm = ref(false)
+const deletingId = ref<string | null>(null)
 const isEditing = ref(false)
 const editingId = ref<string | null>(null)
 const activeMenuId = ref<string | null>(null)
@@ -421,9 +495,13 @@ const markPaid = async (item: Transaction) => {
 }
 
 // --- Generate Monthly Bills ---
+const confirmGenerateBills = async () => {
+  showGenerateConfirm.value = false
+  await generateMonthlyBills()
+}
+
 const generateMonthlyBills = async () => {
   if (!authStore.user) return
-  if (!confirm(`確定要為所有在租房客產生 ${currentMonth.value} 月份的租金與電費帳單嗎？`)) return
   loading.value = true
   try {
     const uid = authStore.effectiveUid
@@ -540,12 +618,18 @@ const saveTransaction = async () => {
   } catch { toast.error('儲存失敗，請稍後再試') }
 }
 
-const handleDelete = async (id: string) => {
+const handleDelete = (id: string) => {
   closeDropdown()
-  if (confirm('確定要刪除此筆紀錄？此操作無法復原。')) {
-    try { await deleteDoc(doc(db, 'bills', id)); toast.success('紀錄已刪除') }
-    catch { toast.error('刪除失敗') }
-  }
+  deletingId.value = id
+  showDeleteConfirm.value = true
+}
+
+const confirmDelete = async () => {
+  if (!deletingId.value) return
+  showDeleteConfirm.value = false
+  try { await deleteDoc(doc(db, 'bills', deletingId.value)); toast.success('紀錄已刪除') }
+  catch { toast.error('刪除失敗') }
+  finally { deletingId.value = null }
 }
 
 const saveTaipowerBill = async () => {
@@ -566,7 +650,7 @@ const saveTaipowerBill = async () => {
 
 // --- UI helpers ---
 const toggleMenu = (id: string) => { activeMenuId.value = activeMenuId.value === id ? null : id }
-const closeDropdown = () => { activeMenuId.value = null }
+const closeDropdown = () => { activeMenuId.value = null; showMoreMenu.value = false }
 
 const openModal = () => {
   isEditing.value = false; editingId.value = null
