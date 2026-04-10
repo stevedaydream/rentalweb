@@ -19,7 +19,7 @@
             <select
               v-model="form.roomNo"
               @change="onRoomSelect(form.roomNo)"
-              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors"
+              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors"
               required
             >
               <option value="" disabled>選擇房號</option>
@@ -30,7 +30,7 @@
             <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">地址</label>
             <input
               v-model="form.address"
-              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors"
+              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors"
               placeholder="地址（選擇房號後自動帶入）"
               required
             />
@@ -42,7 +42,7 @@
             <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">承租人姓名</label>
             <input 
               v-model="form.tenant" 
-              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors" 
+              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors" 
               placeholder="姓名" 
               required 
             />
@@ -51,7 +51,7 @@
             <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">出租人姓名</label>
             <input 
               v-model="form.landlord" 
-              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors" 
+              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors" 
               placeholder="房東或代理人" 
               required 
             />
@@ -65,7 +65,7 @@
             <input 
               v-model="form.deposit" 
               type="number" 
-              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors pl-12 text-lg font-bold" 
+              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors pl-12 text-lg font-bold" 
               placeholder="0" 
               required 
             />
@@ -78,7 +78,7 @@
             <input 
               v-model="form.startDate" 
               type="date" 
-              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors" 
+              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors" 
               required 
             />
           </div>
@@ -87,7 +87,7 @@
             <input 
               :value="computedEndDate" 
               type="date" 
-              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none bg-gray-50 text-gray-500 transition-colors" 
+              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none bg-gray-50 text-gray-500 transition-colors" 
               readonly 
             />
           </div>
@@ -97,7 +97,7 @@
           <button 
             type="submit" 
             :disabled="downloading"
-            class="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-all flex items-center"
+            class="px-6 py-3 bg-gold-500 text-white rounded-xl font-bold shadow-lg shadow-gold-500/30 hover:bg-gold-600 transition-all flex items-center"
           >
             <span v-if="downloading" class="material-symbols-outlined animate-spin mr-2">sync</span>
             {{ downloading ? 'PDF 產生中...' : '下載 PDF 收據' }}

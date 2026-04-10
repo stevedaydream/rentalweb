@@ -16,7 +16,7 @@
        <p class="text-gray-600 dark:text-gray-400 mb-6">您目前尚未綁定任何房東，無法查看聯絡資訊或發送訊息。</p>
        <button 
          @click="$router.push({ name: 'TenantDashboard' })" 
-         class="px-6 py-2 bg-primary text-white rounded-xl shadow hover:bg-blue-700 transition-colors"
+         class="px-6 py-2 bg-gold-500 text-white rounded-xl shadow hover:bg-gold-600 transition-colors"
        >
          前往儀表板綁定
        </button>
@@ -26,7 +26,7 @@
       
       <div class="space-y-6">
         <div class="bg-white dark:bg-card-dark rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-sm text-center relative overflow-hidden">
-          <div class="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-blue-500 to-blue-600"></div>
+          <div class="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-gold-500 to-gold-600"></div>
           
           <div class="relative z-10 mt-12 mb-4">
             <div class="w-24 h-24 mx-auto rounded-full bg-white p-1 shadow-lg">
@@ -181,14 +181,14 @@
         
         <div class="bg-white dark:bg-card-dark rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-sm">
            <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
-             <span class="material-symbols-outlined text-primary">send</span>
+             <span class="material-symbols-outlined text-gold-500">send</span>
              發送訊息
            </h3>
            
            <div class="space-y-4">
              <div>
                <label class="block text-sm font-medium text-text-secondary-light mb-1">主旨</label>
-               <select v-model="form.subject" class="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary outline-none text-text-primary-light dark:text-text-primary-dark">
+               <select v-model="form.subject" class="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-gold-500 outline-none text-text-primary-light dark:text-text-primary-dark">
                  <option value="合約問題">合約問題</option>
                  <option value="費用疑問">費用疑問</option>
                  <option value="生活公約">生活公約</option>
@@ -201,7 +201,7 @@
                <label class="block text-sm font-medium text-text-secondary-light mb-1">內容</label>
                <textarea 
                  v-model="form.content" 
-                 class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary outline-none h-32 resize-none text-text-primary-light dark:text-text-primary-dark"
+                 class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-gold-500 outline-none h-32 resize-none text-text-primary-light dark:text-text-primary-dark"
                  placeholder="請輸入您想詢問的事項..."
                ></textarea>
              </div>
@@ -209,7 +209,7 @@
              <div class="flex justify-end">
                <button 
                  @click="sendMessage"
-                 class="px-6 py-2 bg-primary text-white rounded-xl font-bold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                 class="px-6 py-2 bg-gold-500 text-white rounded-xl font-bold shadow-lg shadow-gold-500/30 hover:bg-gold-600 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                  :disabled="isSending || !form.content.trim()"
                >
                  <span v-if="!isSending" class="material-symbols-outlined text-[20px]">send</span>

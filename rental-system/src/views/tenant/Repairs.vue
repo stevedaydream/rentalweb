@@ -4,7 +4,7 @@
       <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">報修申請</h1>
       <button 
         @click="showNewRequest = true"
-        class="bg-primary text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20"
+        class="bg-gold-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-gold-500/20"
       >
         + 新增報修
       </button>
@@ -73,7 +73,7 @@
           <button 
             @click="submitRequest" 
             :disabled="isSubmitting"
-            class="flex-1 py-3 bg-primary text-white rounded-xl font-bold disabled:opacity-50"
+            class="flex-1 py-3 bg-gold-500 text-white rounded-xl font-bold disabled:opacity-50"
           >
             {{ isSubmitting ? '送出中...' : '確認送出' }}
           </button>

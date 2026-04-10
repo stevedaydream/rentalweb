@@ -11,11 +11,11 @@
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg shadow-blue-500/30 relative overflow-hidden">
+      <div class="bg-gradient-to-br from-gold-500 to-gold-600 rounded-2xl p-6 text-white shadow-lg shadow-gold-500/30 relative overflow-hidden">
         <div class="relative z-10">
-          <p class="text-blue-100 font-medium mb-1">本期應繳總額</p>
+          <p class="text-gold-100 font-medium mb-1">本期應繳總額</p>
           <p class="text-3xl font-extrabold">NT$ {{ summary.unpaidTotal.toLocaleString() }}</p>
-          <div class="mt-4 flex items-center gap-2 text-sm text-blue-100">
+          <div class="mt-4 flex items-center gap-2 text-sm text-gold-100">
              <span class="bg-white/20 px-2 py-0.5 rounded text-xs">截止日</span>
              {{ summary.nextDueDate || '無待繳帳單' }}
           </div>
@@ -46,7 +46,7 @@
           :key="tab.value"
           @click="currentTab = tab.value"
           class="px-4 py-3 text-sm font-medium border-b-2 transition-colors relative top-[1px]"
-          :class="currentTab === tab.value ? 'border-primary text-primary' : 'border-transparent text-text-secondary-light hover:text-gray-600 dark:hover:text-gray-300'"
+          :class="currentTab === tab.value ? 'border-gold-500 text-gold-600' : 'border-transparent text-text-secondary-light hover:text-gray-600 dark:hover:text-gray-300'"
         >
           {{ tab.label }}
         </button>
@@ -101,7 +101,7 @@
                 <td class="px-6 py-4 text-center">
                   <button
                     @click="openModal(bill)"
-                    class="text-primary hover:bg-blue-50 dark:hover:bg-blue-900/20 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
+                    class="text-gold-600 hover:bg-gold-50 dark:hover:bg-gold-900/20 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium"
                   >
                     詳情
                   </button>
@@ -175,7 +175,7 @@
           
           <div class="text-center">
             <p class="text-sm text-text-secondary-light mb-1">應繳總金額</p>
-            <p class="text-4xl font-extrabold text-primary">NT$ {{ selectedBill?.amount.toLocaleString() }}</p>
+            <p class="text-4xl font-extrabold text-gold-600">NT$ {{ selectedBill?.amount.toLocaleString() }}</p>
             <div class="mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium" 
                  :class="selectedBill ? statusStyles[selectedBill.status] : ''">
                {{ selectedBill ? statusLabels[selectedBill.status] : '' }}
@@ -236,7 +236,7 @@
           <button 
              v-if="selectedBill?.status !== 'completed'"
              @click="handlePay(selectedBill!)"
-             class="px-5 py-2 rounded-xl bg-primary text-white font-bold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors"
+             class="px-5 py-2 rounded-xl bg-gold-500 text-white font-bold shadow-lg shadow-gold-500/30 hover:bg-gold-600 transition-colors"
           >
              前往繳費
           </button>

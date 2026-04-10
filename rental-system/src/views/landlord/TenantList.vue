@@ -13,7 +13,7 @@
         </button>
         <button
           @click="openNewTenantModal()"
-          class="px-4 py-2 bg-primary text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors text-sm font-medium flex items-center"
+          class="px-4 py-2 bg-gold-500 text-white rounded-lg shadow-sm hover:bg-gold-600 transition-colors text-sm font-medium flex items-center"
         >
           <span class="material-symbols-outlined text-[18px] mr-2">person_add</span>手動新增租客
         </button>
@@ -204,7 +204,7 @@
             class="px-2.5 py-1 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-gray-700">上一頁</button>
           <button v-for="p in totalTenantPages" :key="p" @click="tenantPage = p"
             class="px-2.5 py-1 text-xs rounded-lg border transition-colors"
-            :class="p === tenantPage ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'">{{ p }}</button>
+            :class="p === tenantPage ? 'bg-gold-500 text-white border-gold-500' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'">{{ p }}</button>
           <button @click="tenantPage++" :disabled="tenantPage === totalTenantPages"
             class="px-2.5 py-1 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-gray-700">下一頁</button>
         </div>
@@ -323,7 +323,7 @@
         </div>
         <div class="p-6 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
           <button @click="showModal = false" class="px-5 py-2 rounded-xl text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 font-medium transition-colors">取消</button>
-          <button @click="saveTenant" :disabled="isSaving" class="px-5 py-2 rounded-xl bg-primary text-white font-bold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors disabled:opacity-50">
+          <button @click="saveTenant" :disabled="isSaving" class="px-5 py-2 rounded-xl bg-gold-500 text-white font-bold shadow-lg shadow-gold-500/30 hover:bg-gold-600 transition-colors disabled:opacity-50">
             {{ isSaving ? '處理中...' : '新增租客' }}
           </button>
         </div>
@@ -525,7 +525,7 @@
 
                 <div class="flex gap-3 pt-2 sticky bottom-0 bg-white dark:bg-card-dark pb-2">
                   <button @click="drawerEditing = false" class="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">取消</button>
-                  <button @click="saveTenant" :disabled="isSaving" class="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-bold shadow-md hover:bg-blue-700 transition-colors disabled:opacity-50">
+                  <button @click="saveTenant" :disabled="isSaving" class="flex-1 py-2.5 rounded-xl bg-gold-500 text-white text-sm font-bold shadow-md hover:bg-gold-600 transition-colors disabled:opacity-50">
                     {{ isSaving ? '處理中...' : '儲存並同步合約' }}
                   </button>
                 </div>
@@ -568,7 +568,7 @@
                       v-if="bill.status !== 'completed'"
                       @click="markDrawerBillPaid(bill)"
                       :disabled="markingBillId === bill.id"
-                      class="text-xs px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors font-medium"
+                      class="text-xs px-3 py-1.5 bg-gold-500 text-white rounded-lg hover:bg-gold-600 disabled:opacity-50 transition-colors font-medium"
                     >{{ markingBillId === bill.id ? '處理中' : '標記已收' }}</button>
                   </div>
                 </div>
@@ -605,7 +605,7 @@
                       v-else
                       @click="markDepositPaid(idx)"
                       :disabled="isMarkingPaid"
-                      class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
+                      class="px-3 py-1.5 bg-gold-500 hover:bg-gold-600 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
                     >
                       <span class="material-symbols-outlined text-[14px]">payments</span>標記已收
                     </button>

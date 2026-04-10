@@ -9,7 +9,7 @@
       <button 
         @click="handleSave"
         :disabled="isSaving"
-        class="px-6 py-2 bg-primary text-white rounded-xl shadow-sm hover:bg-blue-700 transition-colors font-medium flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+        class="px-6 py-2 bg-gold-500 text-white rounded-xl shadow-sm hover:bg-gold-600 transition-colors font-medium flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <span v-if="isSaving" class="material-symbols-outlined animate-spin mr-2 text-[20px]">progress_activity</span>
         <span v-else class="material-symbols-outlined mr-2 text-[20px]">save</span>
@@ -33,7 +33,7 @@
                 <input 
                   v-model="formData.name"
                   type="text" 
-                  class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
+                  class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
                   placeholder="例如：陳房東"
                 >
               </div>
@@ -42,7 +42,7 @@
                 <input 
                   v-model="formData.phone"
                   type="tel" 
-                  class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
+                  class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
                   placeholder="0912-345-678"
                 >
               </div>
@@ -52,7 +52,7 @@
               <input
                 v-model="formData.idNumber"
                 type="text"
-                class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
+                class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
                 placeholder="A123456789"
               >
             </div>
@@ -75,7 +75,7 @@
                 v-model="formData.description"
                 rows="3"
                 maxlength="200"
-                class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary outline-none text-text-primary-light dark:text-text-primary-dark transition-colors resize-none text-sm"
+                class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none text-text-primary-light dark:text-text-primary-dark transition-colors resize-none text-sm"
                 placeholder="例如：管理 10 年以上，快速維修，友善溝通..."
               ></textarea>
               <p class="text-xs text-text-secondary-light mt-1 text-right">{{ formData.description.length }}/200</p>
@@ -97,7 +97,7 @@
                   v-model="formData.bankCode"
                   type="text" 
                   maxlength="3"
-                  class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
+                  class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
                   placeholder="822"
                 >
               </div>
@@ -106,7 +106,7 @@
                 <input 
                   v-model="formData.bankAccount"
                   type="text" 
-                  class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
+                  class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
                   placeholder="請輸入帳號"
                 >
               </div>
@@ -116,7 +116,7 @@
                 <input
                   v-model="formData.bankAccountName"
                   type="text"
-                  class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
+                  class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
                   placeholder="預設為您的姓名"
                 >
             </div>
@@ -136,7 +136,7 @@
                 <input
                   v-model.number="formData.billSendDay"
                   type="number" min="1" max="28"
-                  class="w-16 px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary outline-none text-center font-bold text-text-primary-light dark:text-text-primary-dark transition-colors"
+                  class="w-16 px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none text-center font-bold text-text-primary-light dark:text-text-primary-dark transition-colors"
                 >
                 <span class="text-sm text-text-secondary-light">號發送</span>
               </div>
@@ -148,7 +148,7 @@
                 <input
                   v-model.number="formData.paymentDay"
                   type="number" min="1" max="28"
-                  class="w-16 px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary outline-none text-center font-bold text-text-primary-light dark:text-text-primary-dark transition-colors"
+                  class="w-16 px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none text-center font-bold text-text-primary-light dark:text-text-primary-dark transition-colors"
                 >
                 <span class="text-sm text-text-secondary-light">號前</span>
               </div>
@@ -184,7 +184,7 @@
           <div class="space-y-4">
             <label class="flex items-center justify-between cursor-pointer group">
               <span class="text-sm font-medium text-text-secondary-light group-hover:text-text-primary-light transition-colors">接收 Email 通知</span>
-              <input type="checkbox" v-model="formData.notifyEmail" class="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary">
+              <input type="checkbox" v-model="formData.notifyEmail" class="w-5 h-5 rounded border-gray-300 text-gold-500 focus:ring-gold-500">
             </label>
           </div>
         </section>

@@ -35,13 +35,13 @@
               :class="step > s.id
                 ? 'bg-green-500 text-white'
                 : step === s.id
-                  ? 'bg-primary text-white'
+                  ? 'bg-gold-500 text-white'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-400'">
               <span v-if="step > s.id" class="material-symbols-outlined text-[16px]">check</span>
               <span v-else>{{ s.id }}</span>
             </div>
             <span class="text-xs font-medium hidden sm:block"
-              :class="step === s.id ? 'text-primary' : 'text-text-secondary-light'">{{ s.label }}</span>
+              :class="step === s.id ? 'text-gold-600' : 'text-text-secondary-light'">{{ s.label }}</span>
           </div>
           <div v-if="i < steps.length - 1" class="flex-1 h-0.5 mx-3"
             :class="step > s.id ? 'bg-green-400' : 'bg-gray-200 dark:bg-gray-700'"></div>
@@ -145,7 +145,7 @@
 
         <div class="pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
           <button @click="goToStep2"
-            class="px-6 py-3 bg-primary text-white rounded-xl shadow-lg shadow-blue-500/30 hover:bg-blue-700 font-bold transition-all flex items-center gap-2">
+            class="px-6 py-3 bg-gold-500 text-white rounded-xl shadow-lg shadow-gold-500/30 hover:bg-gold-600 font-bold transition-all flex items-center gap-2">
             下一步：合約條款
             <span class="material-symbols-outlined">arrow_forward</span>
           </button>
@@ -223,7 +223,7 @@
             返回修改
           </button>
           <button @click="step = 3"
-            class="flex-1 py-3 bg-primary text-white rounded-xl shadow-lg shadow-blue-500/30 hover:bg-blue-700 font-bold transition-all flex items-center justify-center gap-2">
+            class="flex-1 py-3 bg-gold-500 text-white rounded-xl shadow-lg shadow-gold-500/30 hover:bg-gold-600 font-bold transition-all flex items-center justify-center gap-2">
             下一步：預覽與簽署
             <span class="material-symbols-outlined">arrow_forward</span>
           </button>
@@ -244,7 +244,7 @@
         <div class="space-y-4">
           <div class="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
             <input type="checkbox" id="check" v-model="isChecked"
-              class="w-5 h-5 text-primary rounded focus:ring-primary cursor-pointer" />
+              class="w-5 h-5 text-gold-500 rounded focus:ring-gold-500 cursor-pointer" />
             <label for="check" class="text-sm font-medium text-gray-700 dark:text-gray-200 cursor-pointer select-none">
               我已詳細閱讀以上合約條款，雙方均已完成簽署，確認上述資料無誤。
             </label>
@@ -277,7 +277,7 @@
         <span class="material-symbols-outlined text-5xl text-ink-200">history_edu</span>
         <p class="mt-3 text-text-secondary-light">尚無合約簽署記錄</p>
         <button @click="activeTab = 'new'"
-          class="mt-4 px-5 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors">
+          class="mt-4 px-5 py-2 bg-gold-500 text-white rounded-xl text-sm font-medium hover:bg-gold-600 transition-colors">
           建立第一份合約
         </button>
       </div>
@@ -319,7 +319,7 @@
                 <button
                   @click="redownloadContract(c)"
                   :disabled="redownloading === c.id"
-                  class="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 transition-colors disabled:opacity-50">
+                  class="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-lg bg-gold-50 text-gold-600 hover:bg-gold-100 dark:bg-gold-900/20 dark:text-gold-400 dark:hover:bg-gold-900/40 transition-colors disabled:opacity-50">
                   <span class="material-symbols-outlined text-sm">{{ redownloading === c.id ? 'hourglass_empty' : 'download' }}</span>
                   {{ redownloading === c.id ? '產生中...' : '重新下載' }}
                 </button>

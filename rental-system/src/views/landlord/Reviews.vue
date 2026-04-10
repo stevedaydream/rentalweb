@@ -36,8 +36,8 @@
         @click="activeFilter = f.value as 'all' | 'visible' | 'hidden'"
         class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
         :class="activeFilter === f.value
-          ? 'bg-blue-600 text-white'
-          : 'bg-white dark:bg-card-dark text-text-secondary-light border border-gray-200 dark:border-gray-700 hover:border-blue-400'"
+          ? 'bg-gold-500 text-white'
+          : 'bg-white dark:bg-card-dark text-text-secondary-light border border-gray-200 dark:border-gray-700 hover:border-gold-400'"
       >
         {{ f.label }}
         <span class="ml-1 text-xs opacity-70">({{ f.count }})</span>
@@ -113,7 +113,7 @@
           <div class="flex justify-end gap-2 mt-2">
             <button @click="replyingId = null; replyText = ''" class="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors">取消</button>
             <button @click="saveReply(review)" :disabled="!replyText.trim() || saving"
-              class="px-4 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
+              class="px-4 py-1.5 text-sm bg-gold-500 hover:bg-gold-600 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
             >儲存回覆</button>
           </div>
         </div>
@@ -137,7 +137,7 @@
           <button
             v-if="replyingId !== review.id"
             @click="startReply(review)"
-            class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 transition-colors"
+            class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-gold-50 dark:bg-gold-900/20 text-gold-600 dark:text-gold-400 hover:bg-gold-100 transition-colors"
           >
             <span class="material-symbols-outlined text-[14px]">reply</span>
             {{ review.landlordReply ? '修改回覆' : '回覆' }}

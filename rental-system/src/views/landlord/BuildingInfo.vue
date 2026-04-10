@@ -11,7 +11,7 @@
         <button
           v-if="activeTab === 'map' && buildingInfo.mapType !== 'none' && !showSetupOverlay"
           @click="toggleEditing"
-          :class="isEditing ? 'bg-primary text-white shadow-lg shadow-blue-500/30 hover:bg-blue-700' : 'border border-gray-200 dark:border-gray-700 text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800'"
+          :class="isEditing ? 'bg-gold-500 text-white shadow-lg shadow-gold-500/30 hover:bg-gold-600' : 'border border-gray-200 dark:border-gray-700 text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800'"
           class="px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors"
         >
           <span class="material-symbols-outlined text-[18px]">{{ isEditing ? 'check' : 'edit' }}</span>
@@ -87,7 +87,7 @@
         <!-- Upload section -->
         <div
           class="border-2 border-dashed rounded-xl p-6 text-center transition-colors"
-          :class="buildingInfo.mapType === 'custom' ? 'border-primary bg-blue-50/50 dark:bg-blue-900/10' : 'border-gray-200 dark:border-gray-700 hover:border-primary/50'"
+          :class="buildingInfo.mapType === 'custom' ? 'border-gold-500 bg-gold-50/50 dark:bg-gold-900/10' : 'border-gray-200 dark:border-gray-700 hover:border-gold-500/50'"
         >
           <span class="material-symbols-outlined text-4xl text-gray-300 dark:text-gray-600 mb-3">upload_file</span>
           <p class="font-medium text-text-primary-light dark:text-text-primary-dark mb-1">上傳自訂平面圖</p>
@@ -102,10 +102,10 @@
               <span>上傳中...</span><span>{{ uploadProgress }}%</span>
             </div>
             <div class="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-              <div class="h-full bg-primary rounded-full transition-all" :style="{ width: uploadProgress + '%' }"></div>
+              <div class="h-full bg-gold-500 rounded-full transition-all" :style="{ width: uploadProgress + '%' }"></div>
             </div>
           </div>
-          <p v-if="buildingInfo.mapType === 'custom'" class="text-xs text-primary mt-3 flex items-center justify-center gap-1">
+          <p v-if="buildingInfo.mapType === 'custom'" class="text-xs text-gold-600 mt-3 flex items-center justify-center gap-1">
             <span class="material-symbols-outlined text-[14px]">check_circle</span>已使用自訂圖片
           </p>
         </div>
@@ -144,7 +144,7 @@
               :title="tool.label"
               class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors"
               :class="drawTool === tool.id
-                ? 'bg-primary text-white shadow-sm'
+                ? 'bg-gold-500 text-white shadow-sm'
                 : 'border border-gray-200 dark:border-gray-700 text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800'"
             >
               <span class="material-symbols-outlined text-[15px]">{{ tool.icon }}</span>
@@ -351,7 +351,7 @@
           </div>
 
           <!-- Edit mode hint -->
-          <div v-if="isEditing" class="absolute bottom-3 left-1/2 -translate-x-1/2 bg-primary/90 text-white text-xs px-3 py-1.5 rounded-full pointer-events-none flex items-center gap-1.5 shadow">
+          <div v-if="isEditing" class="absolute bottom-3 left-1/2 -translate-x-1/2 bg-gold-500/90 text-white text-xs px-3 py-1.5 rounded-full pointer-events-none flex items-center gap-1.5 shadow">
             <span class="material-symbols-outlined text-[14px]">add_location_alt</span>
             點擊地圖任意位置新增標記
           </div>
@@ -365,7 +365,7 @@
     <!-- ===== FACILITIES TAB ===== -->
     <div v-if="activeTab === 'facilities'" class="space-y-5">
       <div class="flex justify-end">
-        <button @click="openFacilityModal()" class="px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-sm">
+        <button @click="openFacilityModal()" class="px-4 py-2 bg-gold-500 text-white rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-gold-600 transition-colors shadow-sm">
           <span class="material-symbols-outlined text-[18px]">add</span>新增設施
         </button>
       </div>
@@ -452,7 +452,7 @@
           <div v-else></div>
           <div class="flex gap-3">
             <button @click="cancelMarkerDialog" class="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">取消</button>
-            <button @click="saveMarker" :disabled="!markerForm.label" class="px-4 py-2 rounded-xl bg-primary text-white text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-50">儲存</button>
+            <button @click="saveMarker" :disabled="!markerForm.label" class="px-4 py-2 rounded-xl bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 transition-colors disabled:opacity-50">儲存</button>
           </div>
         </div>
       </div>
@@ -474,7 +474,7 @@
         />
         <div class="flex gap-3 justify-end">
           <button @click="showTextInputDialog = false" class="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">取消</button>
-          <button @click="confirmTextInput" :disabled="!pendingTextValue.trim()" class="px-4 py-2 rounded-xl bg-primary text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors">確定</button>
+          <button @click="confirmTextInput" :disabled="!pendingTextValue.trim()" class="px-4 py-2 rounded-xl bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 disabled:opacity-50 transition-colors">確定</button>
         </div>
       </div>
     </div>
@@ -513,7 +513,7 @@
               <button v-for="emoji in facilityIcons" :key="emoji"
                 @click="facilityForm.icon = emoji"
                 class="text-2xl p-2 rounded-xl border-2 transition-all hover:scale-110"
-                :class="facilityForm.icon === emoji ? 'border-primary bg-blue-50 dark:bg-blue-900/20' : 'border-gray-100 dark:border-gray-700'"
+                :class="facilityForm.icon === emoji ? 'border-gold-500 bg-gold-50 dark:bg-gold-900/20' : 'border-gray-100 dark:border-gray-700'"
               >{{ emoji }}</button>
             </div>
           </div>
@@ -537,7 +537,7 @@
           <div v-else></div>
           <div class="flex gap-3">
             <button @click="showFacilityModal = false" class="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">取消</button>
-            <button @click="saveFacility" :disabled="!facilityForm.name" class="px-4 py-2 rounded-xl bg-primary text-white text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-50">儲存</button>
+            <button @click="saveFacility" :disabled="!facilityForm.name" class="px-4 py-2 rounded-xl bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 transition-colors disabled:opacity-50">儲存</button>
           </div>
         </div>
       </div>

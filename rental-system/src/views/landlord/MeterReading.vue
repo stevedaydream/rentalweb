@@ -28,7 +28,7 @@
         <button
           @click="saveAllReadings"
           :disabled="saving || !hasValidChanges"
-          class="px-4 py-2 bg-primary text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors text-sm font-medium flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+          class="px-4 py-2 bg-gold-500 text-white rounded-lg shadow-sm hover:bg-gold-600 transition-colors text-sm font-medium flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <span v-if="saving" class="material-symbols-outlined text-[18px] mr-2 animate-spin">progress_activity</span>
           <span v-else class="material-symbols-outlined text-[18px] mr-2">save</span>

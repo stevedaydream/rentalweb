@@ -11,7 +11,7 @@
       <div class="flex gap-3">
         <button 
           @click="openModal(undefined, 'create')"
-          class="px-4 py-2 bg-primary text-white rounded-lg shadow-sm hover:bg-blue-700 transition-colors text-sm font-medium flex items-center"
+          class="px-4 py-2 bg-gold-500 text-white rounded-lg shadow-sm hover:bg-gold-600 transition-colors text-sm font-medium flex items-center"
         >
           <span class="material-symbols-outlined text-[18px] mr-2">add</span>
           新增房源
@@ -177,7 +177,7 @@
             </button>
             <button 
               @click="openModal(room, 'view')"
-              class="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors shadow-sm"
+              class="flex-1 py-2 rounded-lg bg-gold-500 hover:bg-gold-600 text-white text-sm font-medium transition-colors shadow-sm"
             >
               詳情
             </button>
@@ -575,7 +575,7 @@
           <template v-if="isViewMode">
             <button 
               @click="switchToEdit"
-              class="mr-auto px-4 py-2 rounded-xl text-primary hover:bg-blue-50 dark:hover:bg-blue-900/20 font-medium transition-colors flex items-center"
+              class="mr-auto px-4 py-2 rounded-xl text-gold-600 hover:bg-gold-50 dark:hover:bg-gold-900/20 font-medium transition-colors flex items-center"
             >
               <span class="material-symbols-outlined mr-1 text-[20px]">edit</span>
               前往編輯
@@ -608,7 +608,7 @@
               <button 
                 @click="saveRoom"
                 :disabled="uploading"
-                class="px-5 py-2 rounded-xl bg-primary text-white font-bold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                class="px-5 py-2 rounded-xl bg-gold-500 text-white font-bold shadow-lg shadow-gold-500/30 hover:bg-gold-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {{ uploading ? '上傳中...' : '儲存' }}
               </button>
