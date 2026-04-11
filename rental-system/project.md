@@ -99,7 +99,7 @@ rental-system/
 ### 房東系統
 - Dashboard（財務概覽、月度任務、快速抄表入口、報修摘要、房東 Profile）
 - 房間管理（新增/編輯/刪除房間，狀態追蹤）
-- 租客清單（新增/管理租客，綁定房間）
+- 租客清單（新增/管理租客，綁定房間，解除房間綁定，刪除租客）
 - 財務管理（帳單建立、收款記錄、台電帳單、統計圖表）
 - 抄表記錄（手動輸入 + Excel 批次匯入）+ 抄表歷史
 - 報修管理（查看/處理租客報修申請）
@@ -147,6 +147,9 @@ rental-system/
 | `lineWebhook` | LINE Bot webhook（多房東） |
 | `sendLineReply` | Callable：房東回覆租客 LINE 訊息 |
 | `sendLineBillNotifications` | Callable：推播帳單通知給租客 |
+| `createTenantAccount` | Callable（房東/Admin）：以手機+身分證建立租客 Firebase Auth 帳號 |
+| `resetTenantPassword` | Callable（Admin）：重設租客登入密碼 |
+| `submitRenewalResponse` | Callable（租客）：回覆是否續租，同步 LINE 通知房東 |
 | `notifyBillCreated` | Firestore 觸發：帳單建立時推播 LINE |
 | `notifyAnnouncementCreated` | Firestore 觸發：公告建立時推播 |
 | `scheduledReminderDaily` | 定時：每日繳費提醒 |
@@ -176,3 +179,9 @@ rental-system/
 | 2026-04-11 | UX 全面優化：忘記密碼、錯誤訊息友善化、問候語動態化、Onboarding 主色統一、帳務 header 整理、生成帳單確認 Modal、租客報修緊急程度與展開詳情、空狀態改善 |
 | 2026-04-11 | 導覽架構優化：租客手機端改為底部 Tab Bar（含數字 badge）、房東 Sidebar 工具群組折疊 |
 | 2026-04-11 | 租客帳單手機卡片佈局、用電記錄數據卡、繳費/刪除自訂確認 Modal、Dashboard 新增房源帶 query param 自動開啟 |
+| 2026-04-11 | 租客帳號系統：手機+身分證登入、房東建立帳號、Gmail 綁定提示、Admin 重設密碼 |
+| 2026-04-11 | 退租系統設計：MoveOutWizard（A）、續約提醒+回覆（D）、歷史租客（B）、打包下載（C）（實作中） |
+| 2026-04-11 | 新 Firestore collection：moveOutRecords（退租摘要永久保留） |
+| 2026-04-11 | rooms 新增欄位：lastMeterReading、lastMeterReadingDate（退租時寫入，下個租客電費基準） |
+| 2026-04-11 | contracts 新增欄位：renewalStatus（pending/confirmed/declined）、renewalNote、renewalRespondedAt |
+| 2026-04-11 | tenants 新增欄位：isHistorical（bool）、moveOutSummary（object） |

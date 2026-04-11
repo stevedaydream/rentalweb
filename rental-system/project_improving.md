@@ -48,6 +48,29 @@
 
 ---
 
+## 退租與續約系統（2026-04-11 設計，實作中）
+
+### Phase A：退租 Wizard（優先）
+- ✅ **MoveOutWizard.vue**：三步驟 Modal（退租資訊→費用結清→確認執行）
+  - Step 2 含電費結清（依房東現行計算模式）、水費（手動）、押金退還計算
+  - 執行後：合約 terminated、房間 vacant、建立 moveOutRecords、保留歷史租客文件
+  - 觸發：TenantList Drawer「辦理退租」按鈕
+
+### Phase D：續約提醒與回覆（第二優先）
+- ✅ **scheduledReminderDaily 擴充**：90/60/30 天 LINE 提醒，首次提醒時設 `renewalStatus: 'pending'`
+- ✅ **submitRenewalResponse Cloud Function**：租客回覆後更新合約，LINE 通知房東
+- ✅ **租客 Dashboard 續約卡片**：距到期 90 天內顯示，按鈕回覆是否續租，支援備註
+- ✅ **房東 TenantList 續約狀態**：Drawer 顯示 renewalStatus badge，新增「待確認續約」與「歷史租客」篩選
+
+### Phase B：歷史租客管理
+- ✅ **TenantList 歷史租客分頁**：isHistorical=true 的租客，顯示退租摘要（opacity-55 + "已退租" badge；Drawer 顯示退租摘要區塊含退租日、原因、押金退還）
+
+### Phase C：打包下載 & 雲端精簡
+- ✅ **打包下載（Excel + PDF）**：歷史租客 Drawer 觸發；xlsx 4-Sheet Excel + 退租結清單 PDF（`MoveOutSummary` Cloud Function 模板）+ 合約備份 PDF（從 `signed_contracts` 重建）
+- ✅ **清除電表歷史**：自訂確認 Modal，batch delete 該租客租期間 meter_readings（400-op 分批），最後電表度數已存於 rooms.lastMeterReading 作為下一租客基準
+
+---
+
 ## 設計原則（本次審查結論）
 
 1. **主色統一**：所有主要 CTA 按鈕使用 gold 色系，次要操作使用 outline 或 ghost 樣式

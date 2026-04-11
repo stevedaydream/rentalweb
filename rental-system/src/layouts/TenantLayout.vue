@@ -54,6 +54,27 @@
         <span class="text-[10px] px-2 py-0.5 bg-gold-500/20 text-gold-300 rounded-full font-bold">租客版</span>
       </header>
 
+      <!-- Gmail 綁定提示 Banner（房東建立的帳號且尚未綁定 Google） -->
+      <div
+        v-if="showGoogleLinkBanner"
+        class="mx-4 mt-3 mb-0 lg:mx-8 flex items-center gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl px-4 py-3 text-sm"
+      >
+        <img src="https://www.svgrepo.com/show/475656/google-color.svg" class="w-5 h-5 shrink-0" alt="Google">
+        <p class="flex-1 text-blue-800 dark:text-blue-200">
+          綁定 Gmail 後，下次可直接用 Google 登入，不需輸入身分證號
+        </p>
+        <button
+          @click="handleLinkGoogle"
+          :disabled="linkingGoogle"
+          class="shrink-0 px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+        >
+          {{ linkingGoogle ? '綁定中...' : '立即綁定' }}
+        </button>
+        <button @click="dismissBanner" class="shrink-0 text-blue-400 hover:text-blue-600 p-1">
+          <span class="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      </div>
+
       <!-- Page content; pb-24 on mobile to clear bottom tab bar -->
       <main class="flex-1 overflow-auto p-4 md:p-8 pb-24 lg:pb-8">
         <router-view></router-view>
@@ -100,17 +121,56 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
+import { useToastStore } from '../stores/toast';
 import { useRoute } from 'vue-router';
 import { db } from '../firebase/config';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import logoSrc from '../assets/logo.svg';
 
 const authStore = useAuthStore();
+const toast = useToastStore();
 const route = useRoute();
 
 const hasNewReply = ref(false);
 const replyCount = ref(0);
 const unpaidBillCount = ref(0);
+
+// Gmail 綁定 Banner
+const bannerDismissed = ref(false);
+const linkingGoogle = ref(false);
+
+const showGoogleLinkBanner = computed(() =>
+  authStore.isLandlordCreated &&
+  !authStore.hasGoogleLinked &&
+  !bannerDismissed.value &&
+  !localStorage.getItem(`googleLinkDismissed_${authStore.user?.uid}`)
+);
+
+const dismissBanner = () => {
+  bannerDismissed.value = true;
+  if (authStore.user?.uid) {
+    localStorage.setItem(`googleLinkDismissed_${authStore.user.uid}`, '1');
+  }
+};
+
+const handleLinkGoogle = async () => {
+  linkingGoogle.value = true;
+  try {
+    await authStore.linkWithGoogle();
+    toast.success('Gmail 綁定成功！下次可直接使用 Google 登入');
+    bannerDismissed.value = true;
+  } catch (e: any) {
+    if (e.code === 'auth/credential-already-in-use') {
+      toast.error('此 Google 帳號已被其他帳號使用');
+    } else if (e.code === 'auth/popup-closed-by-user') {
+      toast.warning('已取消綁定');
+    } else {
+      toast.error('綁定失敗，請稍後再試');
+    }
+  } finally {
+    linkingGoogle.value = false;
+  }
+};
 
 let unsubMessages: (() => void) | null = null;
 let unsubBills: (() => void) | null = null;

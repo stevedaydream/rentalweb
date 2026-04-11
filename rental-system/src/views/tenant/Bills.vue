@@ -583,8 +583,6 @@ const confirmPay = async () => {
   }
 };
 
-// 保留舊名稱供外部呼叫（已不使用 confirm()）
-const handlePay = (bill: Bill) => initPayConfirm(bill);
 
 // 下載圖片功能
 const downloadImage = async () => {

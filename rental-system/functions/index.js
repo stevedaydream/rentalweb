@@ -119,6 +119,7 @@ exports.generatePdf = onRequest({ memory: "1GiB", timeoutSeconds: 60, region: "a
         case 'Guarantee': templateFile = 'guaranteeTemplate.html'; break;
         case 'Deposit': templateFile = 'depositTemplate.html'; break;
         case 'Contract': templateFile = 'contractTemplate.html'; break;
+        case 'MoveOutSummary': templateFile = 'moveoutSummaryTemplate.html'; break;
         default: throw new Error('未知的模板類型');
       }
 
@@ -826,7 +827,9 @@ exports.notifyAnnouncementCreated = onDocumentCreated(
  * scheduledReminderDaily — runs every day at 09:00 Asia/Taipei
  * Pushes reminders for:
  *   - Bills due in 3 days
- *   - Contracts expiring in 30 days
+ *   - Contracts expiring in 90 days (first notice → sets renewalStatus: 'pending')
+ *   - Contracts expiring in 60 days (second notice)
+ *   - Contracts expiring in 30 days (final notice)
  */
 exports.scheduledReminderDaily = onSchedule(
   { schedule: '0 9 * * *', timeZone: 'Asia/Taipei', region: 'asia-east1' },
@@ -837,10 +840,14 @@ exports.scheduledReminderDaily = onSchedule(
     today.setHours(0, 0, 0, 0);
     const fmt = (d) => d.toISOString().substring(0, 10);
 
-    const in3 = new Date(today); in3.setDate(in3.getDate() + 3);
-    const due3 = fmt(in3);
+    const in3  = new Date(today); in3.setDate(in3.getDate() + 3);
+    const in30 = new Date(today); in30.setDate(in30.getDate() + 30);
     const in60 = new Date(today); in60.setDate(in60.getDate() + 60);
+    const in90 = new Date(today); in90.setDate(in90.getDate() + 90);
+    const due3     = fmt(in3);
+    const expiry30 = fmt(in30);
     const expiry60 = fmt(in60);
+    const expiry90 = fmt(in90);
 
     // 取得所有已設定 LINE Bot 的房東
     const configsSnap = await db.collection('line_configs').get();
@@ -851,6 +858,16 @@ exports.scheduledReminderDaily = onSchedule(
 
     let totalBills = 0, totalContracts = 0;
 
+    // ── Helper: push LINE message to tenant ──────────────────
+    const pushToTenant = async (client, tenantId, text, label) => {
+      if (!tenantId) return;
+      const userSnap = await db.collection('users').doc(tenantId).get();
+      if (!userSnap.exists) return;
+      const ud = userSnap.data();
+      if (!ud.lineUserId) return;
+      await client.pushMessage({ to: ud.lineUserId, messages: [{ type: 'text', text }] });
+    };
+
     for (const configDoc of configsSnap.docs) {
       const landlordId = configDoc.id;
       const configData = configDoc.data();
@@ -860,7 +877,7 @@ exports.scheduledReminderDaily = onSchedule(
         channelAccessToken: configData.channelAccessToken,
       });
 
-      // ── 帳單：3 天後到期 ────────────────────────────────
+      // ── 帳單：3 天後到期 ──────────────────────────────────
       const billsSnap = await db.collection('bills')
         .where('landlordId', '==', landlordId)
         .where('dueDate', '==', due3)
@@ -892,37 +909,58 @@ exports.scheduledReminderDaily = onSchedule(
         }
       }
 
-      // ── 合約：60 天後到期 ───────────────────────────────
-      const contractsSnap = await db.collection('contracts')
-        .where('landlordId', '==', landlordId)
-        .where('endDate', '==', expiry60)
-        .get();
+      // ── 合約提醒共用查詢函式 ──────────────────────────────
+      const sendContractReminder = async (expiryDate, dayLabel, setRenewalPending) => {
+        const snap = await db.collection('contracts')
+          .where('landlordId', '==', landlordId)
+          .where('endDate', '==', expiryDate)
+          .where('status', '==', 'active')
+          .get();
 
-      for (const doc of contractsSnap.docs) {
-        const c = doc.data();
-        if (!c.tenantId) continue;
-        const userSnap = await db.collection('users').doc(c.tenantId).get();
-        if (!userSnap.exists) continue;
-        const ud = userSnap.data();
-        if (!ud.lineUserId) continue;
+        for (const cDoc of snap.docs) {
+          const c = cDoc.data();
+          if (!c.tenantId) continue;
 
-        const name = ud.name || '您';
-        const rent = Number(c.monthlyRent || c.rent || 0);
-        const text =
-          `📋 合約即將到期提醒\n━━━━━━━━━━\n${name}，您的租約將於 60 天後（${expiry60}）到期。\n\n` +
-          (rent ? `月租金：NT$${rent.toLocaleString()}\n` : '') +
-          (c.roomName || c.roomNumber ? `房號：${c.roomName || c.roomNumber}\n` : '') +
-          `━━━━━━━━━━\n請盡早與房東討論續約事宜，或傳送「合約」查看詳情。`;
+          // 若已回覆，只在 90 天時標記（不重複提醒）
+          if (c.renewalStatus === 'confirmed' || c.renewalStatus === 'declined') continue;
 
-        try {
-          await client.pushMessage({ to: ud.lineUserId, messages: [{ type: 'text', text }] });
-          totalContracts++;
-        } catch (e) {
-          logger.warn('scheduledReminderDaily: contract push failed', { landlordId, contractId: doc.id, error: e.message });
+          const userSnap = await db.collection('users').doc(c.tenantId).get();
+          if (!userSnap.exists) continue;
+          const ud = userSnap.data();
+          if (!ud.lineUserId) continue;
+
+          const name = ud.name || '您';
+          const rent = Number(c.monthlyRent || c.rent || 0);
+          const roomLabel = c.roomName || c.roomNumber || '';
+          const text =
+            `📋 租約到期提醒（${dayLabel}）\n━━━━━━━━━━\n` +
+            `${name}，您的租約將於 ${dayLabel} 後到期。\n` +
+            `到期日：${expiryDate}\n` +
+            (roomLabel ? `房號：${roomLabel}\n` : '') +
+            (rent ? `月租金：NT$${rent.toLocaleString()}\n` : '') +
+            `━━━━━━━━━━\n請盡早透過 App 回覆是否續租，或聯繫房東確認。`;
+
+          try {
+            await client.pushMessage({ to: ud.lineUserId, messages: [{ type: 'text', text }] });
+            totalContracts++;
+
+            // 首次（90天）提醒時，設定 renewalStatus: 'pending'
+            if (setRenewalPending && !c.renewalStatus) {
+              await db.collection('contracts').doc(cDoc.id).update({ renewalStatus: 'pending' });
+            }
+          } catch (e) {
+            logger.warn('scheduledReminderDaily: contract push failed', {
+              landlordId, contractId: cDoc.id, dayLabel, error: e.message
+            });
+          }
         }
-      }
+      };
 
-      logger.info('scheduledReminderDaily: landlord done', { landlordId, bills: billsSnap.size, contracts: contractsSnap.size });
+      await sendContractReminder(expiry90, '3 個月', true);
+      await sendContractReminder(expiry60, '60 天', false);
+      await sendContractReminder(expiry30, '30 天', false);
+
+      logger.info('scheduledReminderDaily: landlord done', { landlordId, bills: billsSnap.size });
     }
 
     logger.info('scheduledReminderDaily: complete', {
@@ -931,6 +969,70 @@ exports.scheduledReminderDaily = onSchedule(
       billsSent: totalBills,
       contractsSent: totalContracts,
     });
+  }
+);
+
+// ============================================================
+// submitRenewalResponse — 租客回覆是否續租，通知房東 LINE
+// ============================================================
+exports.submitRenewalResponse = onCall(
+  { region: 'asia-east1' },
+  async (request) => {
+    const { HttpsError } = require('firebase-functions/v2/https');
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError('unauthenticated', '請先登入');
+
+    const { contractId, response, note } = request.data;
+    if (!contractId || !['confirmed', 'declined'].includes(response)) {
+      throw new HttpsError('invalid-argument', '缺少必要參數');
+    }
+
+    const db = getFirestore();
+    const contractRef = db.collection('contracts').doc(contractId);
+    const contractSnap = await contractRef.get();
+    if (!contractSnap.exists) throw new HttpsError('not-found', '合約不存在');
+
+    const c = contractSnap.data();
+    if (c.tenantId !== uid) throw new HttpsError('permission-denied', '無操作權限');
+
+    // 更新合約
+    await contractRef.update({
+      renewalStatus: response,
+      renewalNote: note || '',
+      renewalRespondedAt: FieldValue.serverTimestamp(),
+    });
+
+    // 通知房東 LINE
+    try {
+      const landlordId = c.landlordId;
+      const lineConfigSnap = await db.collection('line_configs').doc(landlordId).get();
+      if (lineConfigSnap.exists && lineConfigSnap.data().channelAccessToken) {
+        const client = new line.messagingApi.MessagingApiClient({
+          channelAccessToken: lineConfigSnap.data().channelAccessToken,
+        });
+        // 找房東自己的 lineUserId
+        const landlordUserSnap = await db.collection('users').doc(landlordId).get();
+        if (landlordUserSnap.exists) {
+          const lu = landlordUserSnap.data();
+          if (lu.lineUserId) {
+            const responseLabel = response === 'confirmed' ? '✅ 確認續租' : '❌ 不續租';
+            const tenantName = c.tenantName || '租客';
+            const roomLabel = c.roomNumber || c.roomName || '';
+            const text =
+              `📬 租客續約回覆\n━━━━━━━━━━\n` +
+              `${tenantName}${roomLabel ? `（${roomLabel}）` : ''}\n` +
+              `回覆：${responseLabel}\n` +
+              (note ? `備註：${note}\n` : '') +
+              `━━━━━━━━━━\n租期：${c.startDate || ''} ~ ${c.endDate || ''}`;
+            await client.pushMessage({ to: lu.lineUserId, messages: [{ type: 'text', text }] });
+          }
+        }
+      }
+    } catch (e) {
+      logger.warn('submitRenewalResponse: LINE notify failed', { contractId, error: e.message });
+    }
+
+    return { success: true };
   }
 );
 
@@ -1155,3 +1257,70 @@ exports.dailyUsageCheck = onSchedule(
     }
   }
 );
+
+// ─── createTenantAccount ───────────────────────────────────────────────────
+// 由房東呼叫：以手機號碼 + 身分證號為租客建立 Firebase Auth 帳號
+exports.createTenantAccount = onCall({ region: 'asia-east1' }, async (request) => {
+  if (!request.auth) throw new Error('Unauthenticated');
+
+  const callerUid = request.auth.uid;
+  const callerDoc = await db.collection('users').doc(callerUid).get();
+  if (!callerDoc.exists) throw new Error('Caller not found');
+  const callerRole = callerDoc.data().role;
+  if (callerRole !== 'landlord' && callerRole !== 'admin') throw new Error('Permission denied');
+
+  const { phone, idNumber, tenantDocId, name } = request.data;
+  if (!phone || !idNumber || !tenantDocId) throw new Error('Missing required fields');
+
+  const email = `${phone}@tenant.myrental`;
+
+  try {
+    let userRecord;
+    try {
+      userRecord = await getAuth().getUserByEmail(email);
+    } catch (_) {
+      userRecord = await getAuth().createUser({ email, password: idNumber, displayName: name || phone });
+    }
+
+    await db.collection('tenants').doc(tenantDocId).update({ uid: userRecord.uid });
+
+    await db.collection('users').doc(userRecord.uid).set({
+      uid: userRecord.uid,
+      email,
+      name: name || '',
+      phone,
+      role: 'tenant',
+      isLandlordCreated: true,
+      createdAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    logger.info('createTenantAccount: success', { phone, tenantDocId, uid: userRecord.uid });
+    return { success: true, uid: userRecord.uid };
+  } catch (e) {
+    logger.error('createTenantAccount error', e);
+    throw new Error(e.message);
+  }
+});
+
+// ─── resetTenantPassword ───────────────────────────────────────────────────
+// 由 Admin 呼叫：強制重設指定租客的密碼
+exports.resetTenantPassword = onCall({ region: 'asia-east1' }, async (request) => {
+  if (!request.auth) throw new Error('Unauthenticated');
+
+  const callerUid = request.auth.uid;
+  const callerDoc = await db.collection('users').doc(callerUid).get();
+  if (!callerDoc.exists || callerDoc.data().role !== 'admin') throw new Error('Permission denied: admin only');
+
+  const { uid, newPassword } = request.data;
+  if (!uid || !newPassword) throw new Error('Missing required fields');
+  if (newPassword.length < 6) throw new Error('密碼至少需要 6 個字元');
+
+  try {
+    await getAuth().updateUser(uid, { password: newPassword });
+    logger.info('resetTenantPassword: success', { targetUid: uid, callerUid });
+    return { success: true };
+  } catch (e) {
+    logger.error('resetTenantPassword error', e);
+    throw new Error(e.message);
+  }
+});

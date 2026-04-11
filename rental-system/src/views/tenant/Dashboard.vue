@@ -252,6 +252,55 @@
         </div>
       </div>
 
+      <!-- 續約提醒卡片 -->
+      <div v-if="renewalCard.show" class="md:col-span-12">
+        <div class="rounded-2xl p-5 border flex flex-col sm:flex-row sm:items-start gap-4"
+          :class="renewalCard.daysLeft <= 30
+            ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'
+            : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-700'">
+          <div class="flex items-start gap-3 flex-1">
+            <span class="material-symbols-outlined text-2xl shrink-0 mt-0.5"
+              :class="renewalCard.daysLeft <= 30 ? 'text-red-500' : 'text-orange-500'">
+              {{ renewalCard.daysLeft <= 30 ? 'crisis_alert' : 'schedule' }}
+            </span>
+            <div class="flex-1">
+              <h3 class="font-bold text-base"
+                :class="renewalCard.daysLeft <= 30 ? 'text-red-700 dark:text-red-300' : 'text-orange-700 dark:text-orange-300'">
+                租約將於 {{ renewalCard.daysLeft }} 天後到期
+              </h3>
+              <p class="text-sm mt-1"
+                :class="renewalCard.daysLeft <= 30 ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400'">
+                到期日：{{ renewalCard.leaseEnd }}，請回覆是否續租以便房東安排。
+              </p>
+              <div v-if="renewalCard.showNoteInput" class="mt-3">
+                <textarea v-model="renewalCard.renewalNote"
+                  class="w-full px-3 py-2 rounded-xl border border-orange-200 dark:border-orange-600 bg-white dark:bg-ink-800 text-sm outline-none focus:ring-2 focus:ring-orange-400 resize-none"
+                  placeholder="備註（選填，如：希望調整租金 / 確認搬出日期等）"
+                  rows="2"></textarea>
+              </div>
+            </div>
+          </div>
+          <div class="flex flex-col gap-2 shrink-0">
+            <div class="flex gap-2">
+              <button @click="submitRenewal('confirmed')" :disabled="renewalCard.submitting"
+                class="px-4 py-2 bg-green-500 text-white text-sm font-bold rounded-xl hover:bg-green-600 transition-colors disabled:opacity-50 flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[16px]">check_circle</span>
+                我要續租
+              </button>
+              <button @click="submitRenewal('declined')" :disabled="renewalCard.submitting"
+                class="px-4 py-2 bg-red-500 text-white text-sm font-bold rounded-xl hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[16px]">cancel</span>
+                不續租
+              </button>
+            </div>
+            <button @click="renewalCard.showNoteInput = !renewalCard.showNoteInput"
+              class="text-xs text-center underline opacity-60 hover:opacity-100 transition-opacity">
+              {{ renewalCard.showNoteInput ? '收起備註' : '附上備註再回覆' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div class="md:col-span-6">
         <div class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-ink-100 dark:border-ink-800 h-full">
           <div class="flex justify-between items-center mb-4">
@@ -443,9 +492,10 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
-import { db, auth } from '../../firebase/config';
+import { db, auth, functions } from '../../firebase/config';
+import { httpsCallable } from 'firebase/functions';
 import Preview from '../../components/Preview.vue';
-import { 
+import {
   doc,
   updateDoc,
   collection,
@@ -641,6 +691,34 @@ let unsubscribeDeposits: (() => void) | null = null;
 
 // 5. 已簽署合約
 const signedContract = ref<any>(null);
+
+// 6. 續約狀態
+const renewalCard = reactive({
+  show: false,
+  contractId: '',
+  leaseEnd: '',
+  daysLeft: 0,
+  status: '' as '' | 'pending' | 'confirmed' | 'declined',
+  submitting: false,
+  renewalNote: '',
+  showNoteInput: false,
+});
+
+const submitRenewal = async (response: 'confirmed' | 'declined') => {
+  if (renewalCard.submitting) return;
+  renewalCard.submitting = true;
+  try {
+    const fn = httpsCallable(functions, 'submitRenewalResponse');
+    await fn({ contractId: renewalCard.contractId, response, note: renewalCard.renewalNote });
+    renewalCard.status = response;
+    renewalCard.show = false;
+    toast.success(response === 'confirmed' ? '已回覆確認續租，房東已收到通知' : '已回覆不續租，房東已收到通知');
+  } catch (e: any) {
+    toast.error('回覆失敗，請稍後再試');
+  } finally {
+    renewalCard.submitting = false;
+  }
+};
 const previewContract = ref<any>(null);
 const downloadingContract = ref(false);
 
@@ -766,6 +844,21 @@ const fetchDashboardData = async () => {
           pendingDeposits.value = Array.isArray(snap.data().deposits) ? snap.data().deposits : [];
         }
       });
+
+      // 續約卡片邏輯：距到期 90 天內且 renewalStatus 未確認
+      const contractData = contractSnap.docs[0]!.data();
+      const leaseEnd = contractData.endDate || '';
+      if (leaseEnd) {
+        const daysLeft = Math.ceil((new Date(leaseEnd).getTime() - Date.now()) / 86400000);
+        const rs = contractData.renewalStatus || '';
+        if (daysLeft <= 90 && daysLeft > 0 && rs !== 'confirmed' && rs !== 'declined') {
+          renewalCard.show = true;
+          renewalCard.contractId = contractDocId;
+          renewalCard.leaseEnd = leaseEnd;
+          renewalCard.daysLeft = daysLeft;
+          renewalCard.status = rs as any;
+        }
+      }
       
       const today = new Date();
       let nextMonth = today.getMonth() + 1;

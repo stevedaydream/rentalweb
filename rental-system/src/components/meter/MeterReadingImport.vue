@@ -63,16 +63,42 @@
             </div>
             <div class="flex items-center gap-2">
               <span class="text-xs text-gray-500 flex-shrink-0">對應房間：</span>
-              <select
-                :value="room.mappedRoomId"
-                @change="onMappingChange(room, ($event.target as HTMLSelectElement).value)"
-                class="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-ink-800 dark:text-gray-100 focus:ring-2 focus:ring-gold-400 focus:outline-none"
-              >
-                <option value="">— 不匯入此房間 —</option>
-                <option v-for="fr in firestoreRooms" :key="fr.id" :value="fr.id">{{ fr.name }}</option>
-              </select>
-              <span v-if="room.mappedRoomId" class="material-symbols-outlined text-green-500 text-[20px]">check_circle</span>
-              <span v-else class="material-symbols-outlined text-gray-300 text-[20px]">radio_button_unchecked</span>
+              <!-- 建立新房間模式 -->
+              <template v-if="room.isCreatingNew">
+                <input
+                  v-model="room.newRoomName"
+                  type="text"
+                  placeholder="輸入新房間名稱"
+                  class="text-sm border border-gold-400 rounded-lg px-3 py-1.5 bg-white dark:bg-ink-800 dark:text-gray-100 focus:ring-2 focus:ring-gold-400 focus:outline-none w-36"
+                  @keydown.enter="createRoom(room)"
+                />
+                <button
+                  @click="createRoom(room)"
+                  :disabled="!room.newRoomName?.trim() || room.isCreatingSaving"
+                  class="text-xs px-3 py-1.5 bg-gold-500 text-white font-bold rounded-lg hover:bg-gold-600 disabled:opacity-50 transition-colors"
+                >
+                  <span v-if="room.isCreatingSaving" class="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>
+                  <span v-else>確認建立</span>
+                </button>
+                <button
+                  @click="room.isCreatingNew = false; room.mappedRoomId = ''"
+                  class="text-xs px-2 py-1.5 text-gray-500 hover:text-gray-700 rounded-lg"
+                >取消</button>
+              </template>
+              <!-- 正常選單模式 -->
+              <template v-else>
+                <select
+                  :value="room.mappedRoomId"
+                  @change="onMappingChange(room, ($event.target as HTMLSelectElement).value)"
+                  class="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-ink-800 dark:text-gray-100 focus:ring-2 focus:ring-gold-400 focus:outline-none"
+                >
+                  <option value="">— 不匯入此房間 —</option>
+                  <option v-for="fr in firestoreRooms" :key="fr.id" :value="fr.id">{{ fr.name }}</option>
+                  <option value="__new__">＋ 建立新房間...</option>
+                </select>
+                <span v-if="room.mappedRoomId" class="material-symbols-outlined text-green-500 text-[20px]">check_circle</span>
+                <span v-else class="material-symbols-outlined text-gray-300 text-[20px]">radio_button_unchecked</span>
+              </template>
             </div>
           </div>
 
@@ -141,7 +167,7 @@
 import { ref, computed } from 'vue';
 import * as XLSX from 'xlsx';
 import { db } from '../../firebase/config';
-import { collection, doc, getDocs, query, orderBy, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, addDoc, getDocs, query, orderBy, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
 
@@ -166,6 +192,9 @@ interface ImportRoomData {
   rows: ImportRow[];
   mappedRoomId: string;
   mappedRoomName: string;
+  isCreatingNew?: boolean;
+  newRoomName?: string;
+  isCreatingSaving?: boolean;
 }
 
 // --- State ---
@@ -251,9 +280,49 @@ const parseExcelFile = async (file: File) => {
 };
 
 const onMappingChange = (roomData: ImportRoomData, newId: string) => {
+  if (newId === '__new__') {
+    roomData.isCreatingNew = true;
+    roomData.newRoomName = roomData.sheetName;
+    roomData.mappedRoomId = '';
+    roomData.mappedRoomName = '';
+    return;
+  }
   const found = firestoreRooms.value.find(r => r.id === newId);
   roomData.mappedRoomId = newId;
   roomData.mappedRoomName = found?.name ?? '';
+};
+
+const createRoom = async (roomData: ImportRoomData) => {
+  const name = roomData.newRoomName?.trim();
+  if (!name) return;
+  roomData.isCreatingSaving = true;
+  try {
+    const ref = await addDoc(collection(db, 'rooms'), {
+      name,
+      landlordId: authStore.effectiveUid,
+      status: 'vacant',
+      price: 0,
+      size: 0,
+      address: '',
+      layout: '獨立套房',
+      type: '公寓',
+      images: [],
+      coverImage: '',
+      isPublic: false,
+      createdAt: serverTimestamp(),
+    });
+    const newRoom = { id: ref.id, name };
+    firestoreRooms.value.push(newRoom);
+    roomData.mappedRoomId = ref.id;
+    roomData.mappedRoomName = name;
+    roomData.isCreatingNew = false;
+    toast.success(`房間「${name}」已建立`);
+  } catch (e) {
+    console.error(e);
+    toast.error('建立房間失敗，請檢查網路連線');
+  } finally {
+    roomData.isCreatingSaving = false;
+  }
 };
 
 const confirmImport = async () => {

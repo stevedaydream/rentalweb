@@ -92,6 +92,7 @@
               v-for="tenant in pagedTenants"
               :key="tenant.id"
               class="hover:bg-blue-50/40 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
+              :class="{ 'opacity-55': tenant.isHistorical }"
               @click="openDrawer(tenant)"
             >
               <td class="px-6 py-4">
@@ -103,7 +104,8 @@
                   <div>
                     <div class="flex items-center gap-2">
                       <p class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ tenant.name }}</p>
-                      <span v-if="tenant.isOnlineUser" class="bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5 rounded-full font-medium">已綁定帳號</span>
+                      <span v-if="tenant.isHistorical" class="bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 text-[10px] px-1.5 py-0.5 rounded-full font-medium">已退租</span>
+                      <span v-else-if="tenant.isOnlineUser" class="bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5 rounded-full font-medium">已綁定帳號</span>
                     </div>
                     <p class="text-xs text-text-secondary-light mt-0.5">{{ tenant.phone }}</p>
                   </div>
@@ -112,16 +114,26 @@
               <td class="px-6 py-4">
                 <div class="flex items-center">
                   <span class="material-symbols-outlined text-gray-400 mr-2 text-[18px]">meeting_room</span>
-                  <span :class="{'text-gray-400 italic': !tenant.room || tenant.room === '尚未設定'}">{{ tenant.room || '尚未設定' }}</span>
+                  <span :class="{'text-gray-400 italic': !tenant.moveOutSummary?.room && (!tenant.room || tenant.room === '尚未設定')}">
+                    {{ tenant.isHistorical ? (tenant.moveOutSummary?.room || '—') : (tenant.room || '尚未設定') }}
+                  </span>
                 </div>
               </td>
               <td class="px-6 py-4">
-                <div v-if="tenant.leaseStart && tenant.leaseEnd" class="text-xs space-y-1">
-                  <p><span class="text-text-secondary-light w-6 inline-block">起:</span> {{ tenant.leaseStart }}</p>
-                  <p><span class="text-text-secondary-light w-6 inline-block">迄:</span> {{ tenant.leaseEnd }}</p>
-                </div>
-                <div v-else class="text-xs text-gray-400 italic">租約未設定</div>
-                <span v-if="isExpiringSoon(tenant.leaseEnd)" class="mt-1 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700">即將到期</span>
+                <template v-if="tenant.isHistorical">
+                  <div class="text-xs text-gray-400 space-y-1">
+                    <p>{{ tenant.moveOutSummary?.leaseStart || '—' }} ~ {{ tenant.moveOutSummary?.leaseEnd || '—' }}</p>
+                    <p class="text-gray-500">退租：{{ tenant.moveOutSummary?.moveOutDate || '—' }}</p>
+                  </div>
+                </template>
+                <template v-else>
+                  <div v-if="tenant.leaseStart && tenant.leaseEnd" class="text-xs space-y-1">
+                    <p><span class="text-text-secondary-light w-6 inline-block">起:</span> {{ tenant.leaseStart }}</p>
+                    <p><span class="text-text-secondary-light w-6 inline-block">迄:</span> {{ tenant.leaseEnd }}</p>
+                  </div>
+                  <div v-else class="text-xs text-gray-400 italic">租約未設定</div>
+                  <span v-if="isExpiringSoon(tenant.leaseEnd)" class="mt-1 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700">即將到期</span>
+                </template>
               </td>
               <td class="px-6 py-4">
                 <span
@@ -211,6 +223,37 @@
       </div>
     </div>
 
+    <!-- ===== 建立帳號成功 — 憑證提示 Modal ===== -->
+    <div v-if="showCredentialModal" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+      <div class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+            <span class="material-symbols-outlined text-green-600">check_circle</span>
+          </div>
+          <div>
+            <h3 class="font-bold text-text-primary-light dark:text-text-primary-dark">租客帳號已建立</h3>
+            <p class="text-xs text-text-secondary-light">請將以下資訊告知租客</p>
+          </div>
+        </div>
+        <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 space-y-3 font-mono text-sm">
+          <div class="flex justify-between items-center">
+            <span class="text-text-secondary-light text-xs">手機號碼（帳號）</span>
+            <span class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ createdCredential?.phone }}</span>
+          </div>
+          <div class="flex justify-between items-center border-t border-gray-200 dark:border-gray-700 pt-3">
+            <span class="text-text-secondary-light text-xs">身分證號（密碼）</span>
+            <span class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ createdCredential?.idNumber }}</span>
+          </div>
+        </div>
+        <p class="text-xs text-text-secondary-light text-center">租客在登入頁選擇「租客身分證登入」即可使用上述帳密</p>
+        <button
+          @click="showCredentialModal = false; createdCredential = null"
+          class="w-full py-2.5 rounded-xl bg-gold-500 text-white font-bold hover:bg-gold-600 transition-colors"
+        >知道了</button>
+      </div>
+    </div>
+
     <!-- ===== 新增租客 Modal (只用於手動新增) ===== -->
     <div v-if="showModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showModal = false"></div>
@@ -245,6 +288,16 @@
           <div>
             <label class="block text-sm font-medium text-text-secondary-light mb-1">電子郵件 (選填)</label>
             <input v-model="form.email" type="email" class="form-input" placeholder="tenant@example.com">
+          </div>
+          <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
+            <p class="text-xs font-bold text-blue-700 dark:text-blue-300 mb-2 flex items-center gap-1">
+              <span class="material-symbols-outlined text-[15px]">key</span>
+              租客登入帳號（選填）
+            </p>
+            <label class="block text-sm font-medium text-text-secondary-light mb-1">身分證號碼</label>
+            <input v-model="form.idNumber" type="text" class="form-input font-mono uppercase" placeholder="A123456789"
+              @input="form.idNumber = (form.idNumber || '').toUpperCase()">
+            <p class="text-xs text-blue-600 dark:text-blue-400 mt-2">填寫後系統將自動建立帳號，租客可用「手機號碼 + 身分證號」登入</p>
           </div>
           <div class="border-t border-gray-100 dark:border-gray-800 pt-2">
             <p class="text-xs font-bold text-text-secondary-light uppercase mb-3">租約設定</p>
@@ -346,13 +399,17 @@
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
                 <h2 class="font-bold text-lg text-text-primary-light dark:text-text-primary-dark truncate">{{ drawerTenant?.name }}</h2>
-                <span v-if="drawerTenant?.isOnlineUser" class="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0">已綁定帳號</span>
-                <span
+                <span v-if="drawerTenant?.isHistorical" class="bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0">歷史租客</span>
+                <span v-else-if="drawerTenant?.isOnlineUser" class="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0">已綁定帳號</span>
+                <span v-if="!drawerTenant?.isHistorical"
                   class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium"
                   :class="paymentStatusStyles[drawerTenant?.paymentStatus || 'pending']"
                 >{{ paymentStatusLabels[drawerTenant?.paymentStatus || 'pending'] }}</span>
               </div>
-              <p class="text-sm text-text-secondary-light truncate">{{ drawerTenant?.room || '未設定房源' }} · {{ drawerTenant?.phone }}</p>
+              <p class="text-sm text-text-secondary-light truncate">
+                {{ drawerTenant?.isHistorical ? (drawerTenant.moveOutSummary?.room || '已退租') : (drawerTenant?.room || '未設定房源') }}
+                · {{ drawerTenant?.phone }}
+              </p>
             </div>
             <button @click="closeDrawer" class="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 shrink-0">
               <span class="material-symbols-outlined">close</span>
@@ -397,8 +454,40 @@
                   </div>
                 </div>
 
-                <!-- 合約資訊 -->
-                <div class="space-y-3">
+                <!-- 歷史租客：退租摘要 -->
+                <div v-if="drawerTenant?.isHistorical" class="space-y-3">
+                  <p class="text-xs font-bold text-text-secondary-light uppercase">退租摘要</p>
+                  <div class="bg-surface-light dark:bg-surface-dark rounded-xl p-4 space-y-3 text-sm">
+                    <div class="flex justify-between">
+                      <span class="text-text-secondary-light">承租房間</span>
+                      <span class="font-medium">{{ drawerTenant.moveOutSummary?.room || '—' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-text-secondary-light">租約期間</span>
+                      <span class="font-medium text-right">{{ drawerTenant.moveOutSummary?.leaseStart || '—' }} ~ {{ drawerTenant.moveOutSummary?.leaseEnd || '—' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-text-secondary-light">退租日期</span>
+                      <span class="font-semibold">{{ drawerTenant.moveOutSummary?.moveOutDate || '—' }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-text-secondary-light">退租原因</span>
+                      <span>{{
+                        drawerTenant.moveOutSummary?.moveOutReason === 'expired' ? '到期退租'
+                        : drawerTenant.moveOutSummary?.moveOutReason === 'early' ? '提前退租' : '其他'
+                      }}</span>
+                    </div>
+                    <div class="flex justify-between pt-2 border-t border-gray-200 dark:border-gray-700 font-semibold">
+                      <span>退還押金</span>
+                      <span class="text-gold-700 dark:text-gold-400">
+                        NT$ {{ (drawerTenant.moveOutSummary?.depositRefund ?? 0).toLocaleString() }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 在租租客：合約資訊 -->
+                <div v-else class="space-y-3">
                   <p class="text-xs font-bold text-text-secondary-light uppercase">租約資訊</p>
                   <div class="bg-surface-light dark:bg-surface-dark rounded-xl p-4 space-y-3 text-sm">
                     <div class="flex justify-between">
@@ -421,6 +510,23 @@
                   <span v-if="isExpiringSoon(drawerTenant?.leaseEnd || '')" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-orange-100 text-orange-700 text-xs font-medium">
                     <span class="material-symbols-outlined text-[14px]">alarm</span>租約即將到期（60天內）
                   </span>
+
+                  <!-- 續約回覆狀態 -->
+                  <div v-if="drawerTenant?.renewalStatus" class="flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg font-medium"
+                    :class="{
+                      'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300': drawerTenant.renewalStatus === 'pending',
+                      'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300': drawerTenant.renewalStatus === 'confirmed',
+                      'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300': drawerTenant.renewalStatus === 'declined',
+                    }">
+                    <span class="material-symbols-outlined text-[14px]">
+                      {{ drawerTenant.renewalStatus === 'confirmed' ? 'check_circle' : drawerTenant.renewalStatus === 'declined' ? 'cancel' : 'schedule' }}
+                    </span>
+                    {{
+                      drawerTenant.renewalStatus === 'confirmed' ? '租客已確認續租'
+                      : drawerTenant.renewalStatus === 'declined' ? '租客表示不續租'
+                      : '待租客回覆是否續租'
+                    }}
+                  </div>
                 </div>
 
                 <!-- 備註 -->
@@ -429,13 +535,60 @@
                   <p class="text-sm text-text-secondary-light bg-surface-light dark:bg-surface-dark rounded-xl p-3">{{ drawerTenant.note }}</p>
                 </div>
 
-                <!-- 編輯按鈕 -->
-                <button
-                  @click="enterDrawerEdit"
-                  class="w-full py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center gap-2 transition-colors"
-                >
-                  <span class="material-symbols-outlined text-[18px]">edit</span>編輯租客資料與合約
-                </button>
+                <!-- ── 歷史租客操作 ── -->
+                <template v-if="drawerTenant?.isHistorical">
+                  <button
+                    @click="downloadTenantArchive(drawerTenant!)"
+                    :disabled="isDownloading"
+                    class="w-full py-2.5 border border-blue-200 dark:border-blue-700 rounded-xl text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                  >
+                    <span class="material-symbols-outlined text-[18px]">{{ isDownloading ? 'sync' : 'download' }}</span>
+                    {{ isDownloading ? '產生中...' : '打包下載備份（Excel + PDF）' }}
+                  </button>
+                  <button
+                    @click="deleteTenant(drawerTenant!)"
+                    :disabled="isDeleting"
+                    class="w-full py-2.5 border border-red-200 dark:border-red-800 rounded-xl text-sm font-medium text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                  >
+                    <span class="material-symbols-outlined text-[18px]">person_remove</span>
+                    {{ isDeleting ? '刪除中...' : '永久刪除租客資料' }}
+                  </button>
+                </template>
+
+                <!-- ── 在租租客操作 ── -->
+                <template v-else>
+                  <button
+                    @click="enterDrawerEdit"
+                    class="w-full py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <span class="material-symbols-outlined text-[18px]">edit</span>編輯租客資料與合約
+                  </button>
+                  <button
+                    v-if="drawerTenant?.room"
+                    @click="openMoveOutWizard"
+                    class="w-full py-2.5 border border-red-200 dark:border-red-700 rounded-xl text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <span class="material-symbols-outlined text-[18px]">exit_to_app</span>辦理退租
+                  </button>
+                  <button
+                    v-if="drawerTenant?.room"
+                    @click="unbindRoom(drawerTenant!)"
+                    :disabled="isUnbinding"
+                    class="w-full py-2 rounded-xl text-xs font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+                  >
+                    <span class="material-symbols-outlined text-[15px]">link_off</span>
+                    {{ isUnbinding ? '處理中...' : '緊急解除房間綁定（不走退租流程）' }}
+                  </button>
+                  <button
+                    @click="deleteTenant(drawerTenant!)"
+                    :disabled="isDeleting || !!drawerTenant?.room"
+                    class="w-full py-2.5 border border-red-200 dark:border-red-800 rounded-xl text-sm font-medium text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    :title="drawerTenant?.room ? '請先辦理退租或解除房間綁定' : ''"
+                  >
+                    <span class="material-symbols-outlined text-[18px]">person_remove</span>
+                    {{ isDeleting ? '刪除中...' : '刪除租客資料' }}
+                  </button>
+                </template>
               </template>
 
               <!-- Edit mode -->
@@ -627,21 +780,63 @@
       </div>
     </Transition>
 
+    <!-- Move-out Wizard -->
+    <MoveOutWizard
+      v-if="showMoveOutWizard && drawerTenant"
+      :tenant="drawerTenant"
+      :landlord-id="authStore.effectiveUid"
+      @close="showMoveOutWizard = false"
+      @completed="onMoveOutCompleted"
+    />
+
+    <!-- 清除電表歷史確認 Modal -->
+    <Teleport to="body">
+      <div v-if="showClearMeterModal" class="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div class="bg-white dark:bg-card-dark rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4">
+          <div class="flex items-start gap-3">
+            <span class="material-symbols-outlined text-amber-500 text-2xl shrink-0 mt-0.5">cloud_off</span>
+            <div>
+              <h3 class="font-bold text-text-primary-light dark:text-text-primary-dark">清除雲端電表歷史？</h3>
+              <p class="text-sm text-text-secondary-light mt-1">
+                備份已下載。是否清除 <strong>{{ pendingClearTenant?.moveOutSummary?.room }}</strong> 在租期間的電表紀錄？
+              </p>
+              <p class="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                最後度數（{{ pendingClearTenant?.moveOutSummary?.moveOutDate?.slice(0,7) }}）已儲存為下個租客電費基準，不受影響。
+              </p>
+            </div>
+          </div>
+          <div class="flex gap-3 pt-2">
+            <button @click="showClearMeterModal = false; pendingClearTenant = null"
+              class="flex-1 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+              保留雲端資料
+            </button>
+            <button @click="clearMeterReadings" :disabled="isClearingMeter"
+              class="flex-1 py-2 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+              <span v-if="isClearingMeter" class="material-symbols-outlined animate-spin text-[15px]">sync</span>
+              {{ isClearingMeter ? '清除中...' : '清除電表歷史' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { db, functions } from '../../firebase/config';
+import { auth, db, functions } from '../../firebase/config';
 import { httpsCallable } from 'firebase/functions';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
+import MoveOutWizard from '../../components/MoveOutWizard.vue';
 import {
   collection,
   query,
   onSnapshot,
   addDoc,
   updateDoc,
+  deleteDoc,
   doc,
   getDoc,
   serverTimestamp,
@@ -673,11 +868,15 @@ interface Tenant {
   paymentStatus: 'normal' | 'overdue' | 'unpaid' | 'pending';
   emergencyContact?: string;
   note?: string;
+  idNumber?: string;
   landlordId?: string;
   isOnlineUser?: boolean;
+  isHistorical?: boolean;
   uid?: string;
   contractId?: string;
   deposits?: DepositItem[];
+  renewalStatus?: 'pending' | 'confirmed' | 'declined' | null;
+  moveOutSummary?: any;
   createdAt?: any;
 }
 
@@ -737,6 +936,8 @@ const filters = [
   { label: '全部租客', value: 'all' },
   { label: '繳費正常', value: 'normal' },
   { label: '逾期/欠費', value: 'issue' },
+  { label: '待確認續約', value: 'renewal' },
+  { label: '歷史租客', value: 'historical' },
 ];
 
 const paymentStatusLabels: any = {
@@ -843,7 +1044,9 @@ const startListeners = () => {
       if (tenantData.contractId) {
         const contractSnap = await getDoc(doc(db, 'contracts', tenantData.contractId));
         if (contractSnap.exists()) {
-          tenantData.deposits = contractSnap.data().deposits || [];
+          const cd = contractSnap.data();
+          tenantData.deposits = cd.deposits || [];
+          tenantData.renewalStatus = cd.renewalStatus || null;
         }
       }
       return tenantData;
@@ -1039,7 +1242,26 @@ const saveTenant = async () => {
     }
 
     await fetchRooms();
-    toast.success(isEditing.value ? '租客資料已更新' : '租客已新增');
+
+    // 新增租客且有填身分證號 → 建立登入帳號
+    if (!isEditing.value && form.value.idNumber && form.value.phone && form.value.id) {
+      try {
+        const createAccount = httpsCallable(functions, 'createTenantAccount');
+        await createAccount({
+          phone: form.value.phone,
+          idNumber: form.value.idNumber,
+          tenantDocId: form.value.id,
+          name: form.value.name,
+        });
+        createdCredential.value = { phone: form.value.phone, idNumber: form.value.idNumber };
+        showCredentialModal.value = true;
+      } catch (e: any) {
+        toast.warning('租客已新增，但建立登入帳號失敗：' + (e.message || '請稍後重試'));
+      }
+    } else {
+      toast.success(isEditing.value ? '租客資料已更新' : '租客已新增');
+    }
+
     showModal.value = false;
     drawerEditing.value = false;
 
@@ -1087,9 +1309,12 @@ const filteredTenants = computed(() => {
                         t.room.toLowerCase().includes(q) ||
                         t.phone.includes(q);
     if (!matchSearch) return false;
+    if (currentFilter.value === 'historical') return !!t.isHistorical;
+    if (t.isHistorical) return false; // 歷史租客只在 historical 分頁顯示
     if (currentFilter.value === 'all') return true;
     if (currentFilter.value === 'normal') return t.paymentStatus === 'normal';
     if (currentFilter.value === 'issue') return ['overdue', 'unpaid', 'pending'].includes(t.paymentStatus);
+    if (currentFilter.value === 'renewal') return t.renewalStatus === 'pending';
     return true;
   });
 });
@@ -1116,11 +1341,15 @@ const isExpiringSoon = (dateStr: string) => {
 const showModal = ref(false);
 const isEditing = ref(false);
 const form = ref<Partial<Tenant>>({
-  name: '', room: '', phone: '', email: '',
+  name: '', room: '', phone: '', email: '', idNumber: '',
   leaseStart: todayStr(), leaseEnd: calcLeaseEnd(todayStr(), 1),
   leaseDuration: 1, rent: 0, depositMonths: 2,
   paymentStatus: 'normal', emergencyContact: '', note: ''
 });
+
+// 建立帳號後顯示給房東的登入憑證
+const showCredentialModal = ref(false);
+const createdCredential = ref<{ phone: string; idNumber: string } | null>(null);
 
 watch(
   [() => form.value.leaseStart, () => form.value.leaseDuration],
@@ -1315,6 +1544,322 @@ const markDepositPaid = async (idx: number) => {
     toast.error('更新失敗，請稍後再試');
   } finally {
     isMarkingPaid.value = false;
+  }
+};
+
+// --- Phase C: 打包下載 & 清除電表 ---
+const isDownloading = ref(false);
+const showClearMeterModal = ref(false);
+const isClearingMeter = ref(false);
+const pendingClearTenant = ref<Tenant | null>(null);
+
+const apiBase = import.meta.env.VITE_API_BASE;
+
+/** 呼叫 generatePdf Cloud Function 並觸發瀏覽器下載 */
+const callGeneratePdf = async (payload: Record<string, any>, filename: string) => {
+  const token = await auth.currentUser?.getIdToken();
+  if (!token || !apiBase) throw new Error('無法取得 token 或 API base');
+  const res = await fetch(`${apiBase}/generatePdf`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`PDF 產生失敗 (${res.status}): ${text}`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+const downloadTenantArchive = async (tenant: Tenant) => {
+  isDownloading.value = true;
+  try {
+    const XLSX = await import('xlsx');
+    const wb = XLSX.utils.book_new();
+    const summary = tenant.moveOutSummary || {};
+    const room: string = summary.room || tenant.room || '';
+    const leaseStartMonth: string = (summary.leaseStart || tenant.leaseStart || '').slice(0, 7);
+    const moveOutMonth: string = (summary.moveOutDate || new Date().toISOString().slice(0, 10)).slice(0, 7);
+    const moveOutDateStr = (summary.moveOutDate || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+
+    // ── Sheet 1: 基本資料 ──
+    const ws1 = XLSX.utils.aoa_to_sheet([
+      ['項目', '內容'],
+      ['姓名', tenant.name],
+      ['電話', tenant.phone || ''],
+      ['電子郵件', tenant.email || ''],
+      ['緊急聯絡人', (tenant as any).emergencyContact || ''],
+      ['備註', (tenant as any).note || ''],
+    ]);
+    XLSX.utils.book_append_sheet(wb, ws1, '基本資料');
+
+    // ── Sheet 2: 退租摘要（從 moveOutRecords 抓完整版）──
+    const moveOutSnap = await getDocs(query(
+      collection(db, 'moveOutRecords'),
+      where('tenantDocId', '==', tenant.id),
+      orderBy('createdAt', 'desc'),
+      limit(1),
+    ));
+    const reasonLabel: Record<string, string> = { expired: '到期退租', early: '提前退租', other: '其他' };
+    const summaryRows: any[][] = [['項目', '內容']];
+    summaryRows.push(['承租房間', summary.room || '']);
+    summaryRows.push(['起租日', summary.leaseStart || '']);
+    summaryRows.push(['合約到期日', summary.leaseEnd || '']);
+    summaryRows.push(['實際退租日', summary.moveOutDate || '']);
+    summaryRows.push(['退租原因', reasonLabel[summary.moveOutReason] || summary.moveOutReason || '']);
+    let moveOutData: any = null;
+    if (!moveOutSnap.empty) {
+      moveOutData = moveOutSnap.docs[0]!.data();
+      summaryRows.push(['押金合計', moveOutData.depositPaid ?? '']);
+      summaryRows.push(['電費結清', moveOutData.electricitySettlement ?? '']);
+      summaryRows.push(['水費結清', moveOutData.waterSettlement ?? '']);
+      if (Array.isArray(moveOutData.deductions) && moveOutData.deductions.length > 0) {
+        moveOutData.deductions.forEach((d: any) => summaryRows.push([`扣款：${d.label}`, d.amount]));
+      }
+      summaryRows.push(['退還押金', moveOutData.depositRefund ?? '']);
+      summaryRows.push(['備註', moveOutData.notes || '']);
+    } else {
+      summaryRows.push(['退還押金', summary.depositRefund ?? '']);
+    }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryRows), '退租摘要');
+
+    // ── Sheet 3: 帳單紀錄 ──
+    const billsSnap = await getDocs(query(
+      collection(db, 'bills'),
+      where('landlordId', '==', authStore.effectiveUid),
+      where('relatedTenantDocId', '==', tenant.id),
+      orderBy('date', 'asc'),
+    ));
+    const billRows = billsSnap.docs.map(d => {
+      const b = d.data();
+      const statusMap: any = { completed: '已收款', pending: '待收款', overdue: '已逾期' };
+      return [b.date || '', b.category || '', b.description || '', b.amount || 0, statusMap[b.status] || b.status || ''];
+    });
+    XLSX.utils.book_append_sheet(wb,
+      XLSX.utils.aoa_to_sheet([['日期', '類別', '說明', '金額', '狀態'], ...billRows]),
+      '帳單紀錄');
+
+    // ── Sheet 4: 電表歷史 ──
+    if (room && leaseStartMonth) {
+      const meterSnap = await getDocs(query(
+        collection(db, 'meter_readings'),
+        where('landlordId', '==', authStore.effectiveUid),
+        where('roomName', '==', room),
+        where('yearMonth', '>=', leaseStartMonth),
+        where('yearMonth', '<=', moveOutMonth),
+        orderBy('yearMonth', 'asc'),
+      ));
+      const meterRows = meterSnap.docs.map(d => {
+        const m = d.data();
+        const modeLabel: any = { fixed: '固定費率', tiered: '累進費率', bill_share: '帳單分攤' };
+        return [m.yearMonth || '', m.lastReading ?? '', m.currentReading ?? '', m.usage ?? '', m.cost ?? '', modeLabel[m.mode] || m.mode || ''];
+      });
+      XLSX.utils.book_append_sheet(wb,
+        XLSX.utils.aoa_to_sheet([['計費年月', '上期度數', '本期度數', '用電度數', '電費', '計費模式'], ...meterRows]),
+        '電表歷史');
+    }
+
+    // ── 下載 Excel ──
+    XLSX.writeFile(wb, `${tenant.name}_退租紀錄_${moveOutDateStr}.xlsx`);
+    toast.success('Excel 備份已下載，正在產生 PDF…');
+
+    // ── 退租結清單 PDF ──
+    const today = new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    const fmtAmt = (v: any) => (v != null && v !== '') ? `NT$ ${Number(v).toLocaleString()}` : '—';
+    const deductionsHtml = (Array.isArray(moveOutData?.deductions) && moveOutData.deductions.length > 0)
+      ? moveOutData.deductions.map((d: any) =>
+          `<tr><td class="label deduct" style="padding:9px 12px;border-bottom:1px solid #e8edf5;color:#c0392b;">扣款：${d.label}</td><td class="amount deduct" style="text-align:right;padding:9px 12px;border-bottom:1px solid #e8edf5;font-weight:700;color:#c0392b;">－ ${fmtAmt(d.amount)}</td></tr>`
+        ).join('')
+      : '';
+
+    await callGeneratePdf({
+      templateType: 'MoveOutSummary',
+      tenantName: tenant.name,
+      phone: tenant.phone || '',
+      room: summary.room || '',
+      leaseStart: summary.leaseStart || '',
+      leaseEnd: summary.leaseEnd || '',
+      moveOutDate: summary.moveOutDate || '',
+      moveOutReason: reasonLabel[summary.moveOutReason] || summary.moveOutReason || '',
+      depositPaid: fmtAmt(moveOutData?.depositPaid ?? summary.depositPaid),
+      electricitySettlement: fmtAmt(moveOutData?.electricitySettlement),
+      waterSettlement: fmtAmt(moveOutData?.waterSettlement),
+      deductionsHtml,
+      depositRefund: fmtAmt(moveOutData?.depositRefund ?? summary.depositRefund),
+      notes: moveOutData?.notes || '',
+      today,
+    }, `${tenant.name}_退租結清單_${moveOutDateStr}.pdf`);
+    toast.success('退租結清單 PDF 已下載');
+
+    // ── 合約 PDF（從 signed_contracts 撈原始表單資料重新產生）──
+    try {
+      const contractQ = query(
+        collection(db, 'signed_contracts'),
+        where('landlordUid', '==', authStore.effectiveUid),
+        where('tenant', '==', tenant.name),
+        orderBy('signedAt', 'desc'),
+        limit(1),
+      );
+      const contractSnap = await getDocs(contractQ);
+      if (!contractSnap.empty) {
+        const cd = contractSnap.docs[0]!.data();
+        function pText(val: string) {
+          if (!val || val === 'none') return '無';
+          if (val === 'landlord') return '由出租人負擔';
+          if (val === 'tenant') return '由承租人負擔';
+          return val;
+        }
+        const elec = pText(cd.feeElectricity);
+        await callGeneratePdf({
+          ...cd,
+          feeWaterDisplay: pText(cd.feeWater),
+          feeElectricityDisplay: cd.feeElectricityNote ? `${elec}（備註：${cd.feeElectricityNote}）` : elec,
+          feeGasDisplay: pText(cd.feeGas),
+          feeInternetDisplay: pText(cd.feeInternet),
+          feeManagementDisplay: pText(cd.feeManagement),
+          customArticle21Display: cd.customArticle21 || '',
+          templateType: 'Contract',
+        }, `${tenant.name}_租賃合約_${moveOutDateStr}.pdf`);
+        toast.success('合約 PDF 已下載');
+      }
+    } catch (e) {
+      console.warn('合約 PDF 下載失敗（非致命）:', e);
+    }
+
+    // 提示是否清除電表
+    if (room && leaseStartMonth) {
+      pendingClearTenant.value = tenant;
+      showClearMeterModal.value = true;
+    }
+  } catch (e) {
+    console.error('downloadTenantArchive error:', e);
+    toast.error('下載失敗，請稍後再試');
+  } finally {
+    isDownloading.value = false;
+  }
+};
+
+const clearMeterReadings = async () => {
+  const tenant = pendingClearTenant.value;
+  if (!tenant) return;
+  isClearingMeter.value = true;
+  try {
+    const { writeBatch: wb } = await import('firebase/firestore');
+    const summary = tenant.moveOutSummary || {};
+    const room: string = summary.room || tenant.room || '';
+    const leaseStartMonth: string = (summary.leaseStart || tenant.leaseStart || '').slice(0, 7);
+    const moveOutMonth: string = (summary.moveOutDate || '').slice(0, 7);
+
+    const meterSnap = await getDocs(query(
+      collection(db, 'meter_readings'),
+      where('landlordId', '==', authStore.effectiveUid),
+      where('roomName', '==', room),
+      where('yearMonth', '>=', leaseStartMonth),
+      where('yearMonth', '<=', moveOutMonth),
+    ));
+
+    const BATCH_LIMIT = 400;
+    let batch = wb(db);
+    let count = 0;
+    for (const d of meterSnap.docs) {
+      batch.delete(d.ref);
+      count++;
+      if (count >= BATCH_LIMIT) { await batch.commit(); batch = wb(db); count = 0; }
+    }
+    if (count > 0) await batch.commit();
+
+    toast.success(`已清除 ${meterSnap.size} 筆電表歷史（房間最終度數保留為下個租客基準）`);
+    showClearMeterModal.value = false;
+    pendingClearTenant.value = null;
+  } catch (e) {
+    console.error('clearMeterReadings error:', e);
+    toast.error('清除失敗，請稍後再試');
+  } finally {
+    isClearingMeter.value = false;
+  }
+};
+
+// --- Move-out Wizard ---
+const showMoveOutWizard = ref(false);
+const openMoveOutWizard = () => { showMoveOutWizard.value = true; };
+const onMoveOutCompleted = () => {
+  showMoveOutWizard.value = false;
+  closeDrawer();
+};
+
+// --- Unbind Room ---
+const isUnbinding = ref(false);
+const unbindRoom = async (tenant: Tenant) => {
+  if (!tenant.room) return;
+  if (!confirm(`確定要解除「${tenant.name}」與房間「${tenant.room}」的綁定嗎？\n此操作將把房間狀態改回空房，並停用目前合約。`)) return;
+  isUnbinding.value = true;
+  try {
+    // 清除租客文件的房間資訊
+    await updateDoc(doc(db, 'tenants', tenant.id), {
+      room: '',
+      leaseStart: '',
+      leaseEnd: '',
+      leaseDuration: 0,
+      rent: 0,
+      updatedAt: serverTimestamp(),
+    });
+
+    // 將房間狀態改回空房
+    const boundRoom = availableRooms.value.find(r => r.name === tenant.room);
+    if (boundRoom) {
+      await updateDoc(doc(db, 'rooms', boundRoom.id), {
+        status: 'vacant',
+        tenantName: '',
+        leaseEnd: '',
+      });
+    }
+
+    // 將合約標記為 inactive
+    if (tenant.contractId) {
+      await updateDoc(doc(db, 'contracts', tenant.contractId), {
+        status: 'inactive',
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    toast.success('已解除房間綁定');
+    drawerEditing.value = false;
+    // drawerTenant 會透過 onSnapshot 自動更新
+    await fetchRooms();
+  } catch (e) {
+    console.error('unbindRoom error:', e);
+    toast.error('解除綁定失敗，請稍後再試');
+  } finally {
+    isUnbinding.value = false;
+  }
+};
+
+// --- Delete Tenant ---
+const isDeleting = ref(false);
+const deleteTenant = async (tenant: Tenant) => {
+  if (tenant.room) {
+    toast.warning('請先解除房間綁定，再刪除租客');
+    return;
+  }
+  if (!confirm(`確定要刪除租客「${tenant.name}」的所有資料嗎？\n此操作無法復原。`)) return;
+  isDeleting.value = true;
+  try {
+    await deleteDoc(doc(db, 'tenants', tenant.id));
+    toast.success('已刪除租客資料');
+    closeDrawer();
+  } catch (e) {
+    console.error('deleteTenant error:', e);
+    toast.error('刪除失敗，請稍後再試');
+  } finally {
+    isDeleting.value = false;
   }
 };
 

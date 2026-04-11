@@ -10,6 +10,54 @@
       </div>
     </div>
 
+    <!-- 我的帳號設定 -->
+    <div class="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-6 space-y-4">
+      <h2 class="text-base font-bold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2">
+        <span class="material-symbols-outlined text-[20px] text-gold-500">manage_accounts</span>
+        我的帳號
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+        <div class="bg-surface-light dark:bg-surface-dark rounded-xl p-4">
+          <p class="text-text-secondary-light text-xs mb-1">登入方式</p>
+          <p class="font-semibold text-text-primary-light dark:text-text-primary-dark">
+            {{ authStore.isLandlordCreated ? '手機號碼 + 身分證號' : 'Email / Google' }}
+          </p>
+        </div>
+        <div class="bg-surface-light dark:bg-surface-dark rounded-xl p-4">
+          <p class="text-text-secondary-light text-xs mb-1">Google 帳號</p>
+          <div v-if="authStore.hasGoogleLinked" class="flex items-center gap-2">
+            <img src="https://www.svgrepo.com/show/475656/google-color.svg" class="w-4 h-4" alt="Google">
+            <span class="font-semibold text-green-600 dark:text-green-400">已綁定</span>
+          </div>
+          <p v-else class="font-semibold text-text-secondary-light">未綁定</p>
+        </div>
+      </div>
+
+      <!-- 綁定 Gmail 按鈕（房東建立帳號且尚未綁定） -->
+      <div v-if="authStore.isLandlordCreated && !authStore.hasGoogleLinked"
+        class="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-700">
+        <div class="flex-1">
+          <p class="text-sm font-semibold text-blue-800 dark:text-blue-200">綁定 Gmail 帳號</p>
+          <p class="text-xs text-blue-600 dark:text-blue-400 mt-0.5">綁定後可直接用 Google 登入，不需每次輸入身分證號</p>
+        </div>
+        <button
+          @click="handleLinkGoogle"
+          :disabled="linkingGoogle"
+          class="shrink-0 flex items-center gap-2 px-4 py-2 bg-white dark:bg-card-dark border border-blue-300 dark:border-blue-600 rounded-xl text-sm font-bold text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50 shadow-sm"
+        >
+          <img src="https://www.svgrepo.com/show/475656/google-color.svg" class="w-4 h-4" alt="Google">
+          {{ linkingGoogle ? '綁定中...' : '綁定 Gmail' }}
+        </button>
+      </div>
+
+      <!-- 已綁定提示 -->
+      <div v-else-if="authStore.hasGoogleLinked && authStore.isLandlordCreated"
+        class="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-200 dark:border-green-800 text-sm text-green-700 dark:text-green-300">
+        <span class="material-symbols-outlined text-[18px]">check_circle</span>
+        Gmail 已綁定，可使用 Google 登入
+      </div>
+    </div>
+
     <div v-if="!loading && !landlordInfo.hasData" class="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-2xl p-8 text-center">
        <span class="material-symbols-outlined text-5xl text-yellow-500 mb-4">link_off</span>
        <h2 class="text-xl font-bold text-gray-800 dark:text-gray-200 mb-2">尚未綁定房東</h2>
@@ -298,6 +346,25 @@ import {
 
 const authStore = useAuthStore();
 const toast = useToastStore();
+const linkingGoogle = ref(false);
+
+const handleLinkGoogle = async () => {
+  linkingGoogle.value = true;
+  try {
+    await authStore.linkWithGoogle();
+    toast.success('Gmail 綁定成功！下次可直接使用 Google 登入');
+  } catch (e: any) {
+    if (e.code === 'auth/credential-already-in-use') {
+      toast.error('此 Google 帳號已被其他帳號使用');
+    } else if (e.code === 'auth/popup-closed-by-user') {
+      toast.warning('已取消綁定');
+    } else {
+      toast.error('綁定失敗，請稍後再試');
+    }
+  } finally {
+    linkingGoogle.value = false;
+  }
+};
 
 // --- 狀態管理 ---
 const loading = ref(true);

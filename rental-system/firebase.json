@@ -37,6 +37,7 @@
     }
   ],
   "storage": {
+    "bucket": "rental-system-7675e.firebasestorage.app",
     "rules": "storage.rules"
   },
   "firestore": {

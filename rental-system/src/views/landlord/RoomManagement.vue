@@ -101,7 +101,7 @@
         <div class="p-5 flex-1 flex flex-col">
           <div class="flex justify-between items-start mb-2">
             <h3 class="font-bold text-lg text-text-primary-light dark:text-text-primary-dark">{{ room.name }}</h3>
-            <span class="text-primary font-bold">NT$ {{ room.price.toLocaleString() }}</span>
+            <span class="text-primary font-bold">NT$ {{ (room.price ?? 0).toLocaleString() }}</span>
           </div>
           
           <a 
@@ -800,7 +800,7 @@ const filteredRooms = computed(() => {
     if (currentFilter.value !== 'all' && room.status !== currentFilter.value) return false;
     if (searchQuery.value) {
       const q = searchQuery.value.toLowerCase();
-      return room.name.toLowerCase().includes(q) || room.address.toLowerCase().includes(q);
+      return (room.name?.toLowerCase() ?? '').includes(q) || (room.address?.toLowerCase() ?? '').includes(q);
     }
     return true;
   });

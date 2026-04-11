@@ -159,8 +159,14 @@ service cloud.firestore {
     }
 
     // 抄表紀錄 (meter_readings)
+    // 租客只能讀自己房東名下的抄表紀錄（users.landlordId == meter_readings.landlordId）
+    // roomId 未存於 users 文件，無法在規則層做更細粒度的房間隔離，改以 landlordId 範圍限制
     match /meter_readings/{readingId} {
-      allow read: if isSignedIn();
+      allow read: if isAdmin()
+        || isLandlordData()
+        || (isSignedIn() &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('landlordId', '') != '' &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('landlordId', '') == resource.data.landlordId);
       allow create: if isAdmin() || isCreatingAsLandlord();
       allow update, delete: if isAdmin() || isLandlordData();
     }

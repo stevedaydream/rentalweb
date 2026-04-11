@@ -54,6 +54,41 @@
 
 ---
 
+## BF-004：房源管理頁面崩潰（TypeError: Cannot read properties of undefined 'toLocaleString'）
+
+- **問題描述**：開啟房源管理頁面時直接白畫面，Console 顯示 `TypeError: Cannot read properties of undefined (reading 'toLocaleString')`。
+- **嘗試過程**：檢查錯誤 stack trace 指向 `RoomManagement` 的 template computed，定位到 `room.price.toLocaleString()` 與搜尋時的 `room.name.toLowerCase()` / `room.address.toLowerCase()`。
+- **根本原因**：Firestore `rooms` collection 中存在欄位不完整的文件（缺少 `price`、`name`、`address` 等欄位），Vue computed 直接對 `undefined` 呼叫方法導致崩潰。不完整文件來源可能為程式碼直接寫入 Firestore（如匯入流程建立房間）時未帶齊所有欄位。
+- **最終解法**：
+  1. Template：`room.price.toLocaleString()` → `(room.price ?? 0).toLocaleString()`
+  2. `filteredRooms` computed：`room.name.toLowerCase()` → `(room.name?.toLowerCase() ?? '')`，`room.address` 同理
+  3. `MeterReadingImport.vue` 的 `createRoom` 函式補上所有必要欄位預設值（`price: 0, size: 0, address: '', layout, type, images, coverImage, isPublic`），避免寫入不完整文件
+- **牽扯檔案**：`src/views/landlord/RoomManagement.vue`（template 第 103 行、`filteredRooms` computed）、`src/components/meter/MeterReadingImport.vue`（`createRoom` 函式）
+
+> **注意**：凡是程式碼直接寫入 `rooms` collection（非透過 `RoomManagement.vue` 的 `saveRoom` 函式），都必須帶齊所有必要欄位，否則頁面渲染會崩潰。
+
+---
+
+## BF-005：Firebase Storage 上傳 403 Forbidden（storage/unauthorized）
+
+- **問題描述**：房源管理頁面上傳圖片時，Console 顯示 `POST .../o?name=rooms/... 403 (Forbidden)`，`FirebaseError: storage/unauthorized`。
+- **嘗試過程**：
+  1. 確認 Firestore `_system/quotaControl` 封鎖旗標 → 文件不存在，非此原因
+  2. 在 `firebase.json` 補上 `"bucket": "rental-system-7675e.firebasestorage.app"` 明確指定 bucket 後重新部署 → 仍然 403
+  3. 移除 Storage Rules 內的 `isStorageBlocked()` 跨服務呼叫 → 解決
+- **根本原因**：Storage Rules 內使用 `firestore.get()` 做跨服務讀取（cross-service rules），在正式環境中靜默失敗，導致整條 `allow write` 規則評估結果為拒絕，回傳 403。
+- **最終解法**：簡化 `storage.rules`，移除 `isStorageBlocked()` 函式，改為單純驗證登入狀態：
+  ```
+  allow read: if request.auth != null;
+  allow write: if request.auth != null;
+  ```
+  配額控制邏輯由 Cloud Function 負責，Storage Rules 不做跨服務 Firestore 呼叫。
+- **牽扯檔案**：`storage.rules`、`firebase.json`
+
+> **注意**：Storage Rules 內避免使用 `firestore.get()` / `firestore.exists()`，跨服務呼叫在正式環境不穩定且難以偵錯。
+
+---
+
 ## BF 範本
 
 ### BF-XXX：標題

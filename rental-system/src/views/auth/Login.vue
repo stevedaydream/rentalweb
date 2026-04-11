@@ -16,7 +16,55 @@
         </div>
       </div>
 
-      <form @submit.prevent="handleLogin" class="space-y-4">
+      <!-- 租客：登入模式切換 -->
+      <div v-if="authStore.selectedRole === 'tenant'" class="flex rounded-xl border border-ink-100 dark:border-ink-800 overflow-hidden mb-6">
+        <button
+          type="button"
+          @click="tenantLoginMode = 'id'"
+          class="flex-1 py-2 text-sm font-medium transition-colors"
+          :class="tenantLoginMode === 'id' ? 'bg-gold-500 text-white' : 'text-text-secondary-light hover:bg-surface-light dark:hover:bg-surface-dark'"
+        >身分證登入</button>
+        <button
+          type="button"
+          @click="tenantLoginMode = 'email'"
+          class="flex-1 py-2 text-sm font-medium transition-colors"
+          :class="tenantLoginMode === 'email' ? 'bg-gold-500 text-white' : 'text-text-secondary-light hover:bg-surface-light dark:hover:bg-surface-dark'"
+        >Email 登入</button>
+      </div>
+
+      <!-- 租客身分證登入表單 -->
+      <form v-if="authStore.selectedRole === 'tenant' && tenantLoginMode === 'id'" @submit.prevent="handleIdLogin" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark mb-1">手機號碼</label>
+          <input
+            v-model="tenantPhone"
+            type="tel"
+            required
+            class="form-input"
+            placeholder="0912345678"
+          >
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark mb-1">身分證號碼</label>
+          <input
+            v-model="tenantIdNumber"
+            type="password"
+            required
+            class="form-input font-mono"
+            placeholder="A123456789"
+          >
+        </div>
+        <button
+          type="submit"
+          :disabled="loading"
+          class="w-full py-3 px-4 bg-gold-500 hover:bg-gold-600 text-white font-bold rounded-xl transition-colors shadow-md shadow-gold-500/20 disabled:opacity-50"
+        >
+          {{ loading ? '登入中...' : '登入' }}
+        </button>
+      </form>
+
+      <!-- Email / 密碼登入表單（房東 + 租客 Email 模式） -->
+      <form v-else @submit.prevent="handleLogin" class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark mb-1">Email</label>
           <input
@@ -106,6 +154,11 @@ const password = ref('');
 const loading = ref(false);
 const forgotLoading = ref(false);
 
+// 租客身分證登入
+const tenantLoginMode = ref<'id' | 'email'>('id');
+const tenantPhone = ref('');
+const tenantIdNumber = ref('');
+
 const getFirebaseErrorMessage = (code: string): string => {
   const map: Record<string, string> = {
     'auth/user-not-found': '找不到此電子郵件對應的帳號',
@@ -126,6 +179,23 @@ const roleTitle = computed(() => {
   if (authStore.selectedRole === 'tenant') return '租客';
   return '';
 });
+
+const handleIdLogin = async () => {
+  loading.value = true;
+  try {
+    const fakeEmail = `${tenantPhone.value.trim()}@tenant.myrental`;
+    await authStore.loginEmail(fakeEmail, tenantIdNumber.value.trim());
+  } catch (e: any) {
+    const code = e.code;
+    if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+      toast.error('手機號碼或身分證號碼錯誤，請確認後再試');
+    } else {
+      toast.error(getFirebaseErrorMessage(code));
+    }
+  } finally {
+    loading.value = false;
+  }
+};
 
 const handleLogin = async () => {
   loading.value = true;

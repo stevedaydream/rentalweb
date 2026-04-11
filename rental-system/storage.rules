@@ -2,21 +2,8 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     match /{allPaths=**} {
-      // 讀取：登入即可
       allow read: if request.auth != null;
-
-      // 寫入（上傳/刪除）：登入 + 配額未封鎖
-      allow write: if request.auth != null
-        && !isStorageBlocked();
-    }
-
-    // 檢查 Firestore 的封鎖旗標 (_system/quotaControl)
-    // 文件不存在時視為未封鎖（exists() 回傳 false → 允許上傳）
-    function isStorageBlocked() {
-      let doc = firestore.exists(/databases/(default)/documents/_system/quotaControl)
-        ? firestore.get(/databases/(default)/documents/_system/quotaControl)
-        : null;
-      return doc != null && doc.data.storageBlocked == true;
+      allow write: if request.auth != null;
     }
   }
 }

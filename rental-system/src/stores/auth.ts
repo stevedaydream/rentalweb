@@ -8,9 +8,10 @@ import {
   onAuthStateChanged,
   GoogleAuthProvider,
   signInWithPopup,
+  linkWithPopup,
   type User
 } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useRouter } from 'vue-router';
 import { useUserStore } from './user';
 
@@ -142,6 +143,25 @@ export const useAuthStore = defineStore('auth', () => {
     router.push({ name: 'AdminDashboard' });
   };
 
+  // 是否為房東建立的帳號（用手機+身分證登入的租客）
+  const isLandlordCreated = computed(() => userProfile.value?.isLandlordCreated === true);
+
+  // 是否已綁定 Google
+  const hasGoogleLinked = computed(() =>
+    user.value?.providerData.some(p => p.providerId === 'google.com') ?? false
+  );
+
+  // 綁定 Google 帳號（linkWithPopup）
+  const linkWithGoogle = async () => {
+    if (!user.value) throw new Error('尚未登入');
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    const result = await linkWithPopup(user.value, provider);
+    // 同步更新 Firestore，標記已綁定
+    await updateDoc(doc(db, 'users', user.value.uid), { googleLinked: true });
+    return result;
+  };
+
   return {
     user,
     userProfile,
@@ -158,5 +178,8 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     startImpersonation,
     stopImpersonation,
+    isLandlordCreated,
+    hasGoogleLinked,
+    linkWithGoogle,
   };
 });

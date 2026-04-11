@@ -110,13 +110,20 @@
               </td>
               <td class="px-6 py-4 text-right">
                 <div class="flex items-center justify-end gap-2">
-                  <button 
+                  <button
                     @click="openAssignModal(tenant)"
                     class="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors border border-blue-200"
                   >
                     {{ tenant.boundLandlordCode ? '重新指派' : '配對房東' }}
                   </button>
-                  <button 
+                  <button
+                    @click="openResetModal(tenant)"
+                    class="px-3 py-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg text-xs font-bold transition-colors border border-amber-200"
+                    title="重設密碼"
+                  >
+                    重設密碼
+                  </button>
+                  <button
                     @click="confirmDelete(tenant)"
                     class="text-red-400 hover:text-red-600 p-2 rounded-lg transition-colors"
                     title="刪除帳號"
@@ -180,12 +187,47 @@
       </div>
     </div>
 
+    <!-- 重設密碼 Modal -->
+    <div v-if="showResetModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showResetModal = false"></div>
+      <div class="relative bg-white dark:bg-gray-800 rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4">
+        <h3 class="text-lg font-bold text-gray-900 dark:text-white">重設租客密碼</h3>
+        <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-700">
+          <p class="text-xs text-gray-500 mb-1">租客</p>
+          <p class="font-bold">{{ resetTarget?.name }}</p>
+          <p class="text-xs text-gray-400 font-mono">{{ resetTarget?.phone }}</p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">新密碼（至少 6 個字元）</label>
+          <input
+            v-model="newPassword"
+            type="text"
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 outline-none focus:ring-2 focus:ring-amber-500 font-mono"
+            placeholder="輸入新密碼"
+          >
+          <p class="text-xs text-gray-400 mt-1">提示：可填入租客的身分證號碼</p>
+        </div>
+        <div class="flex justify-end gap-3">
+          <button @click="showResetModal = false" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium">取消</button>
+          <button
+            @click="submitResetPassword"
+            :disabled="newPassword.length < 6 || resetting"
+            class="px-4 py-2 bg-amber-500 text-white rounded-lg shadow-sm hover:bg-amber-600 transition-colors font-bold disabled:opacity-50 flex items-center gap-2"
+          >
+            <span v-if="resetting" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+            確認重設
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { db } from '../../firebase/config';
+import { db, functions } from '../../firebase/config';
+import { httpsCallable } from 'firebase/functions';
 import { useToastStore } from '../../stores/toast';
 import {
   collection,
@@ -220,6 +262,12 @@ const showModal = ref(false);
 const selectedTenant = ref<User | null>(null);
 const targetLandlordCode = ref('');
 const assigning = ref(false);
+
+// 重設密碼 Modal State
+const showResetModal = ref(false);
+const resetTarget = ref<User | null>(null);
+const newPassword = ref('');
+const resetting = ref(false);
 
 // === 1. 初始化資料抓取 ===
 const fetchData = async () => {
@@ -331,6 +379,27 @@ const submitAssignment = async () => {
     toast.error('配對失敗，請稍後再試');
   } finally {
     assigning.value = false;
+  }
+};
+
+const openResetModal = (tenant: User) => {
+  resetTarget.value = tenant;
+  newPassword.value = '';
+  showResetModal.value = true;
+};
+
+const submitResetPassword = async () => {
+  if (!resetTarget.value || newPassword.value.length < 6) return;
+  resetting.value = true;
+  try {
+    const resetFn = httpsCallable(functions, 'resetTenantPassword');
+    await resetFn({ uid: resetTarget.value.id, newPassword: newPassword.value });
+    toast.success(`「${resetTarget.value.name}」的密碼已重設`);
+    showResetModal.value = false;
+  } catch (e: any) {
+    toast.error('重設失敗：' + (e.message || '請稍後再試'));
+  } finally {
+    resetting.value = false;
   }
 };
 
