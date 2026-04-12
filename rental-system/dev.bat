@@ -16,7 +16,7 @@ echo   4. Open Emulator UI       (localhost:4000)
 echo.
 echo  -- Production Deploy --
 echo   5. Deploy Cloud Functions
-echo   6. Deploy Firestore rules
+echo   6. Deploy Firestore rules + indexes
 echo   7. Deploy frontend        (build + hosting)
 echo   8. Deploy all             (functions + rules + frontend)
 echo.
@@ -123,9 +123,9 @@ goto menu
 :deploy_rules
 cls
 echo.
-echo  [6] Deploy Firestore rules
+echo  [6] Deploy Firestore rules + indexes
 echo  ----------------------------------------
-echo  [WARNING] This will update production Firestore rules!
+echo  [WARNING] This will update production Firestore rules and indexes!
 echo.
 set /p confirm= Continue? (y/N):
 if /i not "%confirm%"=="y" (
@@ -134,7 +134,7 @@ if /i not "%confirm%"=="y" (
   goto menu
 )
 echo.
-call firebase deploy --only firestore:rules
+call firebase deploy --only firestore:rules,firestore:indexes
 echo.
 echo  Done. Press any key to return to menu...
 pause >nul
@@ -199,7 +199,7 @@ echo  Step 2/2: Deploying functions + rules + hosting...
 pushd functions
 call firebase deploy --only functions
 popd
-call firebase deploy --only firestore:rules,hosting
+call firebase deploy --only firestore:rules,firestore:indexes,hosting
 echo.
 echo  Done. Press any key to return to menu...
 pause >nul

@@ -165,6 +165,26 @@
                       {{ item.status === 'overdue' ? '逾期－收款' : '標記已收' }}
                     </button>
                   </template>
+                  <!-- 待確認：顯示截圖預覽 + 確認按鈕 -->
+                  <template v-else-if="item.status === 'waiting_confirmation'">
+                    <div class="flex flex-col items-center gap-1.5">
+                      <a v-if="item.paymentProofUrl" :href="item.paymentProofUrl" target="_blank" rel="noopener"
+                        class="block w-12 h-10 rounded overflow-hidden border border-amber-300 hover:border-amber-500 transition-colors"
+                        title="查看匯款截圖">
+                        <img :src="item.paymentProofUrl" class="w-full h-full object-cover" />
+                      </a>
+                      <button
+                        @click="markPaid(item)"
+                        :disabled="markingPaidId === item.id"
+                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-100 text-amber-700 hover:bg-green-100 hover:text-green-700 transition-colors disabled:opacity-50"
+                      >
+                        <span class="material-symbols-outlined text-[14px]">
+                          {{ markingPaidId === item.id ? 'hourglass_empty' : 'check_circle' }}
+                        </span>
+                        確認收款
+                      </button>
+                    </div>
+                  </template>
                   <template v-else>
                     <span class="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full"
                       :class="statusStyles[item.status] || 'text-green-600 bg-green-50'">
@@ -301,10 +321,11 @@ interface Transaction {
   target: string
   description: string
   amount: number
-  status: 'completed' | 'pending' | 'overdue'
+  status: 'completed' | 'pending' | 'overdue' | 'waiting_confirmation'
   history?: TransactionHistory[]
   tenantId?: string
   landlordId?: string
+  paymentProofUrl?: string
   relatedUsageId?: string
   relatedTenantDocId?: string
   relatedContractId?: string
@@ -510,6 +531,7 @@ const generateMonthlyBills = async () => {
     const [tenantsSnap, readingsSnap] = await Promise.all([
       getDocs(query(collection(db, 'tenants'), where('landlordId', '==', uid))),
       getDocs(query(collection(db, 'meter_readings'),
+        where('landlordId', '==', uid),
         where('periodEnd', '>=', `${currentMonth.value}-01`),
         where('periodEnd', '<=', `${currentMonth.value}-31`))),
     ])
@@ -531,7 +553,7 @@ const generateMonthlyBills = async () => {
           tenantId: tenant.uid || null, relatedTenantDocId: tenant.id,
           landlordId: uid, date: `${currentMonth.value}-01`,
           type: 'income', category: '租金收入',
-          target: `${tenant.room} ${tenant.name}`,
+          target: `${tenant.name} ${tenant.room}`,
           description: `${currentMonth.value} 月份房租`,
           amount: Number(tenant.rent) || 0,
           status: 'pending', dueDate, history: [], createdAt: serverTimestamp(),
@@ -548,7 +570,7 @@ const generateMonthlyBills = async () => {
           tenantId: matched.uid || null, relatedTenantDocId: matched.id,
           relatedUsageId: reading.id, landlordId: uid,
           date: reading.periodEnd, type: 'income', category: '電費',
-          target: `${reading.roomName} ${matched.name}`,
+          target: `${matched.name} ${reading.roomName}`,
           description: `${currentMonth.value} 電費 (${reading.periodStart}~${reading.periodEnd} 用電 ${reading.usage}度)`,
           amount: Number(reading.cost) || 0,
           status: 'pending', dueDate, history: [], createdAt: serverTimestamp(),
@@ -558,7 +580,8 @@ const generateMonthlyBills = async () => {
 
     await Promise.all(batch)
     toast[count > 0 ? 'success' : 'info'](count > 0 ? `成功產生 ${count} 筆帳單` : '本月帳單皆已存在')
-  } catch {
+  } catch (err) {
+    console.error('generateMonthlyBills error:', err)
     toast.error('產生失敗，請稍後再試')
   } finally {
     loading.value = false

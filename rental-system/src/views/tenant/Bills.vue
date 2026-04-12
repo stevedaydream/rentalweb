@@ -71,7 +71,8 @@
             <div
               v-for="bill in filteredBills"
               :key="bill.id"
-              class="p-4 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors"
+              class="p-4 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors cursor-pointer"
+              @click="openModal(bill)"
             >
               <div class="flex items-start justify-between gap-3">
                 <div class="flex-1 min-w-0">
@@ -93,12 +94,6 @@
                   </span>
                 </div>
               </div>
-              <button
-                @click="openModal(bill)"
-                class="mt-3 w-full py-2 text-sm font-medium text-gold-600 bg-gold-50 dark:bg-gold-900/20 rounded-xl hover:bg-gold-100 dark:hover:bg-gold-900/30 transition-colors"
-              >
-                查看詳情
-              </button>
             </div>
           </div>
 
@@ -112,11 +107,13 @@
                   <th class="px-6 py-4">繳費期限</th>
                   <th class="px-6 py-4 text-right">金額</th>
                   <th class="px-6 py-4 text-center">狀態</th>
-                  <th class="px-6 py-4 text-center">操作</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
-                <tr v-for="bill in filteredBills" :key="bill.id" class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                <tr v-for="bill in filteredBills" :key="bill.id"
+                  class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
+                  @click="openModal(bill)"
+                >
                   <td class="px-6 py-4">
                     <p class="font-bold text-text-primary-light">{{ bill.monthStr }}</p>
                   </td>
@@ -134,9 +131,6 @@
                       <span class="w-1.5 h-1.5 rounded-full mr-2" :class="statusDotStyles[bill.status]"></span>
                       {{ statusLabels[bill.status] }}
                     </span>
-                  </td>
-                  <td class="px-6 py-4 text-center">
-                    <button @click="openModal(bill)" class="text-gold-600 hover:bg-gold-50 dark:hover:bg-gold-900/20 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium">詳情</button>
                   </td>
                 </tr>
               </tbody>
@@ -216,7 +210,7 @@
             <span class="material-symbols-outlined text-gold-600">payments</span>
           </div>
           <div>
-            <h3 class="font-bold text-text-primary-light dark:text-text-primary-dark">確認繳費</h3>
+            <h3 class="font-bold text-text-primary-light dark:text-text-primary-dark">上傳繳費截圖</h3>
             <p class="text-xs text-text-secondary-light">{{ billToConfirm?.monthStr }}</p>
           </div>
         </div>
@@ -230,15 +224,34 @@
             <span class="font-extrabold text-gold-600">NT$ {{ billToConfirm?.amount.toLocaleString() }}</span>
           </div>
         </div>
-        <p class="text-xs text-text-secondary-light text-center">確認後系統將記錄您的繳費狀態</p>
+
+        <!-- 截圖上傳區 -->
+        <div>
+          <p class="text-xs font-medium text-text-secondary-light mb-2">匯款截圖 <span class="text-red-500">*</span></p>
+          <label v-if="!proofPreview"
+            class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl cursor-pointer hover:border-gold-400 transition-colors bg-gray-50 dark:bg-gray-800/50">
+            <span class="material-symbols-outlined text-3xl text-gray-400 mb-1">add_photo_alternate</span>
+            <span class="text-xs text-gray-400">點擊選擇圖片（最大 5MB）</span>
+            <input type="file" accept="image/*" class="hidden" @change="handleProofFile" />
+          </label>
+          <div v-else class="relative w-full h-28 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-600">
+            <img :src="proofPreview" class="w-full h-full object-cover" />
+            <button @click="resetProof"
+              class="absolute top-1 right-1 w-6 h-6 bg-black/60 text-white rounded-full flex items-center justify-center hover:bg-black/80">
+              <span class="material-symbols-outlined text-[14px]">close</span>
+            </button>
+          </div>
+        </div>
+
         <div class="flex gap-3">
-          <button @click="showPayConfirm = false"
+          <button @click="showPayConfirm = false; resetProof()"
             class="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-medium text-ink-600 dark:text-ink-300 hover:bg-surface-light dark:hover:bg-surface-dark transition-colors">
             取消
           </button>
-          <button @click="confirmPay"
-            class="flex-1 py-2.5 rounded-xl bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 transition-colors shadow-md shadow-gold-500/20">
-            確認已繳
+          <button @click="confirmPay" :disabled="uploading || !proofFile"
+            class="flex-1 py-2.5 rounded-xl bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 transition-colors shadow-md shadow-gold-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1">
+            <span v-if="uploading" class="material-symbols-outlined text-[16px] animate-spin">sync</span>
+            {{ uploading ? '上傳中...' : '送出截圖' }}
           </button>
         </div>
       </div>
@@ -307,6 +320,16 @@
              <span class="material-symbols-outlined text-green-500 text-3xl mb-1">check_circle</span>
              <p class="text-green-700 font-bold text-sm">此帳單已於 {{ selectedBill.paymentDate || '日前' }} 完成繳費</p>
           </div>
+          <div v-if="selectedBill?.status === 'waiting_confirmation'" class="bg-amber-50 dark:bg-amber-900/10 p-4 rounded-xl border border-amber-100 space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-amber-500 text-2xl">hourglass_top</span>
+              <p class="text-amber-700 dark:text-amber-400 font-bold text-sm">截圖已上傳，等待房東確認</p>
+            </div>
+            <a v-if="selectedBill.paymentProofUrl" :href="selectedBill.paymentProofUrl" target="_blank" rel="noopener"
+               class="block rounded-lg overflow-hidden border border-amber-200">
+              <img :src="selectedBill.paymentProofUrl" class="w-full max-h-40 object-cover" alt="匯款截圖" />
+            </a>
+          </div>
 
         </div>
 
@@ -321,7 +344,7 @@
           </button>
           
           <button
-             v-if="selectedBill?.status !== 'completed'"
+             v-if="selectedBill?.status !== 'completed' && selectedBill?.status !== 'waiting_confirmation'"
              @click="showModal = false; initPayConfirm(selectedBill!)"
              class="px-5 py-2 rounded-xl bg-gold-500 text-white font-bold shadow-lg shadow-gold-500/30 hover:bg-gold-600 transition-colors"
           >
@@ -339,7 +362,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
-import { db } from '../../firebase/config';
+import { db, storage } from '../../firebase/config';
 import {
   collection,
   query,
@@ -348,11 +371,13 @@ import {
   doc,
   getDoc,
   getDocs,
+  addDoc,
   updateDoc,
   serverTimestamp,
   orderBy,
   limit
 } from 'firebase/firestore';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import html2canvas from 'html2canvas';
 
 // --- Type Definitions ---
@@ -360,6 +385,7 @@ import html2canvas from 'html2canvas';
 interface Bill {
   id: string;
   tenantId: string;
+  landlordId: string;
   date: string; // YYYY-MM-DD
   monthStr?: string; // Derived: YYYY年 MM月
   type: 'income' | 'expense';
@@ -367,9 +393,10 @@ interface Bill {
   target: string;
   description: string;
   amount: number;
-  status: 'completed' | 'pending' | 'overdue';
+  status: 'completed' | 'pending' | 'overdue' | 'waiting_confirmation';
   dueDate?: string;
   paymentDate?: string;
+  paymentProofUrl?: string;
 }
 
 // --- State ---
@@ -387,6 +414,9 @@ const showModal = ref(false);
 const selectedBill = ref<Bill | null>(null);
 const showPayConfirm = ref(false);
 const billToConfirm = ref<Bill | null>(null);
+const proofFile = ref<File | null>(null);
+const proofPreview = ref<string>('');
+const uploading = ref(false);
 const landlordBankInfo = ref<{ code: string; account: string; name: string } | null>(null);
 const billReceiptRef = ref<HTMLElement | null>(null);
 const isGenerating = ref(false);
@@ -512,14 +542,14 @@ watch(currentTab, (tab) => {
 const filteredBills = computed(() => {
   return bills.value.filter(bill => {
     if (currentTab.value === 'all') return true;
-    if (currentTab.value === 'unpaid') return bill.status === 'pending' || bill.status === 'overdue';
+    if (currentTab.value === 'unpaid') return bill.status === 'pending' || bill.status === 'overdue' || bill.status === 'waiting_confirmation';
     if (currentTab.value === 'history') return bill.status === 'completed';
     return true;
   });
 });
 
 const summary = computed(() => {
-  const unpaidBills = bills.value.filter(b => b.status === 'pending' || b.status === 'overdue');
+  const unpaidBills = bills.value.filter(b => b.status === 'pending' || b.status === 'overdue' || b.status === 'waiting_confirmation');
   const lastPaid = bills.value.find(b => b.status === 'completed');
   // 找出最近的一筆未繳帳單的到期日
   const nextDue = unpaidBills.sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))[0];
@@ -534,22 +564,25 @@ const summary = computed(() => {
 
 // --- UI Helpers ---
 // 狀態對應 (DB Status -> UI Label)
-const statusLabels = {
+const statusLabels: Record<string, string> = {
   completed: '已繳費',
   pending: '未繳費',
-  overdue: '已逾期'
+  overdue: '已逾期',
+  waiting_confirmation: '待確認'
 };
 
-const statusStyles = {
+const statusStyles: Record<string, string> = {
   completed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
   pending: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-  overdue: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+  overdue: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  waiting_confirmation: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
 };
 
-const statusDotStyles = {
+const statusDotStyles: Record<string, string> = {
   completed: 'bg-green-500',
   pending: 'bg-blue-500',
-  overdue: 'bg-red-500'
+  overdue: 'bg-red-500',
+  waiting_confirmation: 'bg-amber-500'
 };
 
 // --- Actions ---
@@ -563,22 +596,57 @@ const initPayConfirm = (bill: Bill) => {
   showPayConfirm.value = true;
 };
 
+const handleProofFile = (e: Event) => {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { toast.warning('請選擇圖片檔案'); return; }
+  if (file.size > 5 * 1024 * 1024) { toast.warning('圖片大小不可超過 5MB'); return; }
+  proofFile.value = file;
+  proofPreview.value = URL.createObjectURL(file);
+};
+
+const resetProof = () => {
+  proofFile.value = null;
+  if (proofPreview.value) { URL.revokeObjectURL(proofPreview.value); proofPreview.value = ''; }
+};
+
 const confirmPay = async () => {
   const bill = billToConfirm.value;
   if (!bill) return;
-  showPayConfirm.value = false;
+  if (!proofFile.value) { toast.warning('請上傳匯款截圖'); return; }
+  uploading.value = true;
   try {
+    const uid = authStore.user!.uid;
+    const ext = proofFile.value.name.split('.').pop() || 'jpg';
+    const path = `payment_proofs/${uid}/${bill.id}_${Date.now()}.${ext}`;
+    const snap = await uploadBytes(storageRef(storage, path), proofFile.value);
+    const downloadUrl = await getDownloadURL(snap.ref);
+
+    await addDoc(collection(db, 'payment_proofs'), {
+      billId: bill.id,
+      tenantId: uid,
+      landlordId: bill.landlordId,
+      imageUrl: downloadUrl,
+      uploadedAt: serverTimestamp(),
+      status: 'pending'
+    });
+
     const today = new Date().toISOString().split('T')[0];
     await updateDoc(doc(db, 'bills', bill.id), {
-      status: 'completed',
+      status: 'waiting_confirmation',
       paymentDate: today,
+      paymentProofUrl: downloadUrl,
       updatedAt: serverTimestamp()
     });
-    toast.success('繳費成功！系統已更新狀態。');
+
+    showPayConfirm.value = false;
+    resetProof();
+    toast.success('截圖已上傳，等待房東確認！');
   } catch (e) {
     console.error(e);
-    toast.error('繳費失敗，請檢查網路連線');
+    toast.error('上傳失敗，請稍後再試');
   } finally {
+    uploading.value = false;
     billToConfirm.value = null;
   }
 };

@@ -910,7 +910,8 @@ const fetchDashboardData = async () => {
       const all = billSnap.docs.map(d => ({ id: d.id, ...d.data() as any }));
       // 優先顯示本月帳單，若無則取最近一筆未繳
       const monthBills = all.filter((b: any) => b.date?.startsWith(thisMonth));
-      const unpaidBills = all.filter((b: any) => b.status === 'pending' || b.status === 'overdue');
+      const unpaidBills = all.filter((b: any) => b.status === 'pending' || b.status === 'overdue' || b.status === 'waiting_confirmation');
+      // 本月有帳單時用本月，否則 fallback 到任何未繳帳單
       const pool = monthBills.length > 0 ? monthBills : unpaidBills;
 
       if (pool.length > 0) {
@@ -971,7 +972,7 @@ const fetchDashboardData = async () => {
       currentBill.hasData = false;
     }
   } catch (err) {
-    console.warn('帳單讀取錯誤 (可能是索引未建立):', err);
+    console.error('帳單讀取錯誤:', err);
     currentBill.hasData = false;
   } finally {
     loading.bill = false;

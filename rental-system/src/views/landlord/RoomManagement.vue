@@ -737,7 +737,9 @@ const saveRoom = async () => {
     };
     
     // 移除 id 避免重複寫入文件內文
-    delete (roomData as any).id; 
+    delete (roomData as any).id;
+    // 移除所有 undefined 欄位（Firestore 不接受 undefined）
+    Object.keys(roomData).forEach(k => { if ((roomData as any)[k] === undefined) delete (roomData as any)[k]; });
 
     if (isEditing.value && form.value.id) {
       // 編輯模式

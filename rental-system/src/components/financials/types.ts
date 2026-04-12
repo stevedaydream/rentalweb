@@ -42,16 +42,19 @@ export const statusLabels: Record<string, string> = {
   completed: '已結清',
   pending: '待收款',
   overdue: '逾期',
+  waiting_confirmation: '待確認',
 }
 
 export const statusStyles: Record<string, string> = {
   completed: 'text-green-600 bg-green-50 dark:bg-green-900/20',
   pending: 'text-orange-600 bg-orange-50 dark:bg-orange-900/20',
   overdue: 'text-red-600 bg-red-50 dark:bg-red-900/20',
+  waiting_confirmation: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20',
 }
 
 export const statusIcons: Record<string, string> = {
   completed: 'check_circle',
   pending: 'schedule',
   overdue: 'warning',
+  waiting_confirmation: 'hourglass_top',
 }

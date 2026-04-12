@@ -190,6 +190,7 @@ const menuItems = computed<MenuItem[]>(() => [
   { id: 'repairs',       name: '報修申請', tabLabel: '報修', to: { name: 'TenantRepairs' },       icon: 'build_circle' },
   { id: 'contact',       name: '聯繫房東', tabLabel: '聯繫', to: { name: 'ContactLandlord' },     icon: 'support_agent' },
   { id: 'building',      name: '大樓資訊', tabLabel: '資訊', to: { name: 'TenantBuildingInfo' },  icon: 'apartment' },
+  { id: 'contract',      name: '我的合約', tabLabel: '合約', to: { name: 'TenantMyContract' },    icon: 'history_edu' },
 ]);
 
 const getBadgeCount = (item: MenuItem): number => {

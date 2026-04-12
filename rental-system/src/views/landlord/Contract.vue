@@ -266,6 +266,100 @@
 
     </div>
 
+    <!-- ===================== TAB: PAPER UPLOAD ===================== -->
+    <div v-if="activeTab === 'paper'" class="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-6 md:p-8 space-y-6">
+
+      <div>
+        <h3 class="font-bold text-text-primary-light dark:text-text-primary-dark">上傳紙本合約掃描</h3>
+        <p class="text-sm text-text-secondary-light mt-0.5">將已簽署的紙本合約掃描上傳，系統將保存記錄並通知租客完成電子確認。</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- 選擇租客 -->
+        <div class="space-y-1">
+          <label class="block text-sm font-bold text-gray-700 dark:text-gray-300">選擇租客 <span class="text-red-500">*</span></label>
+          <select v-model="paperForm.tenantDocId" @change="onPaperTenantSelect"
+            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm outline-none focus:ring-2 focus:ring-primary">
+            <option value="">-- 請選擇租客 --</option>
+            <option v-for="t in tenants" :key="t.id" :value="t.id">{{ t.name }}{{ t.roomNumber ? ` (${t.roomNumber})` : '' }}</option>
+          </select>
+        </div>
+
+        <!-- 房號 -->
+        <div class="space-y-1">
+          <label class="block text-sm font-bold text-gray-700 dark:text-gray-300">房號 <span class="text-red-500">*</span></label>
+          <input v-model="paperForm.roomNo" class="form-input" placeholder="例如：A-201" />
+        </div>
+
+        <!-- 地址 -->
+        <div class="space-y-1 md:col-span-2">
+          <label class="block text-sm font-bold text-gray-700 dark:text-gray-300">地址</label>
+          <input v-model="paperForm.address" class="form-input" placeholder="完整地址" />
+        </div>
+
+        <!-- 月租金 -->
+        <div class="space-y-1">
+          <label class="block text-sm font-bold text-gray-700 dark:text-gray-300">月租金</label>
+          <input v-model.number="paperForm.rentfee" type="number" class="form-input" placeholder="金額" />
+        </div>
+
+        <!-- 押金 -->
+        <div class="space-y-1">
+          <label class="block text-sm font-bold text-gray-700 dark:text-gray-300">押金</label>
+          <input v-model.number="paperForm.deposit" type="number" class="form-input" placeholder="金額" />
+        </div>
+
+        <!-- 起租日 -->
+        <div class="space-y-1">
+          <label class="block text-sm font-bold text-gray-700 dark:text-gray-300">起租日 <span class="text-red-500">*</span></label>
+          <input v-model="paperForm.startDate" type="date" class="form-input" />
+        </div>
+
+        <!-- 退租日 -->
+        <div class="space-y-1">
+          <label class="block text-sm font-bold text-gray-700 dark:text-gray-300">退租日 <span class="text-red-500">*</span></label>
+          <input v-model="paperForm.endDate" type="date" class="form-input" />
+        </div>
+
+        <!-- 檔案上傳 -->
+        <div class="space-y-2 md:col-span-2">
+          <label class="block text-sm font-bold text-gray-700 dark:text-gray-300">合約掃描檔 <span class="text-red-500">*</span></label>
+          <div
+            class="border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors"
+            :class="paperFile
+              ? 'border-green-400 bg-green-50 dark:bg-green-900/10'
+              : 'border-gray-300 dark:border-gray-600 hover:border-gold-400 hover:bg-gold-50 dark:hover:bg-gold-900/10'"
+            @click="paperFileInputRef?.click()"
+            @dragover.prevent
+            @drop.prevent="onPaperFileDrop">
+            <input ref="paperFileInputRef" type="file" accept=".pdf,image/*" class="hidden" @change="onPaperFileSelect" />
+            <div v-if="!paperFile" class="space-y-2">
+              <span class="material-symbols-outlined text-4xl text-gray-300 dark:text-gray-600">upload_file</span>
+              <p class="text-sm text-text-secondary-light">點擊或拖曳上傳 PDF 或圖片（最大 10MB）</p>
+            </div>
+            <div v-else class="space-y-1">
+              <span class="material-symbols-outlined text-3xl text-green-500">check_circle</span>
+              <p class="text-sm font-medium text-green-700 dark:text-green-400">{{ paperFile.name }}</p>
+              <p class="text-xs text-text-secondary-light">{{ (paperFile.size / 1024 / 1024).toFixed(2) }} MB</p>
+              <button type="button" @click.stop="paperFile = null"
+                class="text-xs text-red-500 hover:text-red-700 transition-colors">移除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
+        <button
+          :disabled="uploadingPaper || !paperForm.tenantDocId || !paperForm.roomNo || !paperForm.startDate || !paperForm.endDate || !paperFile"
+          @click="uploadPaperContract"
+          class="px-6 py-3 bg-gold-500 text-white rounded-xl shadow-lg shadow-gold-500/30 hover:bg-gold-600 font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+          <span v-if="uploadingPaper" class="material-symbols-outlined animate-spin text-[18px]">sync</span>
+          <span v-else class="material-symbols-outlined text-[18px]">cloud_upload</span>
+          {{ uploadingPaper ? '上傳中...' : '上傳並建立記錄' }}
+        </button>
+      </div>
+    </div>
+
     <!-- ===================== TAB: HISTORY ===================== -->
     <div v-if="activeTab === 'history'">
       <div v-if="loadingHistory" class="flex justify-center py-16">
@@ -308,15 +402,37 @@
               </p>
             </div>
             <div class="flex flex-col items-end gap-1.5 shrink-0">
-              <span class="text-xs text-text-secondary-light">簽署：{{ formatDate(c.signedAt) }}</span>
+              <div class="flex items-center gap-2">
+                <span class="text-xs px-2 py-0.5 rounded-full font-medium"
+                  :class="c.contractSource === 'paper'
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                    : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'">
+                  {{ c.contractSource === 'paper' ? '紙本' : '電子' }}
+                </span>
+                <span v-if="c.tenantAcknowledgedAt" class="text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  租客已確認
+                </span>
+                <span v-else class="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                  待租客確認
+                </span>
+              </div>
+              <span class="text-xs text-text-secondary-light">建立：{{ formatDate(c.signedAt) }}</span>
               <div class="flex gap-2">
-                <button
+                <!-- Paper: open attachment -->
+                <a v-if="c.contractSource === 'paper' && c.attachmentUrl"
+                  :href="c.attachmentUrl" target="_blank" rel="noopener"
+                  class="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors">
+                  <span class="material-symbols-outlined text-sm">open_in_new</span>
+                  查看掃描
+                </a>
+                <!-- Digital: preview -->
+                <button v-else-if="c.contractSource !== 'paper'"
                   @click="previewContract = c"
                   class="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors">
                   <span class="material-symbols-outlined text-sm">visibility</span>
                   查閱
                 </button>
-                <button
+                <button v-if="c.contractSource !== 'paper'"
                   @click="redownloadContract(c)"
                   :disabled="redownloading === c.id"
                   class="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-lg bg-gold-50 text-gold-600 hover:bg-gold-100 dark:bg-gold-900/20 dark:text-gold-400 dark:hover:bg-gold-900/40 transition-colors disabled:opacity-50">
@@ -373,10 +489,11 @@ import { ref, computed, watch, onMounted } from 'vue'
 import axios from 'axios'
 import { useAuthStore } from '../../stores/auth'
 import { useToastStore } from '../../stores/toast'
-import { db, auth } from '../../firebase/config'
+import { db, auth, storage } from '../../firebase/config'
 import {
   collection, query, where, getDocs, addDoc, getDoc, doc, orderBy, serverTimestamp
 } from 'firebase/firestore'
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 
 import Signature from '../../components/Signature.vue'
 import Preview from '../../components/Preview.vue'
@@ -397,6 +514,7 @@ const tenantPhoneError = ref('')
 
 const tabs = [
   { id: 'new', label: '新建合約', icon: 'add_circle' },
+  { id: 'paper', label: '上傳紙本', icon: 'upload_file' },
   { id: 'history', label: '合約記錄', icon: 'history_edu' },
 ]
 const steps = [
@@ -416,6 +534,15 @@ const signedContracts = ref([])
 const loadingHistory = ref(false)
 const redownloading = ref(null)
 const previewContract = ref(null)
+
+// ---- Paper upload ----
+const paperFile = ref(null)
+const uploadingPaper = ref(false)
+const paperForm = ref({
+  tenantDocId: '', tenantUid: '', tenantName: '',
+  roomNo: '', address: '', rentfee: '', deposit: '',
+  startDate: '', endDate: '',
+})
 
 // ---- Form ----
 const form = ref({
@@ -622,8 +749,11 @@ const submitContract = async () => {
     window.URL.revokeObjectURL(link.href)
 
     // Save full form data for future re-download
+    const selectedTenant = tenants.value.find(t => t.id === selectedTenantId.value)
     await addDoc(collection(db, 'signed_contracts'), {
       landlordUid: authStore.effectiveUid,
+      contractSource: 'digital',
+      tenantUid: selectedTenant?.uid || null,
       ...form.value,
       rentfee: Number(form.value.rentfee) || 0,
       deposit: Number(form.value.deposit) || 0,
@@ -691,6 +821,76 @@ const redownloadContract = async (c) => {
     toast.error('重新下載失敗，請稍後再試')
   } finally {
     redownloading.value = null
+  }
+}
+
+// ---- Paper upload refs ----
+const paperFileInputRef = ref(null)
+
+// ---- Paper upload helpers ----
+const onPaperTenantSelect = () => {
+  const t = tenants.value.find(t => t.id === paperForm.value.tenantDocId)
+  if (!t) return
+  paperForm.value.tenantUid = t.uid || ''
+  paperForm.value.tenantName = t.name || ''
+  paperForm.value.roomNo = paperForm.value.roomNo || t.roomNumber || ''
+  paperForm.value.address = paperForm.value.address || (() => {
+    const r = rooms.value.find(r => r.name === t.roomNumber)
+    return r?.address || ''
+  })()
+}
+
+const onPaperFileSelect = (e) => {
+  const file = e.target.files[0]
+  if (!file) return
+  if (file.size > 10 * 1024 * 1024) { toast.warning('檔案大小不可超過 10MB'); return }
+  paperFile.value = file
+}
+
+const onPaperFileDrop = (e) => {
+  const file = e.dataTransfer.files[0]
+  if (!file) return
+  if (file.size > 10 * 1024 * 1024) { toast.warning('檔案大小不可超過 10MB'); return }
+  paperFile.value = file
+}
+
+const uploadPaperContract = async () => {
+  if (!paperFile.value || !paperForm.value.tenantDocId) return
+  uploadingPaper.value = true
+  try {
+    const uid = authStore.effectiveUid
+    const ext = paperFile.value.name.split('.').pop() || 'pdf'
+    const fileName = `${paperForm.value.tenantUid || paperForm.value.tenantDocId}_${Date.now()}.${ext}`
+    const fileRef = storageRef(storage, `paper_contracts/${uid}/${fileName}`)
+    await uploadBytes(fileRef, paperFile.value)
+    const attachmentUrl = await getDownloadURL(fileRef)
+
+    await addDoc(collection(db, 'signed_contracts'), {
+      landlordUid: uid,
+      contractSource: 'paper',
+      attachmentUrl,
+      tenantUid: paperForm.value.tenantUid || null,
+      tenant: paperForm.value.tenantName,
+      roomNo: paperForm.value.roomNo,
+      address: paperForm.value.address,
+      rentfee: Number(paperForm.value.rentfee) || 0,
+      deposit: Number(paperForm.value.deposit) || 0,
+      startDate: paperForm.value.startDate,
+      endDate: paperForm.value.endDate,
+      signedAt: serverTimestamp(),
+    })
+
+    toast.success('紙本合約已上傳！租客登入後可查閱並確認。')
+    // Reset form
+    paperForm.value = { tenantDocId: '', tenantUid: '', tenantName: '', roomNo: '', address: '', rentfee: '', deposit: '', startDate: '', endDate: '' }
+    paperFile.value = null
+    // Reload history if already loaded
+    if (signedContracts.value.length) loadHistory()
+  } catch (e) {
+    console.error('上傳紙本合約失敗:', e)
+    toast.error('上傳失敗，請稍後再試')
+  } finally {
+    uploadingPaper.value = false
   }
 }
 

@@ -510,20 +510,36 @@ exports.lineWebhook = onRequest(
           continue;
         }
 
-        // 更新租客帳號
-        await db.collection('users').doc(bindingData.uid).update({
-          lineUserId,
-          lineDisplayName: displayName,
-          lineBindingAt: FieldValue.serverTimestamp(),
-        });
-        await bindingSnap.ref.delete();
-
-        await client.replyMessage({
-          replyToken: event.replyToken,
-          messages: [{ type: 'text', text:
-            `✅ 綁定成功！\n您好，${displayName}，您的帳號已與此 LINE 綁定。\n往後房東的回覆將直接傳送到這裡。\n\n💡 可用查詢指令：\n帳單 ｜ 電費 ｜ 合約 ｜ 公告 ｜ 報修\n\n傳送「選單」查看完整說明` }],
-        });
-        logger.info('LINE binding successful', { uid: bindingData.uid, lineUserId, displayName });
+        // 區分房東綁定 vs 租客綁定
+        if (bindingData.type === 'landlord') {
+          // 房東：將 LINE userId 存入 line_configs
+          await db.collection('line_configs').doc(bindingData.uid).set({
+            ownerLineUserId: lineUserId,
+            ownerLineDisplayName: displayName,
+            ownerLineBindingAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+          await bindingSnap.ref.delete();
+          await client.replyMessage({
+            replyToken: event.replyToken,
+            messages: [{ type: 'text', text:
+              `✅ 房東通知綁定成功！\n您好，${displayName}，您的 LINE 帳號已與租屋管理系統綁定。\n往後租客繳費截圖上傳等系統通知將直接傳送到這裡。` }],
+          });
+          logger.info('Landlord LINE binding successful', { uid: bindingData.uid, lineUserId, displayName });
+        } else {
+          // 租客：更新 users 帳號
+          await db.collection('users').doc(bindingData.uid).update({
+            lineUserId,
+            lineDisplayName: displayName,
+            lineBindingAt: FieldValue.serverTimestamp(),
+          });
+          await bindingSnap.ref.delete();
+          await client.replyMessage({
+            replyToken: event.replyToken,
+            messages: [{ type: 'text', text:
+              `✅ 綁定成功！\n您好，${displayName}，您的帳號已與此 LINE 綁定。\n往後房東的回覆將直接傳送到這裡。\n\n💡 可用查詢指令：\n帳單 ｜ 電費 ｜ 合約 ｜ 公告 ｜ 報修\n\n傳送「選單」查看完整說明` }],
+          });
+          logger.info('LINE binding successful', { uid: bindingData.uid, lineUserId, displayName });
+        }
         continue;
       }
 

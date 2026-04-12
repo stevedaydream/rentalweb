@@ -69,7 +69,8 @@ rental-system/
 | `users` | uid, role('landlord'\|'tenant'\|'admin'), landlordId? |
 | `rooms` | id, name, status('occupied'\|'vacant'\|'maintenance'), landlordId, floor, rent, deposit, tenantId, tenantName, isPublic? |
 | `tenants` | id, uid, name, email, phone, landlordId, roomId, roomName, boundLandlordCode, status('active'\|'inactive'), moveInDate |
-| `bills` | id, tenantId, tenantName, landlordId, roomId, roomName, amount, status('pending'\|'completed'\|'overdue'), month, dueDate, paidAt, electricityFee, waterFee, managementFee |
+| `bills` | id, tenantId, tenantName, landlordId, roomId, roomName, amount, status('pending'\|'waiting_confirmation'\|'completed'\|'overdue'), month, dueDate, paidAt, electricityFee, waterFee, managementFee, paymentProofUrl?, ecpayOrderId?, paymentMethod?, paymentGateway? |
+| `payment_proofs` | id, billId, tenantId, landlordId, imageUrl, uploadedAt, ocrRaw?(預留), matchResult?(預留), status('pending'\|'approved'\|'rejected') |
 | `repair_requests` | id, tenantId, tenantName, landlordId, roomId, type, description, status('pending'\|'processing'\|'resolved'), priority('low'\|'medium'\|'high'), imageUrl |
 | `meter_readings` | id, landlordId, roomId, roomName, reading, previousReading, usage, readingDate |
 | `announcements` | id, landlordId, title, content, pinned |
@@ -181,6 +182,7 @@ rental-system/
 | 2026-04-11 | 租客帳單手機卡片佈局、用電記錄數據卡、繳費/刪除自訂確認 Modal、Dashboard 新增房源帶 query param 自動開啟 |
 | 2026-04-11 | 租客帳號系統：手機+身分證登入、房東建立帳號、Gmail 綁定提示、Admin 重設密碼 |
 | 2026-04-11 | 退租系統設計：MoveOutWizard（A）、續約提醒+回覆（D）、歷史租客（B）、打包下載（C）（實作中） |
+| 2026-04-13 | 繳費驗證規劃：短期截圖上傳+房東確認，中長期串接綠界金流；bills 新增 waiting_confirmation 狀態；新增 payment_proofs collection（含 OCR/比對預留欄位）；預留 ecpayOrderId / paymentGateway 欄位 |
 | 2026-04-11 | 新 Firestore collection：moveOutRecords（退租摘要永久保留） |
 | 2026-04-11 | rooms 新增欄位：lastMeterReading、lastMeterReadingDate（退租時寫入，下個租客電費基準） |
 | 2026-04-11 | contracts 新增欄位：renewalStatus（pending/confirmed/declined）、renewalNote、renewalRespondedAt |

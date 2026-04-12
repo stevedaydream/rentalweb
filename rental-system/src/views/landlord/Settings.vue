@@ -212,6 +212,94 @@
       </div>
     </div>
 
+    <!-- LINE 個人通知綁定 -->
+    <section class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-blue-200 dark:border-blue-800">
+      <div class="flex items-start justify-between mb-1">
+        <h2 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center">
+          <svg class="w-5 h-5 mr-2 text-[#06C755]" viewBox="0 0 24 24" fill="currentColor"><path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.105.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/></svg>
+          LINE 個人通知綁定
+          <span :class="ownerLineBound.bound ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'"
+            class="ml-2 text-xs font-normal px-2 py-0.5 rounded-full">
+            {{ ownerLineBound.bound ? '已綁定' : '未綁定' }}
+          </span>
+        </h2>
+      </div>
+
+      <!-- 說明提示：明確區分與 Bot 設定的差異 -->
+      <div class="mt-2 mb-5 flex gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800">
+        <span class="material-symbols-outlined text-blue-500 text-[20px] shrink-0 mt-0.5">info</span>
+        <p class="text-sm text-blue-700 dark:text-blue-300">
+          這裡綁定的是<strong>你自己的 LINE 帳號</strong>，讓系統能主動通知你（例如：租客繳費截圖上傳）。<br>
+          與下方「LINE Bot 整合設定」不同，Bot 設定是租客與你溝通的管道。
+        </p>
+      </div>
+
+      <!-- 已綁定狀態 -->
+      <div v-if="ownerLineBound.bound" class="flex items-center justify-between p-4 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-100 dark:border-green-800">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-[#06C755] flex items-center justify-center">
+            <span class="material-symbols-outlined text-white text-[20px]">person</span>
+          </div>
+          <div>
+            <p class="font-bold text-text-primary-light dark:text-text-primary-dark text-sm">{{ ownerLineBound.displayName }}</p>
+            <p class="text-xs text-green-600 dark:text-green-400">LINE 通知已啟用</p>
+          </div>
+        </div>
+        <button @click="unbindLandlordLine" class="px-3 py-1.5 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">
+          解除綁定
+        </button>
+      </div>
+
+      <!-- 未綁定：產生綁定碼 -->
+      <div v-else class="space-y-4">
+        <!-- 無綁定碼時 -->
+        <div v-if="!landlordBindingCode">
+          <button @click="generateLandlordBindingCode" :disabled="generatingCode"
+            class="flex items-center gap-2 px-5 py-2.5 bg-[#06C755] hover:bg-[#05a848] text-white font-bold rounded-xl transition-colors disabled:opacity-50">
+            <span v-if="generatingCode" class="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+            <span v-else class="material-symbols-outlined text-[18px]">link</span>
+            {{ generatingCode ? '產生中...' : '產生綁定碼' }}
+          </button>
+        </div>
+
+        <!-- 綁定碼顯示 -->
+        <div v-else class="space-y-3">
+          <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border-2 border-dashed border-[#06C755]/40 text-center space-y-2">
+            <p class="text-xs text-text-secondary-light">請在 <strong>LINE</strong> 傳送以下綁定碼給你的租屋小幫手 Bot</p>
+            <div class="flex items-center justify-center gap-3">
+              <span class="text-4xl font-mono font-extrabold tracking-[0.3em] text-text-primary-light dark:text-text-primary-dark">
+                {{ landlordBindingCode }}
+              </span>
+              <button @click="copyBindingCode" class="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors" title="複製">
+                <span class="material-symbols-outlined text-[20px] text-gray-500">content_copy</span>
+              </button>
+            </div>
+            <p class="text-xs" :class="bindingCodeSecondsLeft > 60 ? 'text-gray-400' : 'text-red-500 font-bold'">
+              有效時間：{{ Math.floor(bindingCodeSecondsLeft / 60) }}:{{ String(bindingCodeSecondsLeft % 60).padStart(2, '0') }}
+            </p>
+          </div>
+          <ol class="text-sm text-text-secondary-light space-y-1.5 list-none">
+            <li class="flex gap-2">
+              <span class="flex-shrink-0 w-5 h-5 bg-[#06C755] text-white rounded-full text-[11px] font-bold flex items-center justify-center">1</span>
+              打開 LINE，找到你的「租屋小幫手」Bot
+            </li>
+            <li class="flex gap-2">
+              <span class="flex-shrink-0 w-5 h-5 bg-[#06C755] text-white rounded-full text-[11px] font-bold flex items-center justify-center">2</span>
+              傳送上方 6 位數字綁定碼
+            </li>
+            <li class="flex gap-2">
+              <span class="flex-shrink-0 w-5 h-5 bg-[#06C755] text-white rounded-full text-[11px] font-bold flex items-center justify-center">3</span>
+              Bot 回覆「綁定成功」後重新整理此頁面
+            </li>
+          </ol>
+          <button @click="cancelBindingCode"
+            class="text-xs text-gray-400 hover:text-gray-600 underline">
+            取消
+          </button>
+        </div>
+      </div>
+    </section>
+
     <!-- LINE Bot 設定 (full-width section) -->
     <section class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-[#06C755]/30 dark:border-[#06C755]/20">
       <h2 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center mb-1">
@@ -348,7 +436,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watchEffect, onMounted } from 'vue';
+import { ref, computed, watchEffect, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
@@ -465,6 +553,72 @@ const handleLogout = () => {
 };
 
 // =============================================
+// LINE 個人通知綁定
+// =============================================
+const ownerLineBound = ref({ bound: false, displayName: '' });
+const landlordBindingCode = ref('');
+const bindingCodeSecondsLeft = ref(0);
+const generatingCode = ref(false);
+let bindingTimer: ReturnType<typeof setInterval> | null = null;
+
+const generateLandlordBindingCode = async () => {
+  if (!authStore.user) return;
+  generatingCode.value = true;
+  try {
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const { Timestamp } = await import('firebase/firestore');
+    await setDoc(doc(db, 'line_bindings', code), {
+      uid: authStore.effectiveUid,
+      type: 'landlord',
+      expiresAt: Timestamp.fromDate(expiresAt),
+    });
+    landlordBindingCode.value = code;
+    bindingCodeSecondsLeft.value = 600;
+    if (bindingTimer) clearInterval(bindingTimer);
+    bindingTimer = setInterval(() => {
+      bindingCodeSecondsLeft.value--;
+      if (bindingCodeSecondsLeft.value <= 0) {
+        clearInterval(bindingTimer!);
+        landlordBindingCode.value = '';
+      }
+    }, 1000);
+  } catch (e) {
+    console.error(e);
+    toast.error('產生綁定碼失敗，請稍後再試');
+  } finally {
+    generatingCode.value = false;
+  }
+};
+
+const cancelBindingCode = () => {
+  landlordBindingCode.value = '';
+  if (bindingTimer) { clearInterval(bindingTimer); bindingTimer = null; }
+};
+
+const copyBindingCode = () => {
+  navigator.clipboard.writeText(landlordBindingCode.value)
+    .then(() => toast.success('綁定碼已複製'))
+    .catch(() => toast.warning('複製失敗，請手動複製'));
+};
+
+const unbindLandlordLine = async () => {
+  if (!confirm('確定要解除 LINE 通知綁定嗎？')) return;
+  try {
+    await setDoc(doc(db, 'line_configs', authStore.effectiveUid), {
+      ownerLineUserId: null,
+      ownerLineDisplayName: null,
+    }, { merge: true });
+    ownerLineBound.value = { bound: false, displayName: '' };
+    toast.success('已解除 LINE 通知綁定');
+  } catch (e) {
+    toast.error('解除失敗，請稍後再試');
+  }
+};
+
+onUnmounted(() => { if (bindingTimer) clearInterval(bindingTimer); });
+
+// =============================================
 // LINE Bot Config
 // =============================================
 const FIREBASE_PROJECT_ID = 'rental-system-7675e';
@@ -484,7 +638,6 @@ const webhookUrl = computed(() =>
 );
 
 onMounted(async () => {
-  // Load existing LINE config (only channel enabled status, not secrets for security)
   try {
     const [lineSnap, userSnap] = await Promise.all([
       getDoc(doc(db, 'line_configs', authStore.effectiveUid)),
@@ -493,6 +646,9 @@ onMounted(async () => {
     if (lineSnap.exists()) {
       const data = lineSnap.data();
       lineConfig.value.isEnabled = !!(data.channelSecret && data.channelAccessToken);
+      if (data.ownerLineUserId) {
+        ownerLineBound.value = { bound: true, displayName: data.ownerLineDisplayName || 'LINE 用戶' };
+      }
     }
     if (userSnap.exists()) {
       lineConfig.value.lineBotId = userSnap.data().lineBotId || '';

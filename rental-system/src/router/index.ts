@@ -35,6 +35,7 @@ const TenantAnnouncements = () => import('../views/tenant/Announcements.vue');
 const TenantRepairs = () => import('../views/tenant/Repairs.vue');
 const TenantContact = () => import('../views/tenant/Contact.vue');
 const TenantBuildingInfo = () => import('../views/tenant/BuildingInfo.vue');
+const TenantMyContract = () => import('../views/tenant/MyContract.vue');
 
 const AdminLogin = () => import('../views/admin/AdminLogin.vue');
 const AdminDashboard = () => import('../views/admin/Dashboard.vue');
@@ -91,6 +92,7 @@ const routes = [
       { path: 'repairs', name: 'TenantRepairs', component: TenantRepairs },
       { path: 'contact', name: 'ContactLandlord', component: TenantContact },
       { path: 'building-info', name: 'TenantBuildingInfo', component: TenantBuildingInfo },
+      { path: 'contract', name: 'TenantMyContract', component: TenantMyContract },
     ]
   },
 

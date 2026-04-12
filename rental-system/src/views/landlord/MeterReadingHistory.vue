@@ -171,10 +171,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { db } from '../../firebase/config';
-import { collection, query, orderBy, getDocs, deleteDoc, doc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { useToastStore } from '../../stores/toast';
+import { useAuthStore } from '../../stores/auth';
 
 const toast = useToastStore();
+const authStore = useAuthStore();
 
 // --- Types ---
 interface MeterRecord {
@@ -205,7 +207,7 @@ const sortDir = ref<'asc' | 'desc'>('desc');
 // --- Lifecycle ---
 onMounted(async () => {
   try {
-    const q = query(collection(db, 'meter_readings'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'meter_readings'), where('landlordId', '==', authStore.effectiveUid), orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);
     list.value = snapshot.docs.map(doc => ({
       id: doc.id,

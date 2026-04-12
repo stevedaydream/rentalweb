@@ -95,7 +95,11 @@ service cloud.firestore {
           safeField('tenantId')   == request.auth.uid
         ));
       allow create: if isAdmin() || isCreatingAsLandlord();
-      allow update, delete: if isAdmin() || isLandlordData();
+      allow update: if isAdmin() || isLandlordData()
+        || (isSignedIn() && safeField('tenantId') == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['status', 'paymentDate', 'paymentProofUrl', 'updatedAt']));
+      allow delete: if isAdmin() || isLandlordData();
     }
 
     // 舊報修 (maintenance)
@@ -199,13 +203,31 @@ service cloud.firestore {
     match /signed_contracts/{id} {
       allow read: if isAdmin()
         || resource.data.landlordUid == request.auth.uid
-        // 租客：自己的房東 landlordId 與合約 landlordUid 相符即可讀取
+        // 租客：直接透過 tenantUid 欄位比對
+        || (isSignedIn() && resource.data.get('tenantUid', '') == request.auth.uid)
+        // 舊邏輯相容：租客同房東下可讀（無 tenantUid 的舊合約）
         || (isSignedIn() &&
             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('landlordId', '') == resource.data.get('landlordUid', ''));
-      allow update, delete: if isAdmin()
+      allow update: if isAdmin()
+        || resource.data.landlordUid == request.auth.uid
+        // 租客確認：只能寫入 tenantAcknowledgedAt / tenantAcknowledgedUid
+        || (isSignedIn() && resource.data.get('tenantUid', '') == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['tenantAcknowledgedAt', 'tenantAcknowledgedUid']));
+      allow delete: if isAdmin()
         || resource.data.landlordUid == request.auth.uid;
       allow create: if isAdmin()
         || request.resource.data.landlordUid == request.auth.uid;
+    }
+
+    // 繳費憑證 (payment_proofs)
+    match /payment_proofs/{proofId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && (safeField('landlordId') == request.auth.uid || safeField('tenantId') == request.auth.uid));
+      allow create: if isSignedIn() && request.resource.data.tenantId == request.auth.uid;
+      allow update: if isAdmin() || (isSignedIn() && safeField('landlordId') == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedAt']));
+      allow delete: if isAdmin();
     }
 
     // LINE 綁定碼 (line_bindings)
