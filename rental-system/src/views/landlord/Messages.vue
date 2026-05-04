@@ -204,7 +204,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
 import { db, functions } from '../../firebase/config';
@@ -286,8 +286,12 @@ onMounted(() => {
       ...d.data()
     } as Message));
     loading.value = false;
+  }, (err) => {
+    if ((err as any)?.code !== 'permission-denied') console.error('讀取訊息失敗:', err);
   });
 });
+
+watch(() => authStore.user, (u) => { if (!u) unsubscribe?.(); });
 
 onUnmounted(() => {
   if (unsubscribe) unsubscribe();

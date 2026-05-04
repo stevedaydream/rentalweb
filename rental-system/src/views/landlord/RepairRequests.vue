@@ -309,6 +309,8 @@ onMounted(() => {
 watch(() => authStore.user, (newUser) => {
   if (newUser) {
     initListener(newUser.uid);
+  } else {
+    if (unsubscribe) unsubscribe();
   }
 });
 

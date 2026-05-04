@@ -406,7 +406,7 @@ const initDataListeners = (uid: string) => {
 }
 
 onMounted(() => { if (authStore.user) initDataListeners(authStore.effectiveUid) })
-watch(() => authStore.user, (u) => { if (u) initDataListeners(u.uid); else { transactions.value = []; loading.value = false } })
+watch(() => authStore.user, (u) => { if (u) initDataListeners(u.uid); else { unsubscribeBills?.(); unsubscribeTaipower?.(); transactions.value = []; loading.value = false } })
 onUnmounted(() => { unsubscribeBills?.(); unsubscribeTaipower?.() })
 
 // --- Computed ---

@@ -7,10 +7,13 @@
         <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">租客列表</h1>
         <p class="text-text-secondary-light">管理所有租客資料、租約期限與聯繫方式</p>
       </div>
-      <div class="flex gap-3">
-        <button class="px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center">
-          <span class="material-symbols-outlined text-[18px] mr-2">download</span>匯出清單
-        </button>
+      <div class="flex gap-3 flex-wrap">
+        <TenantImportModal
+          :landlordId="authStore.effectiveUid"
+          :availableRooms="availableRooms"
+          :paymentDay="authStore.userProfile?.settings?.paymentDay"
+          @imported="fetchRooms"
+        />
         <button
           @click="openNewTenantModal()"
           class="px-4 py-2 bg-gold-500 text-white rounded-lg shadow-sm hover:bg-gold-600 transition-colors text-sm font-medium flex items-center"
@@ -830,6 +833,7 @@ import { httpsCallable } from 'firebase/functions';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
 import MoveOutWizard from '../../components/MoveOutWizard.vue';
+import TenantImportModal from '../../components/TenantImportModal.vue';
 import {
   collection,
   query,
