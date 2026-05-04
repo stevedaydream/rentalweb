@@ -1279,6 +1279,7 @@ exports.dailyUsageCheck = onSchedule(
 exports.createTenantAccount = onCall({ region: 'asia-east1' }, async (request) => {
   if (!request.auth) throw new Error('Unauthenticated');
 
+  const db = getFirestore();
   const callerUid = request.auth.uid;
   const callerDoc = await db.collection('users').doc(callerUid).get();
   if (!callerDoc.exists) throw new Error('Caller not found');
@@ -1323,6 +1324,7 @@ exports.createTenantAccount = onCall({ region: 'asia-east1' }, async (request) =
 exports.resetTenantPassword = onCall({ region: 'asia-east1' }, async (request) => {
   if (!request.auth) throw new Error('Unauthenticated');
 
+  const db = getFirestore();
   const callerUid = request.auth.uid;
   const callerDoc = await db.collection('users').doc(callerUid).get();
   if (!callerDoc.exists || callerDoc.data().role !== 'admin') throw new Error('Permission denied: admin only');

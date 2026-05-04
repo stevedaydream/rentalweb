@@ -89,6 +89,21 @@
 
 ---
 
+## BF-006：createTenantAccount / resetTenantPassword CF 拋出 `db is not defined`（500 Internal Server Error）
+
+- **問題描述**：呼叫 `createTenantAccount` Cloud Function 時，前端收到 HTTP 500；Firebase Functions 記錄顯示 `ReferenceError: db is not defined at /workspace/index.js:1283`。`resetTenantPassword` 有相同問題。
+- **嘗試過程**：由前端 500 錯誤排查，透過 Firebase Console → Functions → Logs 找到實際錯誤訊息。
+- **根本原因**：`index.js` 中所有函式都以**函式體內** `const db = getFirestore()` 各自宣告 `db`（模組頂層沒有全域 `db`）。Cloud Functions v2 每個函式部署為獨立 Cloud Run 容器，模組作用域互相隔離。`createTenantAccount` 與 `resetTenantPassword` 直接使用 `db` 而未在函式體內宣告，在本機模擬器可能碰巧正常（同一 process），部署後必定爆 ReferenceError。
+- **最終解法**：在兩個函式的 handler 最頂端各加一行：
+  ```js
+  const db = getFirestore();
+  ```
+- **牽扯檔案**：`functions/index.js`（`createTenantAccount` 第 1280 行、`resetTenantPassword` 第 1325 行）
+
+> **注意**：`index.js` 新增任何使用 `db` / `getAuth()` 的 onCall 函式時，務必在 handler 內部自行宣告 `const db = getFirestore()`，不可假設模組頂層有全域變數。
+
+---
+
 ## BF 範本
 
 ### BF-XXX：標題
