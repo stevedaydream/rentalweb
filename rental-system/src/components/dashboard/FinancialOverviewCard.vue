@@ -2,10 +2,10 @@
   <div class="lg:col-span-8 bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-ink-100 dark:border-ink-800">
     <div class="flex justify-between items-center mb-6">
       <h3 class="font-bold text-lg flex items-center">
-        <span class="material-symbols-outlined mr-2 text-gold-500">payments</span>
+        <span class="material-symbols-outlined mr-2 text-gold-500" aria-hidden="true">payments</span>
         帳務概況 (全覽)
       </h3>
-      <button class="text-sm text-gold-600 hover:underline" @click="router.push({ name: 'Financials' })">查看詳細報表</button>
+      <RouterLink :to="{ name: 'Financials' }" class="text-sm text-gold-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 rounded">查看詳細報表</RouterLink>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">

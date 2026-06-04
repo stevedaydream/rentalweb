@@ -90,13 +90,14 @@
           <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
             <tr v-for="item in filteredList" :key="item.id" class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group">
               <td class="px-6 py-4 text-center">
-                 <button 
+                 <button
                    @click="togglePin(item)"
                    class="transition-colors p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
                    :class="item.isPinned ? 'text-red-500' : 'text-gray-300'"
                    title="切換置頂"
+                   aria-label="切換置頂"
                  >
-                   <span class="material-symbols-outlined" :class="{'fill-1': item.isPinned}">push_pin</span>
+                   <span class="material-symbols-outlined" :class="{'fill-1': item.isPinned}" aria-hidden="true">push_pin</span>
                  </button>
               </td>
               <td class="px-6 py-4">
@@ -116,11 +117,16 @@
               </td>
               <td class="px-6 py-4 text-center">
                  <div class="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button @click="openModal(item)" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                      <span class="material-symbols-outlined text-[20px]">edit</span>
+                    <button @click="openModal(item)" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" aria-label="編輯公告">
+                      <span class="material-symbols-outlined text-[20px]" aria-hidden="true">edit</span>
                     </button>
-                    <button @click="deleteItem(item.id)" class="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                      <span class="material-symbols-outlined text-[20px]">delete</span>
+                    <template v-if="confirmDeleteId === item.id">
+                      <span class="text-xs text-red-600">確定刪除？</span>
+                      <button @click="deleteItem(item.id)" class="text-xs text-red-600 hover:underline">確定</button>
+                      <button @click="confirmDeleteId = null" class="text-xs text-gray-500 hover:underline">取消</button>
+                    </template>
+                    <button v-else @click="confirmDeleteId = item.id" class="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" aria-label="刪除公告">
+                      <span class="material-symbols-outlined text-[20px]" aria-hidden="true">delete</span>
                     </button>
                  </div>
               </td>
@@ -143,8 +149,8 @@
           <h2 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">
             {{ isEditing ? '編輯公告' : '發布新公告' }}
           </h2>
-          <button @click="showModal = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-            <span class="material-symbols-outlined">close</span>
+          <button @click="showModal = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" aria-label="關閉">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
           </button>
         </div>
 
@@ -235,6 +241,7 @@ const searchQuery = ref('')
 const showModal = ref(false)
 const isEditing = ref(false)
 const editingId = ref<string | null>(null)
+const confirmDeleteId = ref<string | null>(null)
 
 const form = ref<AnnouncementPayload>({
   title: '',
@@ -340,13 +347,12 @@ const saveItem = async () => {
 }
 
 const deleteItem = async (id: string) => {
-  if (confirm('確定要刪除此公告嗎？此操作無法復原。')) {
-    try {
-      await deleteAnnouncement(id)
-      toast.success('公告已刪除')
-    } catch {
-      toast.error('刪除失敗，請稍後再試')
-    }
+  try {
+    await deleteAnnouncement(id)
+    confirmDeleteId.value = null
+    toast.success('公告已刪除')
+  } catch {
+    toast.error('刪除失敗，請稍後再試')
   }
 }
 

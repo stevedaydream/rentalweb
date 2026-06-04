@@ -589,14 +589,23 @@
           </template>
 
           <template v-else>
-            <button 
-              v-if="isEditing"
-              @click="deleteRoom"
-              class="mr-auto px-4 py-2 rounded-xl text-red-500 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-900/20 font-medium transition-colors flex items-center"
-            >
-              <span class="material-symbols-outlined mr-1 text-[20px]">delete</span>
-              刪除房源
-            </button>
+            <template v-if="isEditing">
+              <template v-if="confirmDeleteRoom">
+                <span class="mr-auto flex items-center gap-2">
+                  <span class="text-xs text-red-600">確定刪除？</span>
+                  <button @click="deleteRoom" class="text-xs text-red-600 hover:underline">確定</button>
+                  <button @click="confirmDeleteRoom = false" class="text-xs text-gray-500 hover:underline">取消</button>
+                </span>
+              </template>
+              <button
+                v-else
+                @click="confirmDeleteRoom = true"
+                class="mr-auto px-4 py-2 rounded-xl text-red-500 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-900/20 font-medium transition-colors flex items-center"
+              >
+                <span class="material-symbols-outlined mr-1 text-[20px]">delete</span>
+                刪除房源
+              </button>
+            </template>
 
             <div class="ml-auto flex gap-3">
               <button 
@@ -762,14 +771,13 @@ const saveRoom = async () => {
 // 3. 刪除
 const deleteRoom = async () => {
   if (!form.value.id || !form.value.name) return;
-  if (confirm(`確定要刪除 ${form.value.name} 嗎？此操作無法復原。`)) {
-    try {
-      await deleteDoc(doc(db, 'rooms', form.value.id));
-      showModal.value = false;
-    } catch (err) {
-      console.error(err);
-      toast.error('刪除失敗');
-    }
+  try {
+    await deleteDoc(doc(db, 'rooms', form.value.id));
+    confirmDeleteRoom.value = false;
+    showModal.value = false;
+  } catch (err) {
+    console.error(err);
+    toast.error('刪除失敗');
   }
 };
 
@@ -812,6 +820,7 @@ const filteredRooms = computed(() => {
 const showModal = ref(false);
 const isEditing = ref(false);
 const isViewMode = ref(false);
+const confirmDeleteRoom = ref(false);
 
 const form = ref<Partial<Room>>({
   name: '', price: 0, size: 0, address: '', layout: '獨立套房', status: 'vacant',
@@ -941,6 +950,7 @@ const openModal = (room?: Room, mode: 'create' | 'edit' | 'view' = 'create') => 
   }
   isEditing.value = !!room;
   isViewMode.value = mode === 'view';
+  confirmDeleteRoom.value = false;
   showModal.value = true;
 };
 

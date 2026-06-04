@@ -36,6 +36,8 @@
           <input
             v-model="email"
             type="email"
+            name="email"
+            autocomplete="email"
             required
             class="w-full px-3 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 text-sm focus:outline-none focus:border-red-500 transition-colors"
             placeholder="admin@example.com"
@@ -46,6 +48,8 @@
           <input
             v-model="password"
             type="password"
+            name="password"
+            autocomplete="current-password"
             required
             class="w-full px-3 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 text-sm focus:outline-none focus:border-red-500 transition-colors"
             placeholder="••••••••"
@@ -68,6 +72,8 @@
           <input
             v-model="email"
             type="email"
+            name="email"
+            autocomplete="email"
             required
             class="w-full px-3 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 text-sm focus:outline-none focus:border-red-500 transition-colors"
             placeholder="admin@example.com"
@@ -78,6 +84,8 @@
           <input
             v-model="password"
             type="password"
+            name="new-password"
+            autocomplete="new-password"
             required
             minlength="8"
             class="w-full px-3 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 text-sm focus:outline-none focus:border-red-500 transition-colors"
@@ -89,6 +97,8 @@
           <input
             v-model="adminKey"
             type="password"
+            name="admin-key"
+            autocomplete="off"
             required
             class="w-full px-3 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 text-sm focus:outline-none focus:border-red-500 transition-colors"
             placeholder="請輸入管理員授權碼"
@@ -105,12 +115,12 @@
       </form>
 
       <!-- Back -->
-      <button
-        @click="router.push({ name: 'Identity' })"
-        class="mt-6 w-full text-xs text-gray-600 hover:text-gray-400 transition-colors"
+      <RouterLink
+        :to="{ name: 'Identity' }"
+        class="mt-6 block w-full text-center text-xs text-gray-600 hover:text-gray-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded"
       >
         ← 返回
-      </button>
+      </RouterLink>
 
     </div>
   </div>

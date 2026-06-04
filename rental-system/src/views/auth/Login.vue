@@ -3,13 +3,13 @@
     <div class="w-full max-w-md bg-white dark:bg-card-dark p-8 rounded-2xl shadow-sm border border-ink-100 dark:border-ink-800">
 
       <div class="mb-8 relative">
-        <button
-          @click="router.push({ name: 'Identity' })"
-          class="absolute -left-2 -top-1 p-2 text-ink-400 hover:text-ink-700 dark:hover:text-ink-200 transition-colors rounded-full hover:bg-surface-light dark:hover:bg-surface-dark"
-          title="重新選擇身分"
+        <RouterLink
+          :to="{ name: 'Identity' }"
+          aria-label="重新選擇身分"
+          class="absolute -left-2 -top-1 p-2 text-ink-400 hover:text-ink-700 dark:hover:text-ink-200 transition-colors rounded-full hover:bg-surface-light dark:hover:bg-surface-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
         >
-          <span class="material-symbols-outlined">arrow_back</span>
-        </button>
+          <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+        </RouterLink>
         <div class="text-center">
           <h2 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">登入{{ roleTitle }}</h2>
           <p class="mt-2 text-sm text-text-secondary-light dark:text-text-secondary-dark">歡迎回來</p>
@@ -39,6 +39,8 @@
           <input
             v-model="tenantPhone"
             type="tel"
+            name="tel"
+            autocomplete="tel"
             required
             class="form-input"
             placeholder="0912345678"
@@ -49,6 +51,8 @@
           <input
             v-model="tenantIdNumber"
             type="password"
+            name="password"
+            autocomplete="current-password"
             required
             class="form-input font-mono"
             placeholder="A123456789"
@@ -70,6 +74,8 @@
           <input
             v-model="email"
             type="email"
+            name="email"
+            autocomplete="email"
             required
             class="form-input"
             placeholder="name@example.com"
@@ -91,6 +97,8 @@
           <input
             v-model="password"
             type="password"
+            name="password"
+            autocomplete="current-password"
             required
             class="form-input"
             placeholder="••••••••"

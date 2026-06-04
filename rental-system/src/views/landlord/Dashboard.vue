@@ -6,21 +6,21 @@
         <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
           {{ greeting }}，{{ authStore.userProfile?.name || '房東' }}
         </h1>
-        <p class="text-text-secondary-light">這裡是您的物業概況</p>
+        <p class="text-text-secondary-light dark:text-text-secondary-dark">這裡是您的物業概況</p>
       </div>
       <div class="flex gap-3">
-        <button
-          @click="$router.push({ name: 'RoomManagement', query: { action: 'new' } })"
-          class="px-4 py-2 bg-gold-500 text-white rounded-xl shadow-sm hover:bg-gold-600 transition-colors text-sm font-medium flex items-center"
+        <RouterLink
+          :to="{ name: 'RoomManagement', query: { action: 'new' } }"
+          class="px-4 py-2 bg-gold-500 text-white rounded-xl shadow-sm hover:bg-gold-600 transition-colors text-sm font-medium flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
         >
-          <span class="material-symbols-outlined text-[18px] mr-2">add</span>
+          <span class="material-symbols-outlined text-[18px] mr-2" aria-hidden="true">add</span>
           新增房源
-        </button>
+        </RouterLink>
       </div>
     </div>
 
-    <div v-if="isLoading" class="flex justify-center py-12">
-      <span class="material-symbols-outlined animate-spin text-4xl text-ink-200">progress_activity</span>
+    <div v-if="isLoading" role="status" aria-label="載入中" class="flex justify-center py-12">
+      <span class="material-symbols-outlined animate-spin motion-reduce:animate-none text-4xl text-ink-200">progress_activity</span>
     </div>
 
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6">

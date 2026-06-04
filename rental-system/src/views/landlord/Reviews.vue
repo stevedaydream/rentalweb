@@ -108,7 +108,7 @@
             v-model="replyText"
             rows="3" maxlength="300"
             placeholder="輸入您的回覆..."
-            class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none resize-none"
+            class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:border-transparent resize-none"
           ></textarea>
           <div class="flex justify-end gap-2 mt-2">
             <button @click="replyingId = null; replyText = ''" class="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors">取消</button>

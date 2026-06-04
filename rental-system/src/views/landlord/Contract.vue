@@ -59,7 +59,7 @@
             <div>
               <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">選擇房源</label>
               <select v-model="selectedRoomId" @change="onRoomSelect"
-                class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm outline-none focus:ring-2 focus:ring-primary">
+                class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500">
                 <option value="">-- 選擇房源（自動帶入資料）--</option>
                 <option v-for="r in rooms" :key="r.id" :value="r.id">{{ r.name }} — {{ r.address }}</option>
               </select>
@@ -95,7 +95,7 @@
             <div>
               <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">選擇租客（選填）</label>
               <select v-model="selectedTenantId" @change="onTenantSelect"
-                class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm outline-none focus:ring-2 focus:ring-primary">
+                class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500">
                 <option value="">-- 選擇現有租客（自動帶入）--</option>
                 <option v-for="t in tenants" :key="t.id" :value="t.id">{{ t.name }}{{ t.roomNumber ? ` (${t.roomNumber})` : '' }}</option>
               </select>
@@ -258,7 +258,7 @@
             <button :disabled="!isChecked || loading" @click="submitContract"
               class="flex-1 py-3 bg-green-600 text-white rounded-xl shadow-lg shadow-green-500/30 hover:bg-green-700 font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">
               <span v-if="loading" class="material-symbols-outlined animate-spin">sync</span>
-              {{ loading ? '正在生成 PDF...' : '確認簽署並下載合約' }}
+              {{ loading ? '正在生成 PDF…' : '確認簽署並下載合約' }}
             </button>
           </div>
         </div>
@@ -279,7 +279,7 @@
         <div class="space-y-1">
           <label class="block text-sm font-bold text-gray-700 dark:text-gray-300">選擇租客 <span class="text-red-500">*</span></label>
           <select v-model="paperForm.tenantDocId" @change="onPaperTenantSelect"
-            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm outline-none focus:ring-2 focus:ring-primary">
+            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500">
             <option value="">-- 請選擇租客 --</option>
             <option v-for="t in tenants" :key="t.id" :value="t.id">{{ t.name }}{{ t.roomNumber ? ` (${t.roomNumber})` : '' }}</option>
           </select>
@@ -355,7 +355,7 @@
           class="px-6 py-3 bg-gold-500 text-white rounded-xl shadow-lg shadow-gold-500/30 hover:bg-gold-600 font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
           <span v-if="uploadingPaper" class="material-symbols-outlined animate-spin text-[18px]">sync</span>
           <span v-else class="material-symbols-outlined text-[18px]">cloud_upload</span>
-          {{ uploadingPaper ? '上傳中...' : '上傳並建立記錄' }}
+          {{ uploadingPaper ? '上傳中…' : '上傳並建立記錄' }}
         </button>
       </div>
     </div>
@@ -641,7 +641,7 @@ function contractStatus(endDate) {
 function formatDate(val) {
   if (!val) return '—'
   const d = val?.toDate ? val.toDate() : new Date(val)
-  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`
+  return new Intl.DateTimeFormat('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
 }
 
 // ---- Room / Tenant selectors ----

@@ -1,16 +1,21 @@
 <template>
   <Teleport to="body">
     <div class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[92vh]">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="move-out-modal-title"
+        class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[92vh]"
+      >
 
         <!-- Header -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 shrink-0">
-          <h2 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2">
-            <span class="material-symbols-outlined text-[20px] text-red-500">exit_to_app</span>
+          <h2 id="move-out-modal-title" class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2">
+            <span class="material-symbols-outlined text-[20px] text-red-500" aria-hidden="true">exit_to_app</span>
             辦理退租
           </h2>
-          <button @click="$emit('close')" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-            <span class="material-symbols-outlined text-gray-500">close</span>
+          <button @click="$emit('close')" aria-label="關閉" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            <span class="material-symbols-outlined text-gray-500" aria-hidden="true">close</span>
           </button>
         </div>
 

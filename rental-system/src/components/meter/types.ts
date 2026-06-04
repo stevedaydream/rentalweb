@@ -19,6 +19,7 @@ export interface MeterEntry {
   currentReadingDate: string;
   existingReadingId: string | null;
   isLocked: boolean;
+  roomLastMeterDate: string;
 }
 
 export interface TierConfig {

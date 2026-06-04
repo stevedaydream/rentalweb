@@ -2,7 +2,7 @@
   <div class="lg:col-span-7 bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-ink-100 dark:border-ink-800">
     <div class="flex justify-between items-center mb-4">
       <h3 class="font-bold text-lg flex items-center">
-        <span class="material-symbols-outlined mr-2 text-gold-500">electric_bolt</span>
+        <span class="material-symbols-outlined mr-2 text-gold-500" aria-hidden="true">electric_bolt</span>
         電表快速登錄
       </h3>
       <span class="text-xs text-text-secondary-light">顯示前 5 筆</span>
@@ -27,7 +27,7 @@
                 v-model.number="room.newReading"
                 type="number"
                 placeholder="輸入度數"
-                class="w-24 px-2 py-1 text-sm border border-ink-200 dark:border-ink-700 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500 outline-none bg-white dark:bg-ink-800"
+                class="w-24 px-2 py-1 text-sm border border-ink-200 dark:border-ink-700 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:border-gold-500 bg-white dark:bg-ink-800"
                 :min="room.lastReading"
               >
             </td>
@@ -49,13 +49,13 @@
     </div>
 
     <div class="mt-4 text-center">
-      <button
-        class="text-sm text-gold-600 hover:underline flex items-center justify-center w-full"
-        @click="router.push({ name: 'MeterReading' })"
+      <RouterLink
+        :to="{ name: 'MeterReading' }"
+        class="text-sm text-gold-600 hover:underline flex items-center justify-center w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 rounded"
       >
         批量輸入與進階設定
-        <span class="material-symbols-outlined text-sm ml-1">arrow_forward</span>
-      </button>
+        <span class="material-symbols-outlined text-sm ml-1" aria-hidden="true">arrow_forward</span>
+      </RouterLink>
     </div>
   </div>
 </template>

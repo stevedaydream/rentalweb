@@ -68,10 +68,11 @@
 
           <!-- Mobile 卡片列表（< md） -->
           <div v-else class="md:hidden divide-y divide-gray-100 dark:divide-gray-800">
-            <div
+            <button
               v-for="bill in filteredBills"
               :key="bill.id"
-              class="p-4 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors cursor-pointer"
+              type="button"
+              class="p-4 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors w-full text-left"
               @click="openModal(bill)"
             >
               <div class="flex items-start justify-between gap-3">
@@ -94,7 +95,7 @@
                   </span>
                 </div>
               </div>
-            </div>
+            </button>
           </div>
 
           <!-- Desktop 表格（md+） -->
@@ -111,8 +112,12 @@
               </thead>
               <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
                 <tr v-for="bill in filteredBills" :key="bill.id"
-                  class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
+                  class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                  role="button"
+                  tabindex="0"
                   @click="openModal(bill)"
+                  @keydown.enter="openModal(bill)"
+                  @keydown.space.prevent="openModal(bill)"
                 >
                   <td class="px-6 py-4">
                     <p class="font-bold text-text-primary-light">{{ bill.monthStr }}</p>
@@ -237,8 +242,9 @@
           <div v-else class="relative w-full h-28 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-600">
             <img :src="proofPreview" class="w-full h-full object-cover" />
             <button @click="resetProof"
+              aria-label="移除付款截圖"
               class="absolute top-1 right-1 w-6 h-6 bg-black/60 text-white rounded-full flex items-center justify-center hover:bg-black/80">
-              <span class="material-symbols-outlined text-[14px]">close</span>
+              <span class="material-symbols-outlined text-[14px]" aria-hidden="true">close</span>
             </button>
           </div>
         </div>
@@ -266,8 +272,8 @@
             <h2 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">帳單詳情</h2>
             <p class="text-sm text-text-secondary-light">{{ selectedBill?.monthStr }}</p>
           </div>
-          <button @click="showModal = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-            <span class="material-symbols-outlined">close</span>
+          <button @click="showModal = false" aria-label="關閉" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
           </button>
         </div>
 
@@ -327,7 +333,7 @@
             </div>
             <a v-if="selectedBill.paymentProofUrl" :href="selectedBill.paymentProofUrl" target="_blank" rel="noopener"
                class="block rounded-lg overflow-hidden border border-amber-200">
-              <img :src="selectedBill.paymentProofUrl" class="w-full max-h-40 object-cover" alt="匯款截圖" />
+              <img :src="selectedBill.paymentProofUrl" class="w-full max-h-40 object-cover" alt="匯款截圖" width="400" height="160" />
             </a>
           </div>
 

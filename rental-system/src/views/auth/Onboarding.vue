@@ -17,6 +17,8 @@
             <input
               v-model="form.name"
               type="text"
+              name="name"
+              autocomplete="name"
               required
               @blur="validateName"
               :class="['form-input', nameError ? '!border-red-400 dark:!border-red-500' : '']"
@@ -29,6 +31,8 @@
             <input
               v-model="form.phone"
               type="tel"
+              name="tel"
+              autocomplete="tel"
               required
               @blur="validatePhone"
               :class="['form-input', phoneError ? '!border-red-400 dark:!border-red-500' : '']"
@@ -51,6 +55,8 @@
               <input
                 v-model="form.landlordCode"
                 type="text"
+                name="landlord-code"
+                autocomplete="off"
                 required
                 @input="onLandlordCodeInput"
                 @blur="validateLandlordCode"

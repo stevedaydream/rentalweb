@@ -107,13 +107,13 @@
               </p>
               <p class="text-sm text-text-secondary-light mt-1">等待房東建立您的租約資訊</p>
             </div>
-            <button
-              @click="$router.push({ name: 'ContactLandlord' })"
-              class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-medium hover:bg-blue-100 transition-colors"
+            <RouterLink
+              :to="{ name: 'ContactLandlord' }"
+              class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-medium hover:bg-blue-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
-              <span class="material-symbols-outlined text-[18px]">chat</span>
+              <span class="material-symbols-outlined text-[18px]" aria-hidden="true">chat</span>
               聯繫房東
-            </button>
+            </RouterLink>
           </div>
           <!-- 完全未綁定 -->
           <div v-else class="text-center py-8 text-gray-400">
@@ -180,13 +180,13 @@
                   <span>電費小計</span>
                   <span>NT$ {{ currentBill.electricAmount.toLocaleString() }}</span>
                 </div>
-                <button
-                  @click="$router.push({ name: 'TenantBills', query: { tab: 'meter' } })"
-                  class="w-full mt-2 text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 flex items-center justify-center gap-1 py-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                <RouterLink
+                  :to="{ name: 'TenantBills', query: { tab: 'meter' } }"
+                  class="w-full mt-2 text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 flex items-center justify-center gap-1 py-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 >
-                  <span class="material-symbols-outlined text-[14px]">history</span>
+                  <span class="material-symbols-outlined text-[14px]" aria-hidden="true">history</span>
                   查看歷史用電記錄
-                </button>
+                </RouterLink>
               </div>
 
               <div class="flex flex-col justify-center items-center sm:items-end space-y-1">
@@ -201,13 +201,13 @@
             </div>
 
             <div class="mt-auto grid grid-cols-2 gap-4">
-               <button @click="$router.push({ name: 'TenantBills', query: { tab: 'history' } })" class="py-2.5 px-4 rounded-xl border border-ink-100 dark:border-ink-700 font-medium text-sm hover:bg-surface-light dark:hover:bg-surface-dark transition-colors flex items-center justify-center gap-2">
-                  <span class="material-symbols-outlined text-[18px]">history</span>
+               <RouterLink :to="{ name: 'TenantBills', query: { tab: 'history' } }" class="py-2.5 px-4 rounded-xl border border-ink-100 dark:border-ink-700 font-medium text-sm hover:bg-surface-light dark:hover:bg-surface-dark transition-colors flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500">
+                  <span class="material-symbols-outlined text-[18px]" aria-hidden="true">history</span>
                   歷史帳單
-               </button>
-               <button @click="$router.push({ name: 'TenantBills', query: { tab: 'unpaid' } })" class="py-2.5 px-4 rounded-xl bg-gold-500 text-white font-bold text-sm hover:bg-gold-600 transition-colors shadow-md shadow-gold-500/20">
+               </RouterLink>
+               <RouterLink :to="{ name: 'TenantBills', query: { tab: 'unpaid' } }" class="py-2.5 px-4 rounded-xl bg-gold-500 text-white font-bold text-sm hover:bg-gold-600 transition-colors shadow-md shadow-gold-500/20 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500">
                   前往繳費
-               </button>
+               </RouterLink>
             </div>
           </div>
 
@@ -308,7 +308,7 @@
               <span class="material-symbols-outlined text-orange-500">campaign</span>
               最新公告
             </h3>
-            <button @click="$router.push({ name: 'TenantAnnouncements' })" class="text-xs text-gold-600 hover:underline">查看全部</button>
+            <RouterLink :to="{ name: 'TenantAnnouncements' }" class="text-xs text-gold-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 rounded">查看全部</RouterLink>
           </div>
 
           <div v-if="loading.announcement" class="space-y-3">
@@ -342,27 +342,27 @@
           </h3>
           
           <div class="grid grid-cols-2 gap-4 h-[calc(100%-3rem)]">
-            <button 
-              @click="$router.push({ name: 'TenantRepairs' })"
-              class="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-ink-100 dark:border-ink-700 hover:border-gold-400 hover:bg-gold-50 dark:hover:bg-gold-900/10 transition-all group"
+            <RouterLink
+              :to="{ name: 'TenantRepairs' }"
+              class="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-ink-100 dark:border-ink-700 hover:border-gold-400 hover:bg-gold-50 dark:hover:bg-gold-900/10 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
             >
                <div class="w-12 h-12 rounded-full bg-gold-100 text-gold-700 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                  <span class="material-symbols-outlined text-2xl">build</span>
+                  <span class="material-symbols-outlined text-2xl" aria-hidden="true">build</span>
                </div>
                <span class="font-bold text-text-primary-light">我要報修</span>
                <span class="text-xs text-text-secondary-light mt-1">物品損壞、漏水等</span>
-            </button>
+            </RouterLink>
 
-            <button 
-               @click="$router.push({ name: 'ContactLandlord' })" 
-               class="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-ink-100 dark:border-ink-700 hover:border-gold-400 hover:bg-gold-50 dark:hover:bg-gold-900/10 transition-all group"
+            <RouterLink
+               :to="{ name: 'ContactLandlord' }"
+               class="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-ink-100 dark:border-ink-700 hover:border-gold-400 hover:bg-gold-50 dark:hover:bg-gold-900/10 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
             >
                <div class="w-12 h-12 rounded-full bg-gold-100 text-gold-700 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                  <span class="material-symbols-outlined text-2xl">chat</span>
+                  <span class="material-symbols-outlined text-2xl" aria-hidden="true">chat</span>
                </div>
                <span class="font-bold text-text-primary-light">聯繫房東</span>
                <span class="text-xs text-text-secondary-light mt-1">傳送訊息給房東</span>
-            </button>
+            </RouterLink>
           </div>
         </div>
       </div>
@@ -386,7 +386,7 @@
             <input 
               v-model="editForm.name" 
               type="text" 
-              class="w-full px-4 py-2 rounded-xl border border-ink-100 dark:border-ink-700 bg-white dark:bg-ink-800 focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none transition-all"
+              class="w-full px-4 py-2 rounded-xl border border-ink-100 dark:border-ink-700 bg-white dark:bg-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:border-transparent transition-all"
               placeholder="請輸入您的姓名"
             >
           </div>
@@ -422,7 +422,7 @@
             <input 
               v-model="editForm.phone" 
               type="tel" 
-              class="w-full px-4 py-2 rounded-xl border border-ink-100 dark:border-ink-700 bg-white dark:bg-ink-800 focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none transition-all"
+              class="w-full px-4 py-2 rounded-xl border border-ink-100 dark:border-ink-700 bg-white dark:bg-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:border-transparent transition-all"
               placeholder="09xx-xxx-xxx"
             >
           </div>

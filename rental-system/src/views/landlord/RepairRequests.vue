@@ -20,33 +20,33 @@
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <div class="p-4 bg-white dark:bg-card-dark rounded-xl border border-ink-100 dark:border-ink-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-red-200 transition-colors" @click="currentFilter = 'pending'">
+      <button type="button" class="p-4 bg-white dark:bg-card-dark rounded-xl border border-ink-100 dark:border-ink-800 shadow-sm flex items-center justify-between hover:border-red-200 transition-colors w-full text-left" @click="currentFilter = 'pending'">
         <div>
           <p class="text-sm text-text-secondary-light">待處理</p>
           <p class="text-2xl font-bold text-red-500 mt-1">{{ stats.pending }} 件</p>
         </div>
         <div class="w-10 h-10 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-500">
-          <span class="material-symbols-outlined">notification_important</span>
+          <span class="material-symbols-outlined" aria-hidden="true">notification_important</span>
         </div>
-      </div>
-      <div class="p-4 bg-white dark:bg-card-dark rounded-xl border border-ink-100 dark:border-ink-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-orange-200 transition-colors" @click="currentFilter = 'processing'">
+      </button>
+      <button type="button" class="p-4 bg-white dark:bg-card-dark rounded-xl border border-ink-100 dark:border-ink-800 shadow-sm flex items-center justify-between hover:border-orange-200 transition-colors w-full text-left" @click="currentFilter = 'processing'">
         <div>
           <p class="text-sm text-text-secondary-light">處理中</p>
           <p class="text-2xl font-bold text-orange-500 mt-1">{{ stats.processing }} 件</p>
         </div>
         <div class="w-10 h-10 rounded-full bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center text-orange-500">
-          <span class="material-symbols-outlined">engineering</span>
+          <span class="material-symbols-outlined" aria-hidden="true">engineering</span>
         </div>
-      </div>
-      <div class="p-4 bg-white dark:bg-card-dark rounded-xl border border-ink-100 dark:border-ink-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-green-200 transition-colors" @click="currentFilter = 'completed'">
+      </button>
+      <button type="button" class="p-4 bg-white dark:bg-card-dark rounded-xl border border-ink-100 dark:border-ink-800 shadow-sm flex items-center justify-between hover:border-green-200 transition-colors w-full text-left" @click="currentFilter = 'completed'">
         <div>
           <p class="text-sm text-text-secondary-light">已完成</p>
           <p class="text-2xl font-bold text-green-600 mt-1">{{ stats.completed }} 件</p>
         </div>
         <div class="w-10 h-10 rounded-full bg-green-50 dark:bg-green-900/20 flex items-center justify-center text-green-600">
-          <span class="material-symbols-outlined">check_circle</span>
+          <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
         </div>
-      </div>
+      </button>
       <div class="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl border border-ink-100 dark:border-ink-800 shadow-sm flex items-center justify-between">
         <div>
           <p class="text-sm text-text-secondary-light">累積維修支出</p>
@@ -222,7 +222,16 @@
         </div>
 
         <div class="p-6 border-t flex justify-end gap-3">
-          <button v-if="isEditing" @click="deleteTicket" class="mr-auto text-red-500 font-medium hover:underline">刪除案件</button>
+          <template v-if="isEditing">
+            <template v-if="confirmDeleteTicket">
+              <span class="mr-auto flex items-center gap-2">
+                <span class="text-xs text-red-600">確定刪除？</span>
+                <button @click="deleteTicket" class="text-xs text-red-600 hover:underline">確定</button>
+                <button @click="confirmDeleteTicket = false" class="text-xs text-gray-500 hover:underline">取消</button>
+              </span>
+            </template>
+            <button v-else @click="confirmDeleteTicket = true" class="mr-auto text-red-500 font-medium hover:underline">刪除案件</button>
+          </template>
           <button @click="showModal = false" class="px-5 py-2">取消</button>
           <button @click="saveTicket" class="px-5 py-2 bg-gold-500 text-white rounded-xl font-bold shadow-md hover:bg-gold-600 transition-all">
             {{ isEditing ? '更新並儲存' : '提交' }}
@@ -426,10 +435,11 @@ const saveTicket = async () => {
 };
 
 const deleteTicket = async () => {
-  if (!form.value.id || !confirm('確定刪除？這不會刪除已產生的財務紀錄。')) return;
+  if (!form.value.id) return;
   try {
     await deleteDoc(doc(db, 'repair_requests', form.value.id));
     showModal.value = false;
+    confirmDeleteTicket.value = false;
     toast.success('報修單已刪除');
   } catch (err) {
     toast.error('刪除失敗，請稍後再試');
@@ -442,6 +452,7 @@ const searchQuery = ref('');
 const showModal = ref(false);
 const isEditing = ref(false);
 const autoDetected = ref(false);
+const confirmDeleteTicket = ref(false);
 const form = ref<Partial<RepairTicket>>({});
 
 const priorityLabels = { high: '緊急', medium: '一般', low: '次要' };
@@ -472,8 +483,9 @@ const filteredTickets = computed(() => {
 
 const openModal = (ticket?: RepairTicket) => {
   isEditing.value = !!ticket;
-  form.value = ticket 
-    ? { ...ticket, isNotify: false, notifyScope: 'room' } 
+  confirmDeleteTicket.value = false;
+  form.value = ticket
+    ? { ...ticket, isNotify: false, notifyScope: 'room' }
     : { category: '水電設備', priority: 'medium', status: 'pending', room: '', description: '', isNotify: true, notifyScope: 'room' };
   showModal.value = true;
 };

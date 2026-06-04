@@ -12,22 +12,23 @@
               @click="handleCopyCode"
               class="group flex items-center gap-1 text-xs text-text-secondary-light bg-surface-light dark:bg-surface-dark px-2 py-0.5 rounded-full mt-1 hover:bg-ink-100 dark:hover:bg-ink-700 transition-colors cursor-pointer"
               title="點擊複製房東 ID"
+              aria-label="複製房東代碼"
             >
               <span>ID: {{ landlordCode || 'Loading...' }}</span>
-              <span class="material-symbols-outlined text-[10px] text-gray-400 group-hover:text-gray-600 transition-colors">content_copy</span>
+              <span class="material-symbols-outlined text-[10px] text-gray-400 group-hover:text-gray-600 transition-colors" aria-hidden="true">content_copy</span>
             </button>
           </div>
         </div>
       </div>
 
       <div class="space-y-4">
-        <div
+        <RouterLink
           v-if="stats.pendingTenants > 0"
-          @click="router.push({ name: 'TenantList' })"
-          class="cursor-pointer p-3 bg-purple-50 dark:bg-purple-900/20 rounded-xl border border-purple-100 dark:border-purple-800/50 flex items-center justify-between hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+          :to="{ name: 'TenantList' }"
+          class="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-xl border border-purple-100 dark:border-purple-800/50 flex items-center justify-between hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
         >
           <div class="flex items-center gap-2 text-purple-700 dark:text-purple-300">
-            <span class="material-symbols-outlined animate-pulse">person_add</span>
+            <span class="material-symbols-outlined animate-pulse" aria-hidden="true">person_add</span>
             <div class="flex flex-col">
               <span class="text-sm font-bold">新租客綁定通知</span>
               <span class="text-[10px] opacity-80">有人綁定了您的 ID</span>
@@ -36,20 +37,20 @@
           <span class="bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-100 text-xs font-bold px-2 py-1 rounded-full">
             {{ stats.pendingTenants }} 人
           </span>
-        </div>
+        </RouterLink>
 
-        <div
-          @click="router.push({ name: 'RoomManagement' })"
-          class="group cursor-pointer p-4 bg-surface-light dark:bg-surface-dark rounded-xl hover:bg-gold-50 dark:hover:bg-gold-900/20 transition-colors"
+        <RouterLink
+          :to="{ name: 'RoomManagement' }"
+          class="group block p-4 bg-surface-light dark:bg-surface-dark rounded-xl hover:bg-gold-50 dark:hover:bg-gold-900/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
         >
           <div class="flex justify-between items-center">
             <span class="text-text-secondary-light">名下房源總數</span>
-            <span class="material-symbols-outlined text-ink-200 group-hover:text-gold-600">arrow_forward</span>
+            <span class="material-symbols-outlined text-ink-200 group-hover:text-gold-600" aria-hidden="true">arrow_forward</span>
           </div>
           <p class="text-3xl font-extrabold text-text-primary-light mt-1 group-hover:text-gold-600 transition-colors">
             {{ stats.totalRooms }} <span class="text-sm font-normal text-text-secondary-light">間</span>
           </p>
-        </div>
+        </RouterLink>
 
         <div class="grid grid-cols-3 gap-2 text-center text-sm">
           <div class="p-2 rounded-lg bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300">
@@ -66,20 +67,20 @@
           </div>
         </div>
 
-        <div
-          @click="router.push({ name: 'TenantList' })"
-          class="group cursor-pointer p-3 bg-surface-light dark:bg-surface-dark rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center justify-between"
+        <RouterLink
+          :to="{ name: 'TenantList' }"
+          class="group flex items-center justify-between p-3 bg-surface-light dark:bg-surface-dark rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
         >
           <div class="flex items-center gap-2 text-text-secondary-light group-hover:text-blue-600">
-            <span class="material-symbols-outlined text-[20px]">group</span>
+            <span class="material-symbols-outlined text-[20px]" aria-hidden="true">group</span>
             <span class="text-sm">在租人數</span>
           </div>
           <div class="flex items-center gap-1">
             <span class="text-xl font-extrabold text-text-primary-light group-hover:text-blue-600">{{ stats.activeTenants }}</span>
             <span class="text-xs text-text-secondary-light">人</span>
-            <span class="material-symbols-outlined text-[16px] text-ink-200 group-hover:text-blue-600 ml-1">arrow_forward</span>
+            <span class="material-symbols-outlined text-[16px] text-ink-200 group-hover:text-blue-600 ml-1" aria-hidden="true">arrow_forward</span>
           </div>
-        </div>
+        </RouterLink>
       </div>
     </div>
   </div>

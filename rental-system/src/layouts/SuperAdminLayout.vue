@@ -21,7 +21,7 @@
             :class="isActive(item.to) ? 'bg-red-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'"
             @click="isSidebarOpen = false"
           >
-            <span class="material-symbols-outlined mr-3 text-[20px]">{{ item.icon }}</span>
+            <span class="material-symbols-outlined mr-3 text-[20px]" aria-hidden="true">{{ item.icon }}</span>
             {{ item.name }}
           </router-link>
         </nav>
@@ -40,24 +40,29 @@
             @click="handleLogout"
             class="w-full flex items-center justify-center px-4 py-2 text-sm font-medium bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors border border-gray-700"
           >
-            <span class="material-symbols-outlined mr-2 text-sm">logout</span>
+            <span class="material-symbols-outlined mr-2 text-sm" aria-hidden="true">logout</span>
             登出
           </button>
         </div>
       </div>
     </aside>
 
-    <div 
-      v-if="isSidebarOpen" 
+    <div
+      v-if="isSidebarOpen"
       @click="isSidebarOpen = false"
+      @keydown.enter="isSidebarOpen = false"
+      @keydown.space.prevent="isSidebarOpen = false"
+      role="button"
+      tabindex="0"
+      aria-label="關閉選單"
       class="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
     ></div>
 
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
       <header class="lg:hidden flex items-center justify-between p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <img :src="logoSrc" alt="Logo" class="h-8 w-auto" />
-        <button @click="isSidebarOpen = true" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-          <span class="material-symbols-outlined">menu</span>
+        <button @click="isSidebarOpen = true" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="開啟選單">
+          <span class="material-symbols-outlined" aria-hidden="true">menu</span>
         </button>
       </header>
 

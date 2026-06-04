@@ -11,11 +11,11 @@
     </div>
 
     <div class="space-y-3">
-      <div
+      <RouterLink
         v-for="ticket in tickets"
         :key="ticket.id"
-        class="p-3 rounded-xl border border-ink-100 dark:border-ink-700 hover:border-gold-500 transition-colors cursor-pointer group"
-        @click="router.push({ name: 'RepairRequests' })"
+        :to="{ name: 'RepairRequests' }"
+        class="block p-3 rounded-xl border border-ink-100 dark:border-ink-700 hover:border-gold-500 transition-colors group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
       >
         <div class="flex justify-between items-start">
           <div>
@@ -28,19 +28,19 @@
           <span class="font-bold mr-1" :class="priorityColor(ticket.priority)">{{ ticket.type }}:</span>
           {{ ticket.desc }}
         </p>
-      </div>
+      </RouterLink>
 
       <div v-if="tickets.length === 0" class="text-center py-6 text-gray-400 text-sm">
         目前沒有待處理的報修
       </div>
     </div>
 
-    <button
-      @click="router.push({ name: 'RepairRequests' })"
-      class="mt-4 w-full py-2 border border-dashed border-ink-200 dark:border-ink-700 rounded-lg text-sm text-text-secondary-light hover:text-gold-600 hover:border-gold-500 transition-colors"
+    <RouterLink
+      :to="{ name: 'RepairRequests' }"
+      class="mt-4 block w-full py-2 text-center border border-dashed border-ink-200 dark:border-ink-700 rounded-lg text-sm text-text-secondary-light hover:text-gold-600 hover:border-gold-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
     >
       查看所有報修紀錄
-    </button>
+    </RouterLink>
   </div>
 </template>
 

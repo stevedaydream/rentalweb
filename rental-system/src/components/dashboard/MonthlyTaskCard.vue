@@ -2,7 +2,7 @@
   <div class="lg:col-span-12 bg-white dark:bg-card-dark rounded-2xl p-5 shadow-sm border border-ink-100 dark:border-ink-800">
     <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-2">
-        <span class="material-symbols-outlined text-[20px] text-gold-500">task_alt</span>
+        <span class="material-symbols-outlined text-[20px] text-gold-500" aria-hidden="true">task_alt</span>
         <h3 class="font-bold text-text-primary-light dark:text-text-primary-dark">本月工作清單</h3>
         <span class="text-xs text-text-secondary-light bg-surface-light dark:bg-surface-dark px-2 py-0.5 rounded-full">{{ monthLabel }}</span>
       </div>
@@ -17,7 +17,7 @@
         <div class="flex items-center gap-2">
           <span class="w-7 h-7 rounded-full flex items-center justify-center text-sm font-black shrink-0"
             :class="steps.meter ? 'bg-green-500 text-white' : 'bg-ink-200 dark:bg-ink-700 text-ink-500 dark:text-ink-300'">
-            <span v-if="steps.meter" class="material-symbols-outlined text-[16px]">check</span>
+            <span v-if="steps.meter" class="material-symbols-outlined text-[16px]" aria-hidden="true">check</span>
             <span v-else>1</span>
           </span>
           <span class="text-sm font-bold text-text-primary-light dark:text-text-primary-dark">抄電表</span>
@@ -35,7 +35,7 @@
         <div class="flex items-center gap-2">
           <span class="w-7 h-7 rounded-full flex items-center justify-center text-sm font-black shrink-0"
             :class="steps.bills ? 'bg-green-500 text-white' : 'bg-ink-200 dark:bg-ink-700 text-ink-500 dark:text-ink-300'">
-            <span v-if="steps.bills" class="material-symbols-outlined text-[16px]">check</span>
+            <span v-if="steps.bills" class="material-symbols-outlined text-[16px]" aria-hidden="true">check</span>
             <span v-else>2</span>
           </span>
           <span class="text-sm font-bold text-text-primary-light dark:text-text-primary-dark">生成帳單</span>
@@ -53,7 +53,7 @@
         <div class="flex items-center gap-2">
           <span class="w-7 h-7 rounded-full flex items-center justify-center text-sm font-black shrink-0"
             :class="steps.notify ? 'bg-green-500 text-white' : sendDayCountdown !== null && sendDayCountdown <= 0 ? 'bg-orange-400 text-white' : 'bg-ink-200 dark:bg-ink-700 text-ink-500 dark:text-ink-300'">
-            <span v-if="steps.notify" class="material-symbols-outlined text-[16px]">check</span>
+            <span v-if="steps.notify" class="material-symbols-outlined text-[16px]" aria-hidden="true">check</span>
             <span v-else>3</span>
           </span>
           <span class="text-sm font-bold text-text-primary-light dark:text-text-primary-dark">通知租客</span>
@@ -76,7 +76,7 @@
         <div class="flex items-center gap-2">
           <span class="w-7 h-7 rounded-full flex items-center justify-center text-sm font-black shrink-0"
             :class="steps.collected ? 'bg-green-500 text-white' : pendingCount > 0 ? 'bg-orange-400 text-white' : 'bg-ink-200 dark:bg-ink-700 text-ink-500 dark:text-ink-300'">
-            <span v-if="steps.collected" class="material-symbols-outlined text-[16px]">check</span>
+            <span v-if="steps.collected" class="material-symbols-outlined text-[16px]" aria-hidden="true">check</span>
             <span v-else>4</span>
           </span>
           <span class="text-sm font-bold text-text-primary-light dark:text-text-primary-dark">確認收款</span>

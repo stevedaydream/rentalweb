@@ -20,12 +20,17 @@
   <!-- 匯入 Modal -->
   <div v-if="showModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showModal = false"></div>
-    <div class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col animate-scale-in max-h-[90vh]">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="meter-import-modal-title"
+      class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col animate-scale-in max-h-[90vh]"
+    >
 
       <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center flex-shrink-0">
         <div>
-          <h2 class="text-xl font-bold dark:text-gray-100 flex items-center gap-2">
-            <span class="material-symbols-outlined text-gold-500">upload_file</span>
+          <h2 id="meter-import-modal-title" class="text-xl font-bold dark:text-gray-100 flex items-center gap-2">
+            <span class="material-symbols-outlined text-gold-500" aria-hidden="true">upload_file</span>
             匯入歷史抄表資料
           </h2>
           <p class="text-sm text-gray-500 mt-1">
@@ -34,8 +39,8 @@
             已配對 <span class="font-bold text-green-600">{{ importMappedCount }}</span> / {{ importData.length }} 個房間
           </p>
         </div>
-        <button @click="showModal = false" class="text-gray-400 hover:text-gray-600 dark:text-gray-400">
-          <span class="material-symbols-outlined">close</span>
+        <button @click="showModal = false" aria-label="關閉" class="text-gray-400 hover:text-gray-600 dark:text-gray-400">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
         </button>
       </div>
 

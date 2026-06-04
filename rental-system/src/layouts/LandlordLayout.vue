@@ -26,7 +26,7 @@
             :class="isActive(item.to) ? 'bg-gold-500/15 text-gold-300' : 'text-ink-300 hover:bg-ink-700 hover:text-ink-100'"
             @click="isSidebarOpen = false"
           >
-            <span class="material-symbols-outlined mr-3 text-[20px]">{{ item.icon }}</span>
+            <span class="material-symbols-outlined mr-3 text-[20px]" aria-hidden="true">{{ item.icon }}</span>
             <span class="flex-1">{{ item.name }}</span>
             <span
               v-if="getBadgeCount(item.id) > 0"
@@ -44,7 +44,7 @@
               class="w-full flex items-center justify-between px-4 py-2 text-xs font-bold text-ink-500 hover:text-ink-300 uppercase tracking-wider rounded-xl hover:bg-ink-700/50 transition-colors"
             >
               <span>工具</span>
-              <span class="material-symbols-outlined text-[16px] transition-transform duration-200" :class="isToolsExpanded ? 'rotate-180' : ''">
+              <span class="material-symbols-outlined text-[16px] transition-transform duration-200" :class="isToolsExpanded ? 'rotate-180' : ''" aria-hidden="true">
                 expand_more
               </span>
             </button>
@@ -58,7 +58,7 @@
                 :class="isActive(item.to) ? 'bg-gold-500/15 text-gold-300' : 'text-ink-400 hover:bg-ink-700 hover:text-ink-100'"
                 @click="isSidebarOpen = false"
               >
-                <span class="material-symbols-outlined mr-3 text-[18px]">{{ item.icon }}</span>
+                <span class="material-symbols-outlined mr-3 text-[18px]" aria-hidden="true">{{ item.icon }}</span>
                 <span class="flex-1">{{ item.name }}</span>
                 <span
                   v-if="getBadgeCount(item.id) > 0"
@@ -80,14 +80,14 @@
             :class="isActive({ name: 'Settings' }) ? 'bg-gold-500/15 text-gold-300' : 'text-ink-400 hover:bg-ink-700 hover:text-ink-100'"
             @click="isSidebarOpen = false"
           >
-            <span class="material-symbols-outlined mr-3 text-[18px]">settings</span>
+            <span class="material-symbols-outlined mr-3 text-[18px]" aria-hidden="true">settings</span>
             系統設定
           </router-link>
           <button
             @click="handleLogout"
             class="w-full flex items-center px-4 py-2.5 text-sm font-medium text-ink-400 hover:bg-ink-700 hover:text-red-400 rounded-xl transition-colors"
           >
-            <span class="material-symbols-outlined mr-3">{{ authStore.impersonatingLandlord ? 'manage_accounts' : 'logout' }}</span>
+            <span class="material-symbols-outlined mr-3" aria-hidden="true">{{ authStore.impersonatingLandlord ? 'manage_accounts' : 'logout' }}</span>
             {{ authStore.impersonatingLandlord ? '結束模擬' : '登出系統' }}
           </button>
         </div>
@@ -98,28 +98,33 @@
     <div
       v-if="isSidebarOpen"
       @click="isSidebarOpen = false"
+      @keydown.enter="isSidebarOpen = false"
+      @keydown.space.prevent="isSidebarOpen = false"
+      role="button"
+      tabindex="0"
+      aria-label="關閉選單"
       class="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
     ></div>
 
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
       <header class="lg:hidden flex items-center justify-between p-4 bg-ink-800 border-b border-ink-700">
         <img :src="logoSrc" alt="Logo" class="h-8 w-auto brightness-0 invert" />
-        <button @click="isSidebarOpen = true" class="p-2 rounded-lg text-ink-300 hover:bg-ink-700">
-          <span class="material-symbols-outlined">menu</span>
+        <button @click="isSidebarOpen = true" class="p-2 rounded-lg text-ink-300 hover:bg-ink-700" aria-label="開啟選單">
+          <span class="material-symbols-outlined" aria-hidden="true">menu</span>
         </button>
       </header>
 
       <!-- 模擬身份 Banner -->
       <div v-if="authStore.impersonatingLandlord" class="flex items-center justify-between px-4 py-2 bg-amber-400 text-amber-900 text-sm font-medium">
         <div class="flex items-center gap-2">
-          <span class="material-symbols-outlined text-base">manage_accounts</span>
+          <span class="material-symbols-outlined text-base" aria-hidden="true">manage_accounts</span>
           <span>正在模擬房東：<strong>{{ authStore.impersonatingLandlord.name }}</strong>（{{ authStore.impersonatingLandlord.landlordCode }}）</span>
         </div>
         <button
           @click="authStore.stopImpersonation()"
           class="flex items-center gap-1 px-3 py-1 bg-amber-900/20 hover:bg-amber-900/30 rounded-lg transition-colors"
         >
-          <span class="material-symbols-outlined text-base">close</span>
+          <span class="material-symbols-outlined text-base" aria-hidden="true">close</span>
           結束模擬
         </button>
       </div>

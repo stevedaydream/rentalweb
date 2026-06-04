@@ -3,24 +3,29 @@
     <div v-if="show" class="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="close"></div>
 
-      <div class="relative bg-white dark:bg-card-dark w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92dvh]">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="bill-transaction-modal-title"
+        class="relative bg-white dark:bg-card-dark w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92dvh]"
+      >
 
         <!-- Header -->
         <div class="px-6 pt-5 pb-4 flex items-center justify-between border-b border-ink-100 dark:border-ink-800 shrink-0">
           <div class="flex items-center gap-3">
             <div class="w-9 h-9 rounded-xl flex items-center justify-center"
               :class="local.type === 'income' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'">
-              <span class="material-symbols-outlined text-[20px]"
+              <span class="material-symbols-outlined text-[20px]" aria-hidden="true"
                 :class="local.type === 'income' ? 'text-green-600' : 'text-red-500'">
                 {{ local.type === 'income' ? 'add_circle' : 'remove_circle' }}
               </span>
             </div>
-            <h2 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">
+            <h2 id="bill-transaction-modal-title" class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">
               {{ isEditing ? '編輯紀錄' : '記一筆' }}
             </h2>
           </div>
-          <button @click="close" class="p-1.5 rounded-full hover:bg-surface-light dark:hover:bg-surface-dark transition-colors text-ink-300 hover:text-ink-600">
-            <span class="material-symbols-outlined">close</span>
+          <button @click="close" aria-label="關閉" class="p-1.5 rounded-full hover:bg-surface-light dark:hover:bg-surface-dark transition-colors text-ink-300 hover:text-ink-600">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
           </button>
         </div>
 

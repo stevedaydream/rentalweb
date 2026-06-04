@@ -6,21 +6,36 @@
         <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
           電表歷史紀錄
         </h1>
-        <p class="text-text-secondary-light">查看所有已儲存的抄表數據與費用計算詳情</p>
+        <p class="text-text-secondary-light">{{ activeTab === 'history' ? '查看所有已儲存的抄表數據與費用計算詳情' : '檢視每個月份各房間的抄表完成狀況' }}</p>
       </div>
-      
-      <div class="flex gap-3">
-        <select v-model="selectedMonth" class="px-4 py-2 bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 rounded-lg outline-none text-sm">
+
+      <div v-show="activeTab === 'history'" class="flex gap-3">
+        <select v-model="selectedMonth" aria-label="篩選月份" class="px-4 py-2 bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 rounded-lg outline-none text-sm">
            <option value="all">所有月份</option>
            <option v-for="m in uniqueMonths" :key="m" :value="m">{{ m }}</option>
         </select>
-        <select v-model="selectedRoom" class="px-4 py-2 bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 rounded-lg outline-none text-sm">
+        <select v-model="selectedRoom" aria-label="篩選房間" class="px-4 py-2 bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 rounded-lg outline-none text-sm">
            <option value="all">所有房間</option>
            <option v-for="r in uniqueRooms" :key="r" :value="r">{{ r }}</option>
         </select>
       </div>
     </div>
 
+    <!-- Tab 切換 -->
+    <div class="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit">
+      <button @click="activeTab = 'history'"
+        class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+        :class="activeTab === 'history' ? 'bg-white dark:bg-card-dark shadow text-text-primary-light dark:text-white' : 'text-text-secondary-light hover:text-text-primary-light dark:hover:text-white'">
+        <span class="material-symbols-outlined text-[16px]">history</span>歷史紀錄
+      </button>
+      <button @click="activeTab = 'coverage'"
+        class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+        :class="activeTab === 'coverage' ? 'bg-white dark:bg-card-dark shadow text-text-primary-light dark:text-white' : 'text-text-secondary-light hover:text-text-primary-light dark:hover:text-white'">
+        <span class="material-symbols-outlined text-[16px]">grid_view</span>缺漏追蹤
+      </button>
+    </div>
+
+    <template v-if="activeTab === 'history'">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       <div class="p-6 bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
         <p class="text-sm text-text-secondary-light">顯示筆數</p>
@@ -47,34 +62,34 @@
           <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50">
             <tr>
               <th class="px-6 py-4">
-                <button @click="setSort('createdAt')" class="flex items-center gap-1 hover:text-text-primary-light dark:hover:text-white transition-colors">
+                <button @click="setSort('createdAt')" aria-label="依抄表/建立日期排序" class="flex items-center gap-1 hover:text-text-primary-light dark:hover:text-white transition-colors">
                   抄表/建立日期
-                  <span class="material-symbols-outlined text-[14px]">{{ sortKey === 'createdAt' ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}</span>
+                  <span class="material-symbols-outlined text-[14px]" aria-hidden="true">{{ sortKey === 'createdAt' ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}</span>
                 </button>
               </th>
               <th class="px-6 py-4">
-                <button @click="setSort('roomName')" class="flex items-center gap-1 hover:text-text-primary-light dark:hover:text-white transition-colors">
+                <button @click="setSort('roomName')" aria-label="依房號排序" class="flex items-center gap-1 hover:text-text-primary-light dark:hover:text-white transition-colors">
                   房號
-                  <span class="material-symbols-outlined text-[14px]">{{ sortKey === 'roomName' ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}</span>
+                  <span class="material-symbols-outlined text-[14px]" aria-hidden="true">{{ sortKey === 'roomName' ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}</span>
                 </button>
               </th>
               <th class="px-6 py-4">
-                <button @click="setSort('periodEnd')" class="flex items-center gap-1 hover:text-text-primary-light dark:hover:text-white transition-colors">
+                <button @click="setSort('periodEnd')" aria-label="依計費區間排序" class="flex items-center gap-1 hover:text-text-primary-light dark:hover:text-white transition-colors">
                   計費區間
-                  <span class="material-symbols-outlined text-[14px]">{{ sortKey === 'periodEnd' ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}</span>
+                  <span class="material-symbols-outlined text-[14px]" aria-hidden="true">{{ sortKey === 'periodEnd' ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}</span>
                 </button>
               </th>
               <th class="px-6 py-4 text-right">區間讀數</th>
               <th class="px-6 py-4 text-right">
-                <button @click="setSort('usage')" class="flex items-center gap-1 ml-auto hover:text-text-primary-light dark:hover:text-white transition-colors">
+                <button @click="setSort('usage')" aria-label="依用量排序" class="flex items-center gap-1 ml-auto hover:text-text-primary-light dark:hover:text-white transition-colors">
                   用量
-                  <span class="material-symbols-outlined text-[14px]">{{ sortKey === 'usage' ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}</span>
+                  <span class="material-symbols-outlined text-[14px]" aria-hidden="true">{{ sortKey === 'usage' ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}</span>
                 </button>
               </th>
               <th class="px-6 py-4 text-right">
-                <button @click="setSort('cost')" class="flex items-center gap-1 ml-auto hover:text-text-primary-light dark:hover:text-white transition-colors">
+                <button @click="setSort('cost')" aria-label="依費用排序" class="flex items-center gap-1 ml-auto hover:text-text-primary-light dark:hover:text-white transition-colors">
                   費用
-                  <span class="material-symbols-outlined text-[14px]">{{ sortKey === 'cost' ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}</span>
+                  <span class="material-symbols-outlined text-[14px]" aria-hidden="true">{{ sortKey === 'cost' ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more' }}</span>
                 </button>
               </th>
               <th class="px-6 py-4 text-center">操作</th>
@@ -92,7 +107,7 @@
                  {{ item.periodStart }} ~ {{ item.periodEnd }}
               </td>
               <td class="px-6 py-4 text-right font-mono text-gray-500">
-                 {{ item.lastReading }} <span class="material-symbols-outlined text-[12px] align-middle px-1">arrow_right_alt</span> {{ item.currentReading }}
+                 {{ item.lastReading }} <span class="material-symbols-outlined text-[12px] align-middle px-1" aria-hidden="true">arrow_right_alt</span> {{ item.currentReading }}
               </td>
               <td class="px-6 py-4 text-right font-bold">
                  {{ item.usage }} 度
@@ -102,19 +117,27 @@
               </td>
               <td class="px-6 py-4 text-center">
                  <div class="flex items-center justify-center gap-2">
-                   <button 
+                   <button
                      @click="openDetail(item)"
-                     class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" 
+                     class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                      title="查看計算過程"
+                     aria-label="查看詳情"
                    >
-                     <span class="material-symbols-outlined text-[20px]">description</span>
+                     <span class="material-symbols-outlined text-[20px]" aria-hidden="true">description</span>
                    </button>
-                   <button 
-                     @click="deleteRecord(item.id)"
-                     class="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" 
+                   <template v-if="confirmDeleteId === item.id">
+                     <span class="text-xs text-red-600">確定刪除？</span>
+                     <button @click="deleteRecord(item.id)" class="text-xs text-red-600 hover:underline">確定</button>
+                     <button @click="confirmDeleteId = null" class="text-xs text-gray-500 hover:underline">取消</button>
+                   </template>
+                   <button
+                     v-else
+                     @click="confirmDeleteId = item.id"
+                     class="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                      title="刪除紀錄"
+                     aria-label="刪除紀錄"
                    >
-                     <span class="material-symbols-outlined text-[20px]">delete</span>
+                     <span class="material-symbols-outlined text-[20px]" aria-hidden="true">delete</span>
                    </button>
                  </div>
               </td>
@@ -128,6 +151,47 @@
          <p>沒有符合條件的歷史紀錄</p>
       </div>
     </div>
+    </template>
+
+    <!-- 缺漏追蹤矩陣 -->
+    <template v-if="activeTab === 'coverage'">
+      <div v-if="loading" class="flex justify-center py-16">
+        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+      </div>
+      <div v-else-if="coverageRooms.length === 0" class="p-12 text-center text-text-secondary-light bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+        <span class="material-symbols-outlined text-4xl mb-2 text-gray-300">grid_view</span>
+        <p>尚無任何抄表紀錄</p>
+      </div>
+      <div v-else class="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm text-left">
+            <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50">
+              <tr>
+                <th class="px-5 py-4 whitespace-nowrap sticky left-0 bg-gray-50 dark:bg-gray-800/50 z-10">月份</th>
+                <th v-for="room in coverageRooms" :key="room.roomId" class="px-4 py-4 text-center whitespace-nowrap">{{ room.roomName }}</th>
+                <th class="px-5 py-4 text-center whitespace-nowrap">完成度</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+              <tr v-for="month in allMonths" :key="month"
+                :class="isMonthComplete(month) ? '' : 'bg-orange-50/40 dark:bg-orange-900/5'">
+                <td class="px-5 py-3 font-mono font-bold whitespace-nowrap sticky left-0 bg-inherit z-10 border-r border-gray-100 dark:border-gray-800">
+                  {{ month }}
+                </td>
+                <td v-for="room in coverageRooms" :key="room.roomId" class="px-4 py-3 text-center">
+                  <span v-if="hasReading(month, room.roomId)" class="material-symbols-outlined text-[20px] text-green-500">check_circle</span>
+                  <span v-else class="material-symbols-outlined text-[20px] text-orange-400">radio_button_unchecked</span>
+                </td>
+                <td class="px-5 py-3 text-center font-bold whitespace-nowrap"
+                  :class="isMonthComplete(month) ? 'text-green-600' : 'text-orange-500'">
+                  {{ coverageMap.get(month)?.size ?? 0 }} / {{ coverageRooms.length }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </template>
 
     <div v-if="showModal && selectedItem" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showModal = false"></div>
@@ -138,8 +202,8 @@
              <h2 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">費用計算詳情</h2>
              <p class="text-sm text-text-secondary-light">{{ selectedItem.roomName }} ({{ selectedItem.periodStart }} ~ {{ selectedItem.periodEnd }})</p>
           </div>
-          <button @click="showModal = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-            <span class="material-symbols-outlined">close</span>
+          <button @click="showModal = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" aria-label="關閉">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
           </button>
         </div>
         
@@ -194,15 +258,20 @@ interface MeterRecord {
   createdAt: Timestamp;
 }
 
+// --- Types ---
+interface CoverageRoom { roomId: string; roomName: string; }
+
 // --- State ---
 const list = ref<MeterRecord[]>([]);
 const loading = ref(true);
+const activeTab = ref<'history' | 'coverage'>('history');
 const selectedMonth = ref('all');
 const selectedRoom = ref('all');
 const showModal = ref(false);
 const selectedItem = ref<MeterRecord | null>(null);
 const sortKey = ref<'createdAt' | 'roomName' | 'periodEnd' | 'usage' | 'cost'>('createdAt');
 const sortDir = ref<'asc' | 'desc'>('desc');
+const confirmDeleteId = ref<string | null>(null);
 
 // --- Lifecycle ---
 onMounted(async () => {
@@ -275,6 +344,54 @@ const filteredList = computed(() => {
 const totalUsage = computed(() => filteredList.value.reduce((sum, item) => sum + item.usage, 0));
 const totalCost = computed(() => filteredList.value.reduce((sum, item) => sum + item.cost, 0));
 
+// --- 缺漏追蹤 ---
+const coverageRooms = computed((): CoverageRoom[] => {
+  const map = new Map<string, string>();
+  list.value.forEach(r => { if (r.roomId && r.roomName) map.set(r.roomId, r.roomName); });
+  return Array.from(map.entries())
+    .map(([roomId, roomName]) => ({ roomId, roomName }))
+    .sort((a, b) => a.roomName.localeCompare(b.roomName, 'zh-TW'));
+});
+
+const allMonths = computed((): string[] => {
+  if (!list.value.length) return [];
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  let earliest = currentMonth;
+  list.value.forEach(r => {
+    if (r.periodEnd) {
+      const ym = r.periodEnd.slice(0, 7);
+      if (ym < earliest) earliest = ym;
+    }
+  });
+  const result: string[] = [];
+  let cursor = earliest;
+  while (cursor <= currentMonth) {
+    result.push(cursor);
+    const [y, m] = cursor.split('-').map(Number) as [number, number];
+    const next = new Date(y, m, 1);
+    cursor = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
+  }
+  return result.reverse();
+});
+
+const coverageMap = computed((): Map<string, Set<string>> => {
+  const map = new Map<string, Set<string>>();
+  list.value.forEach(r => {
+    if (!r.periodEnd || !r.roomId) return;
+    const ym = r.periodEnd.slice(0, 7);
+    if (!map.has(ym)) map.set(ym, new Set());
+    map.get(ym)!.add(r.roomId);
+  });
+  return map;
+});
+
+const hasReading = (yearMonth: string, roomId: string) =>
+  coverageMap.value.get(yearMonth)?.has(roomId) ?? false;
+
+const isMonthComplete = (yearMonth: string) =>
+  coverageRooms.value.length > 0 &&
+  (coverageMap.value.get(yearMonth)?.size ?? 0) >= coverageRooms.value.length;
+
 // --- Actions ---
 const setSort = (key: typeof sortKey.value) => {
   if (sortKey.value === key) {
@@ -301,14 +418,13 @@ const openDetail = (item: MeterRecord) => {
 };
 
 const deleteRecord = async (id: string) => {
-  if (confirm('確定要刪除此筆抄表紀錄嗎？\n注意：這不會復原房間的「目前讀數」，若需修正請至電表登錄頁面重新輸入。')) {
-    try {
-      await deleteDoc(doc(db, 'meter_readings', id));
-      list.value = list.value.filter(item => item.id !== id);
-    } catch (e) {
-      console.error(e);
-      toast.error('刪除失敗');
-    }
+  try {
+    await deleteDoc(doc(db, 'meter_readings', id));
+    list.value = list.value.filter(item => item.id !== id);
+    confirmDeleteId.value = null;
+  } catch (e) {
+    console.error(e);
+    toast.error('刪除失敗');
   }
 };
 </script>

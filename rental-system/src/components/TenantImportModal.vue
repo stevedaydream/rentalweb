@@ -10,19 +10,24 @@
   <Teleport to="body">
     <div v-if="show" class="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeIfSafe" />
-      <div class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col max-h-[90vh]">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tenant-import-modal-title"
+        class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col max-h-[90vh]"
+      >
 
         <!-- Header -->
         <div class="p-5 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between flex-shrink-0">
           <div>
-            <h2 class="text-lg font-bold text-text-primary-light dark:text-gray-100 flex items-center gap-2">
-              <span class="material-symbols-outlined text-gold-500">group_add</span>
+            <h2 id="tenant-import-modal-title" class="text-lg font-bold text-text-primary-light dark:text-gray-100 flex items-center gap-2">
+              <span class="material-symbols-outlined text-gold-500" aria-hidden="true">group_add</span>
               批量匯入租客
             </h2>
             <p class="text-sm text-text-secondary-light mt-0.5">{{ stepDesc }}</p>
           </div>
-          <button @click="closeIfSafe" class="text-gray-400 hover:text-gray-600 dark:text-gray-400 ml-4 flex-shrink-0">
-            <span class="material-symbols-outlined">close</span>
+          <button @click="closeIfSafe" aria-label="關閉" class="text-gray-400 hover:text-gray-600 dark:text-gray-400 ml-4 flex-shrink-0">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
           </button>
         </div>
 
@@ -57,7 +62,7 @@
               >
                 <span class="material-symbols-outlined text-[40px] text-gray-300 dark:text-gray-600">upload_file</span>
                 <p class="font-medium text-text-primary-light dark:text-gray-200">
-                  {{ parsing ? '解析中...' : '點擊選擇 Excel 檔案' }}
+                  {{ parsing ? '解析中…' : '點擊選擇 Excel 檔案' }}
                 </p>
                 <p class="text-xs text-text-secondary-light">.xlsx / .xls / .xlsm</p>
               </div>
@@ -147,7 +152,7 @@
               <span class="material-symbols-outlined text-[32px] text-gold-500 animate-spin">progress_activity</span>
             </div>
             <div class="text-center">
-              <p class="text-lg font-semibold text-text-primary-light dark:text-gray-100">匯入中，請勿關閉視窗...</p>
+              <p class="text-lg font-semibold text-text-primary-light dark:text-gray-100">匯入中，請勿關閉視窗…</p>
               <p class="text-sm text-text-secondary-light mt-1">正在處理：{{ currentRowName }}</p>
             </div>
             <div class="w-full max-w-sm space-y-1">
@@ -259,7 +264,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { db, functions } from '../firebase/config'
-import { collection, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, doc, serverTimestamp, getDocs, query, where } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 
 interface Room {
@@ -320,7 +325,7 @@ const createdCredentials = computed(() =>
 const stepDesc = computed(() => {
   if (step.value === 'upload') return '請下載範本，填寫完成後上傳'
   if (step.value === 'preview') return `已解析 ${parsedRows.value.length} 筆，${validRows.value.length} 筆可匯入`
-  if (step.value === 'importing') return `匯入中... ${progress.value} / ${validRows.value.length}`
+  if (step.value === 'importing') return `匯入中… ${progress.value} / ${validRows.value.length}`
   return `完成：${importResult.value.success.length} 筆成功，${importResult.value.failed.length} 筆失敗`
 })
 
@@ -474,8 +479,23 @@ const startImport = async () => {
   const results: ImportResult = { success: [], failed: [] }
   const createAccountFn = httpsCallable(functions, 'createTenantAccount')
 
+  // 匯入前一次查詢現有租客電話，防止重複匯入
+  const existingSnap = await getDocs(
+    query(collection(db, 'tenants'), where('landlordId', '==', props.landlordId))
+  )
+  const existingPhones = new Set(
+    existingSnap.docs.map(d => (d.data().phone as string) || '').filter(Boolean)
+  )
+
   for (const row of validRows.value) {
     currentRowName.value = row.name
+
+    if (row.phone && existingPhones.has(row.phone)) {
+      results.failed.push({ line: row._line, name: row.name, reason: `電話 ${row.phone} 已存在於租客清單` })
+      progress.value++
+      continue
+    }
+
     try {
       const leaseEnd = calcLeaseEnd(row.leaseStart, row.leaseDuration)
 
@@ -528,6 +548,7 @@ const startImport = async () => {
       }
 
       results.success.push({ name: row.name, room: row.room, credential })
+      if (row.phone) existingPhones.add(row.phone)
     } catch (e: any) {
       results.failed.push({ line: row._line, name: row.name, reason: e.message || '未知錯誤' })
     }

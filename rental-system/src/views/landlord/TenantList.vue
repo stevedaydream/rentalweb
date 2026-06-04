@@ -71,7 +71,7 @@
           v-model="rawSearch"
           type="text"
           placeholder="搜尋姓名、房號或電話..."
-          class="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+          class="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
         >
       </div>
     </div>
@@ -94,9 +94,13 @@
             <tr
               v-for="tenant in pagedTenants"
               :key="tenant.id"
-              class="hover:bg-blue-50/40 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
+              class="hover:bg-blue-50/40 dark:hover:bg-gray-800/50 transition-colors"
               :class="{ 'opacity-55': tenant.isHistorical }"
+              role="button"
+              tabindex="0"
               @click="openDrawer(tenant)"
+              @keydown.enter="openDrawer(tenant)"
+              @keydown.space.prevent="openDrawer(tenant)"
             >
               <td class="px-6 py-4">
                 <div class="flex items-center">
@@ -147,11 +151,12 @@
                   {{ paymentStatusLabels[tenant.paymentStatus] }}
                 </span>
               </td>
-              <td class="px-6 py-4">
+              <td class="px-6 py-4" @click.stop>
                 <span
                   v-if="tenant.contractId"
-                  class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium"
+                  class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
                   :class="getDepositBadgeClass(tenant)"
+                  @click="openDrawerTab(tenant, 'deposits')"
                 >
                   <span class="material-symbols-outlined text-[14px]">payments</span>
                   {{ getDepositLabel(tenant) }}
@@ -163,9 +168,10 @@
                 <div class="relative flex items-center">
                   <button
                     @click.stop="toggleMenu(tenant.id)"
+                    :aria-label="`${tenant.name} 更多選項`"
                     class="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                   >
-                    <span class="material-symbols-outlined text-[22px]">more_vert</span>
+                    <span class="material-symbols-outlined text-[22px]" aria-hidden="true">more_vert</span>
                   </button>
                   <div
                     v-if="activeMenuId === tenant.id"
@@ -380,7 +386,7 @@
         <div class="p-6 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
           <button @click="showModal = false" class="px-5 py-2 rounded-xl text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 font-medium transition-colors">取消</button>
           <button @click="saveTenant" :disabled="isSaving" class="px-5 py-2 rounded-xl bg-gold-500 text-white font-bold shadow-lg shadow-gold-500/30 hover:bg-gold-600 transition-colors disabled:opacity-50">
-            {{ isSaving ? '處理中...' : '新增租客' }}
+            {{ isSaving ? '處理中…' : '新增租客' }}
           </button>
         </div>
       </div>
@@ -414,8 +420,8 @@
                 · {{ drawerTenant?.phone }}
               </p>
             </div>
-            <button @click="closeDrawer" class="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 shrink-0">
-              <span class="material-symbols-outlined">close</span>
+            <button @click="closeDrawer" aria-label="關閉" class="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 shrink-0">
+              <span class="material-symbols-outlined" aria-hidden="true">close</span>
             </button>
           </div>
 
@@ -580,7 +586,7 @@
                     class="w-full py-2 rounded-xl text-xs font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
                   >
                     <span class="material-symbols-outlined text-[15px]">link_off</span>
-                    {{ isUnbinding ? '處理中...' : '緊急解除房間綁定（不走退租流程）' }}
+                    {{ isUnbinding ? '處理中…' : '緊急解除房間綁定（不走退租流程）' }}
                   </button>
                   <button
                     @click="deleteTenant(drawerTenant!)"
@@ -682,7 +688,7 @@
                 <div class="flex gap-3 pt-2 sticky bottom-0 bg-white dark:bg-card-dark pb-2">
                   <button @click="drawerEditing = false" class="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">取消</button>
                   <button @click="saveTenant" :disabled="isSaving" class="flex-1 py-2.5 rounded-xl bg-gold-500 text-white text-sm font-bold shadow-md hover:bg-gold-600 transition-colors disabled:opacity-50">
-                    {{ isSaving ? '處理中...' : '儲存並同步合約' }}
+                    {{ isSaving ? '處理中…' : '儲存並同步合約' }}
                   </button>
                 </div>
               </template>
@@ -1543,6 +1549,15 @@ const markDepositPaid = async (idx: number) => {
       history: [],
       createdAt: serverTimestamp(),
     });
+    // 立即更新列表中的 deposits，不等 onSnapshot 重新載入 contracts
+    const newDeposits = [...depositItems.value];
+    const listIdx = tenants.value.findIndex(t => t.id === tenant.id);
+    if (listIdx !== -1) {
+      tenants.value[listIdx] = { ...tenants.value[listIdx]!, deposits: newDeposits };
+    }
+    if (drawerTenant.value?.id === tenant.id) {
+      drawerTenant.value = { ...drawerTenant.value, deposits: newDeposits };
+    }
     toast.success(`已標記「${item.label}」收款完成`);
   } catch {
     toast.error('更新失敗，請稍後再試');

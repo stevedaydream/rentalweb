@@ -85,8 +85,9 @@
                 <button
                   class="p-2 text-gray-400 hover:text-gold-500 transition-colors rounded-full hover:bg-white dark:hover:bg-gray-700 shadow-sm opacity-0 group-hover:opacity-100"
                   @click.stop="openMessage(msg)"
+                  aria-label="回覆此訊息"
                 >
-                  <span class="material-symbols-outlined">reply</span>
+                  <span class="material-symbols-outlined" aria-hidden="true">reply</span>
                 </button>
               </td>
             </tr>
@@ -128,8 +129,8 @@
               來自 {{ selectedMessage?.tenantName }} 的訊息
             </h2>
           </div>
-          <button @click="closeModal" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-            <span class="material-symbols-outlined">close</span>
+          <button @click="closeModal" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" aria-label="關閉">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
           </button>
         </div>
 
@@ -166,8 +167,8 @@
             </label>
             <textarea
               v-model="replyContent"
-              class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-gold-400 outline-none h-32 resize-none text-text-primary-light dark:text-text-primary-dark"
-              placeholder="請輸入回覆內容..."
+              class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 h-32 resize-none text-text-primary-light dark:text-text-primary-dark"
+              placeholder="請輸入回覆內容…"
             ></textarea>
           </div>
         </div>

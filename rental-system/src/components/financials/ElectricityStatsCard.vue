@@ -3,7 +3,7 @@
     <div class="flex justify-between items-start mb-4">
       <div>
         <h3 class="font-bold text-lg text-ink-800 dark:text-ink-100 flex items-center gap-2">
-          <span class="material-symbols-outlined text-gold-600">analytics</span>
+          <span class="material-symbols-outlined text-gold-600" aria-hidden="true">analytics</span>
           電費盈虧分析 ({{ stats.periodStr }})
         </h3>
         <p class="text-sm text-ink-500 dark:text-ink-300 opacity-80">雙月結算：比對台電帳單與租客實收金額</p>
@@ -34,7 +34,7 @@
         </div>
         <div v-else class="flex flex-col h-full justify-center">
           <p class="text-sm text-ink-300 italic">尚未登錄帳單</p>
-          <button @click="$emit('open-taipower')" class="text-xs text-gold-600 hover:underline mt-1">立即登錄</button>
+          <button @click="$emit('open-taipower')" class="text-xs text-gold-600 hover:underline focus-visible:ring-2 focus-visible:ring-gold-500 mt-1">立即登錄</button>
         </div>
       </div>
 

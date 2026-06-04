@@ -1,9 +1,10 @@
 <template>
-  <div v-if="visible" class="signature-modal">
+  <div v-if="visible" class="signature-modal" role="dialog" aria-modal="true" aria-label="電子簽名">
     <div class="signature-modal-content" :class="{ landscape: isMobile }">
       <Vue3Signature
         ref="signRef"
         :sigOption="{ penColor: 'black' }"
+        aria-label="簽名區域，請用滑鼠或手指繪製您的簽名"
         style="background: #fff; border: 1.5px solid #aaa; width:100%; height: 220px;"
       />
       <div class="btns">
@@ -92,6 +93,13 @@ const onConfirm = () => {
   margin: 0 4px;
   cursor: pointer;
   transition: background .16s;
+}
+.btns button:focus-visible {
+  outline: 2px solid #2767c7;
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .btns button { transition: none; }
 }
 .btns button.primary {
   background: #2767c7;

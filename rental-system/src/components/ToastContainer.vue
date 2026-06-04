@@ -1,17 +1,23 @@
 <template>
   <Teleport to="body">
-    <div class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+    <div
+      aria-live="polite"
+      aria-atomic="true"
+      class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 max-w-sm w-full pointer-events-none"
+    >
       <TransitionGroup name="toast">
-        <div
+        <button
           v-for="toast in toastStore.toasts"
           :key="toast.id"
-          class="flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border pointer-events-auto cursor-pointer"
+          type="button"
+          :aria-label="`關閉通知：${toast.message}`"
+          class="flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg border pointer-events-auto cursor-pointer text-left w-full"
           :class="styleMap[toast.type]"
           @click="toastStore.remove(toast.id)"
         >
-          <span class="material-symbols-outlined text-[20px] mt-0.5 shrink-0">{{ iconMap[toast.type] }}</span>
+          <span class="material-symbols-outlined text-[20px] mt-0.5 shrink-0" aria-hidden="true">{{ iconMap[toast.type] }}</span>
           <p class="text-sm font-medium leading-snug">{{ toast.message }}</p>
-        </div>
+        </button>
       </TransitionGroup>
     </div>
   </Teleport>
@@ -38,9 +44,17 @@ const styleMap = {
 </script>
 
 <style scoped>
-.toast-enter-active { transition: all 0.3s ease; }
-.toast-leave-active { transition: all 0.25s ease; }
+.toast-enter-active { transition: opacity 0.3s ease, transform 0.3s ease; }
+.toast-leave-active { transition: opacity 0.25s ease, transform 0.25s ease; }
 .toast-enter-from  { opacity: 0; transform: translateX(100%); }
 .toast-leave-to    { opacity: 0; transform: translateX(100%); }
 .toast-move        { transition: transform 0.3s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-enter-active,
+  .toast-leave-active,
+  .toast-move { transition: none; }
+  .toast-enter-from,
+  .toast-leave-to { transform: none; }
+}
 </style>

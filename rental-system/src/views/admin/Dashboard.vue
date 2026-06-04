@@ -31,9 +31,9 @@
         </div>
       </div>
 
-      <div 
-        @click="$router.push({ name: 'AdminTenants' })"
-        class="bg-red-50 dark:bg-red-900/20 p-6 rounded-xl shadow-sm border border-red-100 dark:border-red-900/30 flex items-center justify-between cursor-pointer hover:bg-red-100 transition-colors"
+      <RouterLink
+        :to="{ name: 'AdminTenants' }"
+        class="bg-red-50 dark:bg-red-900/20 p-6 rounded-xl shadow-sm border border-red-100 dark:border-red-900/30 flex items-center justify-between hover:bg-red-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
       >
         <div>
           <p class="text-sm text-red-600 font-bold">未歸屬租客 (無房東)</p>
@@ -44,7 +44,7 @@
         <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center animate-pulse">
           <span class="material-symbols-outlined">warning</span>
         </div>
-      </div>
+      </RouterLink>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -54,27 +54,27 @@
           <h3 class="font-bold text-lg">資料管理</h3>
         </div>
         <div class="p-6 grid gap-4">
-          <button @click="$router.push({ name: 'AdminLandlords' })" class="flex items-center p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all group">
+          <RouterLink :to="{ name: 'AdminLandlords' }" class="flex items-center p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
             <div class="bg-blue-100 text-blue-600 p-2 rounded-lg mr-4 group-hover:bg-blue-200">
-              <span class="material-symbols-outlined">supervisor_account</span>
+              <span class="material-symbols-outlined" aria-hidden="true">supervisor_account</span>
             </div>
             <div class="text-left">
               <span class="block font-bold">房東列表管理</span>
               <span class="text-xs text-gray-500">查看房東、刪除房東(連動刪除ID)、查看旗下租客</span>
             </div>
-            <span class="material-symbols-outlined ml-auto text-gray-400 group-hover:text-blue-500">arrow_forward</span>
-          </button>
+            <span class="material-symbols-outlined ml-auto text-gray-400 group-hover:text-blue-500" aria-hidden="true">arrow_forward</span>
+          </RouterLink>
 
-          <button @click="$router.push({ name: 'AdminTenants' })" class="flex items-center p-4 border border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-all group">
+          <RouterLink :to="{ name: 'AdminTenants' }" class="flex items-center p-4 border border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500">
             <div class="bg-green-100 text-green-600 p-2 rounded-lg mr-4 group-hover:bg-green-200">
-              <span class="material-symbols-outlined">person_add</span>
+              <span class="material-symbols-outlined" aria-hidden="true">person_add</span>
             </div>
             <div class="text-left">
               <span class="block font-bold">租客配對管理</span>
               <span class="text-xs text-gray-500">指派房東給未登記租客、管理租客資料</span>
             </div>
-            <span class="material-symbols-outlined ml-auto text-gray-400 group-hover:text-green-500">arrow_forward</span>
-          </button>
+            <span class="material-symbols-outlined ml-auto text-gray-400 group-hover:text-green-500" aria-hidden="true">arrow_forward</span>
+          </RouterLink>
         </div>
       </div>
 
@@ -101,13 +101,13 @@
             </button>
           </div>
           
-          <button 
-            @click="$router.push({ name: 'AdminDatabase' })"
-            class="w-full py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm font-bold flex items-center justify-center"
+          <RouterLink
+            :to="{ name: 'AdminDatabase' }"
+            class="block w-full py-2 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm font-bold flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-500"
           >
-            <span class="material-symbols-outlined text-sm mr-2">settings_suggest</span>
+            <span class="material-symbols-outlined text-sm mr-2" aria-hidden="true">settings_suggest</span>
             前往進階資料庫管理 (更多生成選項)
-          </button>
+          </RouterLink>
         </div>
       </div>
     </div>

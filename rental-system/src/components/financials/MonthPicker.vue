@@ -5,9 +5,9 @@
       @click="open = !open"
       class="flex items-center gap-2 px-3 py-2 border border-ink-100 dark:border-ink-700 rounded-lg text-sm bg-white dark:bg-ink-800 hover:border-gold-500 transition-colors font-medium"
     >
-      <span class="material-symbols-outlined text-[18px] text-gold-500">calendar_month</span>
+      <span class="material-symbols-outlined text-[18px] text-gold-500" aria-hidden="true">calendar_month</span>
       {{ displayLabel }}
-      <span class="material-symbols-outlined text-[16px] text-ink-300 transition-transform" :class="open ? 'rotate-180' : ''">expand_more</span>
+      <span class="material-symbols-outlined text-[16px] text-ink-300 transition-transform" :class="open ? 'rotate-180' : ''" aria-hidden="true">expand_more</span>
     </button>
 
     <!-- Dropdown -->
@@ -18,12 +18,12 @@
       >
         <!-- Year navigation -->
         <div class="flex items-center justify-between mb-4">
-          <button @click="year--" class="p-1.5 rounded-lg hover:bg-surface-light dark:hover:bg-surface-dark transition-colors">
-            <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+          <button @click="year--" aria-label="上一年" class="p-1.5 rounded-lg hover:bg-surface-light dark:hover:bg-surface-dark transition-colors">
+            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">chevron_left</span>
           </button>
           <span class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ year }} 年</span>
-          <button @click="year++" :disabled="year >= maxYear" class="p-1.5 rounded-lg hover:bg-surface-light dark:hover:bg-surface-dark transition-colors disabled:opacity-30">
-            <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+          <button @click="year++" :disabled="year >= maxYear" aria-label="下一年" class="p-1.5 rounded-lg hover:bg-surface-light dark:hover:bg-surface-dark transition-colors disabled:opacity-30">
+            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">chevron_right</span>
           </button>
         </div>
 

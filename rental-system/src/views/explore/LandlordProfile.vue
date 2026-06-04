@@ -152,7 +152,7 @@
                 <button
                   v-for="i in 5" :key="i" type="button"
                   @click="form.rating = i"
-                  class="p-0.5 focus:outline-none transition-transform hover:scale-110"
+                  class="p-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 rounded transition-transform hover:scale-110"
                 >
                   <span
                     class="material-symbols-outlined text-[32px]"
@@ -196,6 +196,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { collection, query, where, getDocs, addDoc, doc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase/config';
+import { useToastStore } from '../../stores/toast';
 
 interface Review {
   id: string;
@@ -218,6 +219,7 @@ interface LandlordProfile {
 
 const route = useRoute();
 const landlordId = route.params.landlordId as string;
+const toast = useToastStore();
 
 const loading = ref(true);
 const profile = ref<LandlordProfile>({});
@@ -291,7 +293,7 @@ const submitReview = async () => {
     submitSuccess.value = true;
   } catch (e) {
     console.error('提交評價失敗', e);
-    alert('提交失敗，請稍後再試。');
+    toast.error('提交失敗，請稍後再試');
   } finally {
     submitting.value = false;
   }

@@ -13,7 +13,7 @@
           v-model="searchQuery"
           type="text" 
           placeholder="搜尋姓名、電話或 Email..." 
-          class="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all shadow-sm"
+          class="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:border-transparent transition-all shadow-sm"
         >
       </div>
     </div>
@@ -155,7 +155,7 @@
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">選擇房東</label>
             <select 
               v-model="targetLandlordCode"
-              class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 outline-none focus:ring-2 focus:ring-green-500"
+              class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500"
             >
               <option value="" disabled>請選擇一位房東</option>
               <option v-for="ll in landlords" :key="ll.id" :value="ll.landlordCode">
@@ -202,7 +202,7 @@
           <input
             v-model="newPassword"
             type="text"
-            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 outline-none focus:ring-2 focus:ring-amber-500 font-mono"
+            class="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 font-mono"
             placeholder="輸入新密碼"
           >
           <p class="text-xs text-gray-400 mt-1">提示：可填入租客的身分證號碼</p>

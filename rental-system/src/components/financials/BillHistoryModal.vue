@@ -2,14 +2,19 @@
   <div v-if="show" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="$emit('update:show', false)"></div>
 
-    <div class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[80vh]">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="bill-history-modal-title"
+      class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[80vh]"
+    >
       <div class="p-6 border-b border-ink-100 dark:border-ink-700 flex justify-between items-center">
         <div>
-          <h2 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">修改紀錄</h2>
+          <h2 id="bill-history-modal-title" class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">修改紀錄</h2>
           <p class="text-xs text-text-secondary-light">系統自動保留變更前的資料快照</p>
         </div>
-        <button @click="$emit('update:show', false)" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-          <span class="material-symbols-outlined">close</span>
+        <button @click="$emit('update:show', false)" aria-label="關閉" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
         </button>
       </div>
 

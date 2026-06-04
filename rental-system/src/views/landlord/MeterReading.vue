@@ -5,10 +5,18 @@
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
         <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">智慧電表登錄</h1>
-        <div class="flex items-center gap-2 text-text-secondary-light mt-1">
+        <div class="flex items-center gap-2 text-text-secondary-light mt-1 flex-wrap">
           <span>目前模式：</span>
           <span class="font-bold text-blue-600 px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 rounded text-sm">
             {{ currentModeLabel }}
+          </span>
+          <span class="text-gray-300">|</span>
+          <span>抄表月份：</span>
+          <input type="date" :value="monthAsDate" @change="onMonthDateChange" :max="todayStr"
+            aria-label="抄表日期"
+            class="px-2 py-0.5 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-sm font-mono outline-none focus:ring-1 focus:ring-primary">
+          <span v-if="isBackfillMode" class="font-bold text-orange-600 px-2 py-0.5 bg-orange-50 dark:bg-orange-900/20 rounded text-sm flex items-center gap-1">
+            <span class="material-symbols-outlined text-[14px]" aria-hidden="true">history</span>補登模式
           </span>
           <span v-if="loading" class="text-xs animate-pulse ml-2">資料載入中...</span>
         </div>
@@ -18,7 +26,7 @@
           @click="showSettingsModal = true"
           class="px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center"
         >
-          <span class="material-symbols-outlined text-[18px] mr-2">tune</span>
+          <span class="material-symbols-outlined text-[18px] mr-2" aria-hidden="true">tune</span>
           計算參數設定
         </button>
 
@@ -30,9 +38,9 @@
           :disabled="saving || !hasValidChanges"
           class="px-4 py-2 bg-gold-500 text-white rounded-lg shadow-sm hover:bg-gold-600 transition-colors text-sm font-medium flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <span v-if="saving" class="material-symbols-outlined text-[18px] mr-2 animate-spin">progress_activity</span>
-          <span v-else class="material-symbols-outlined text-[18px] mr-2">save</span>
-          {{ saving ? '儲存中...' : '儲存紀錄' }}
+          <span v-if="saving" class="material-symbols-outlined text-[18px] mr-2 animate-spin" aria-hidden="true">progress_activity</span>
+          <span v-else class="material-symbols-outlined text-[18px] mr-2" aria-hidden="true">save</span>
+          {{ saving ? '儲存中…' : '儲存紀錄' }}
         </button>
       </div>
     </div>
@@ -88,19 +96,23 @@
       <div v-if="settings.mode === 'tiered'" class="p-4 bg-white dark:bg-card-dark border border-gray-100 dark:border-gray-800 rounded-xl shadow-sm">
         <p class="text-xs text-gray-500 uppercase font-bold">季節判定</p>
         <div class="flex items-center gap-1.5 mt-1">
-          <span class="material-symbols-outlined text-[18px] text-orange-500" v-if="settings.tieredConfig.season === 'summer'">sunny</span>
-          <span class="material-symbols-outlined text-[18px] text-blue-500" v-if="settings.tieredConfig.season === 'non-summer'">ac_unit</span>
-          <span class="material-symbols-outlined text-[18px] text-purple-500" v-if="settings.tieredConfig.season === 'average'">balance</span>
-          <span class="material-symbols-outlined text-[18px] text-green-500" v-if="settings.tieredConfig.season === 'auto'">event_repeat</span>
+          <span class="material-symbols-outlined text-[18px] text-orange-500" v-if="settings.tieredConfig.season === 'summer'" aria-hidden="true">sunny</span>
+          <span class="material-symbols-outlined text-[18px] text-blue-500" v-if="settings.tieredConfig.season === 'non-summer'" aria-hidden="true">ac_unit</span>
+          <span class="material-symbols-outlined text-[18px] text-purple-500" v-if="settings.tieredConfig.season === 'average'" aria-hidden="true">balance</span>
+          <span class="material-symbols-outlined text-[18px] text-green-500" v-if="settings.tieredConfig.season === 'auto'" aria-hidden="true">event_repeat</span>
           <p class="text-base font-bold">{{ seasonLabel }}</p>
         </div>
+        <p class="text-xs font-bold mt-2"
+          :class="occupiedRooms.length > 0 && filledCount === occupiedRooms.length ? 'text-green-600' : 'text-orange-500'">
+          已填寫 {{ filledCount }} / {{ occupiedRooms.length }} 間
+        </p>
       </div>
       <div v-else class="p-4 bg-white dark:bg-card-dark border border-gray-100 dark:border-gray-800 rounded-xl shadow-sm">
         <p class="text-xs text-gray-500 uppercase font-bold">已填寫</p>
         <p class="text-base font-bold text-green-600 mt-1">{{ filledCount }} / {{ occupiedRooms.length }} 間</p>
       </div>
       <div class="p-4 bg-white dark:bg-card-dark border border-gray-100 dark:border-gray-800 rounded-xl shadow-sm">
-        <p class="text-xs text-gray-500 uppercase font-bold">本月電費合計</p>
+        <p class="text-xs text-gray-500 uppercase font-bold">{{ isBackfillMode ? '本期電費合計' : '本月電費合計' }}</p>
         <p class="text-base font-bold mt-1">NT$ {{ totalEstimatedCost.toLocaleString() }}</p>
       </div>
       <div class="p-4 bg-white dark:bg-card-dark border border-gray-100 dark:border-gray-800 rounded-xl shadow-sm flex items-center justify-between gap-2">
@@ -175,6 +187,7 @@
                       type="number"
                       v-model.number="room.currentReading"
                       :disabled="room.isLocked"
+                      :aria-label="`${room.name} 本期度數`"
                       class="flex-1 px-3 py-2 text-center font-bold border rounded-lg outline-none transition-colors"
                       :class="room.isLocked
                         ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 cursor-default'
@@ -184,7 +197,7 @@
                     <!-- 已抄表 badge -->
                     <span v-if="room.isLocked"
                       class="shrink-0 inline-flex items-center gap-0.5 text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                      <span class="material-symbols-outlined text-[12px]">check_circle</span>已抄
+                      <span class="material-symbols-outlined text-[12px]" aria-hidden="true">check_circle</span>已抄
                     </span>
                   </div>
                 </td>
@@ -203,15 +216,17 @@
                     <button v-if="room.isLocked"
                       @click="unlockRoom(room)"
                       class="p-1.5 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
-                      title="修改本月抄表數值">
-                      <span class="material-symbols-outlined text-[18px]">edit</span>
+                      title="修改本月抄表數值"
+                      aria-label="修改本月抄表數值">
+                      <span class="material-symbols-outlined text-[18px]" aria-hidden="true">edit</span>
                     </button>
                     <button v-else
                       @click="showDetails(room)"
                       class="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30"
                       :disabled="!room.currentReading"
-                      title="查看計算詳情">
-                      <span class="material-symbols-outlined text-[18px]">calculate</span>
+                      title="查看計算詳情"
+                      aria-label="查看計算詳情">
+                      <span class="material-symbols-outlined text-[18px]" aria-hidden="true">calculate</span>
                     </button>
                   </div>
                 </td>
@@ -258,21 +273,21 @@
         </div>
         <button @click="saveAllReadings" :disabled="saving"
           class="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2 shrink-0">
-          <span v-if="saving" class="material-symbols-outlined text-[16px] animate-spin">sync</span>
-          <span v-else class="material-symbols-outlined text-[16px]">save</span>
-          {{ saving ? '儲存中...' : '確認儲存' }}
+          <span v-if="saving" class="material-symbols-outlined text-[16px] animate-spin" aria-hidden="true">sync</span>
+          <span v-else class="material-symbols-outlined text-[16px]" aria-hidden="true">save</span>
+          {{ saving ? '儲存中…' : '確認儲存' }}
         </button>
       </div>
 
       <!-- 儲存成功 Banner -->
       <div v-if="showSaveBanner" class="px-6 py-4 bg-green-50 dark:bg-green-900/10 border-t border-green-200 dark:border-green-800 flex items-center justify-between">
         <div class="flex items-center gap-2 text-green-700 dark:text-green-300 text-sm font-medium">
-          <span class="material-symbols-outlined text-[20px]">check_circle</span>
+          <span class="material-symbols-outlined text-[20px]" aria-hidden="true">check_circle</span>
           已成功儲存 {{ savedCount }} 筆電表紀錄
         </div>
-        <router-link :to="{ name: 'Financials' }"
+        <router-link v-if="!isBackfillMode" :to="{ name: 'Financials' }"
           class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-colors flex items-center gap-1.5">
-          <span class="material-symbols-outlined text-[16px]">receipt_long</span>
+          <span class="material-symbols-outlined text-[16px]" aria-hidden="true">receipt_long</span>
           前往帳務管理，生成帳單
         </router-link>
       </div>
@@ -295,7 +310,7 @@
       <div class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-lg shadow-2xl flex flex-col animate-scale-in">
         <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
           <h2 class="text-xl font-bold dark:text-gray-100">計算詳情</h2>
-          <button @click="showDetailModal = false" class="dark:text-gray-300"><span class="material-symbols-outlined">close</span></button>
+          <button @click="showDetailModal = false" class="dark:text-gray-300" aria-label="關閉"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
         </div>
         <div class="p-6 overflow-y-auto max-h-[60vh]">
           <pre class="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg text-sm whitespace-pre-wrap font-mono text-gray-700 dark:text-gray-300 overflow-x-auto">{{ detailLog }}</pre>
@@ -310,7 +325,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { db } from '../../firebase/config';
 import { useToastStore } from '../../stores/toast';
 import { useAuthStore } from '../../stores/auth';
@@ -338,6 +353,25 @@ const detailTotal = ref(0);
 const unifiedDate = ref(new Date().toISOString().split('T')[0] || '');
 const showSaveBanner = ref(false);
 const savedCount = ref(0);
+const todayStr = new Date().toISOString().split('T')[0]!;
+const currentMonthStr = todayStr.slice(0, 7);
+const selectedMonth = ref(currentMonthStr);
+const monthAsDate = computed(() => `${selectedMonth.value}-01`);
+const onMonthDateChange = (e: Event) => {
+  const val = (e.target as HTMLInputElement).value;
+  if (val) selectedMonth.value = val.slice(0, 7);
+};
+
+const isBackfillMode = computed(() => selectedMonth.value !== currentMonthStr);
+const getMonthEndDate = (monthStr: string) => {
+  const [y, m] = monthStr.split('-').map(Number) as [number, number];
+  return `${monthStr}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+};
+const getMonthOffset = (monthStr: string, offset: number) => {
+  const [y, m] = monthStr.split('-').map(Number) as [number, number];
+  const d = new Date(y, m - 1 + offset, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
 
 // --- 初始化 ---
 onMounted(async () => {
@@ -365,9 +399,12 @@ const loadSettings = async () => {
 const loadData = async () => {
   const uid = authStore.effectiveUid;
   const today = new Date().toISOString().split('T')[0] || '';
-  const currentMonth = today.slice(0, 7);
+  const targetMonth = selectedMonth.value;
+  const prevMonth = getMonthOffset(targetMonth, -1);
+  const defaultStartDate = isBackfillMode.value ? `${targetMonth}-01` : today;
+  const defaultEndDate = isBackfillMode.value ? getMonthEndDate(targetMonth) : today;
 
-  const [roomsSnap, readingsSnap] = await Promise.all([
+  const [roomsSnap, readingsSnap, prevReadingsSnap] = await Promise.all([
     getDocs(query(
       collection(db, 'rooms'),
       where('landlordId', '==', uid),
@@ -376,8 +413,14 @@ const loadData = async () => {
     getDocs(query(
       collection(db, 'meter_readings'),
       where('landlordId', '==', uid),
-      where('periodEnd', '>=', `${currentMonth}-01`),
-      where('periodEnd', '<=', `${currentMonth}-31`)
+      where('periodEnd', '>=', `${targetMonth}-01`),
+      where('periodEnd', '<=', `${targetMonth}-31`)
+    )),
+    getDocs(query(
+      collection(db, 'meter_readings'),
+      where('landlordId', '==', uid),
+      where('periodEnd', '>=', `${prevMonth}-01`),
+      where('periodEnd', '<=', `${prevMonth}-31`)
     )),
   ]);
 
@@ -391,21 +434,32 @@ const loadData = async () => {
     }
   });
 
+  // 上月抄表紀錄，作為無本月紀錄時的上期讀數備用
+  const prevMonthMap = new Map<string, any>();
+  prevReadingsSnap.docs.forEach(d => {
+    const data = d.data();
+    const existing = prevMonthMap.get(data.roomId);
+    if (!existing || data.periodEnd > existing.periodEnd) {
+      prevMonthMap.set(data.roomId, { id: d.id, ...data });
+    }
+  });
+
   meterData.value = roomsSnap.docs.map(d => {
     const data = d.data();
     const existing = thisMonthMap.get(d.id);
+    const prev = prevMonthMap.get(d.id);
     return {
       roomId: d.id,
       name: data.name || '未命名',
       tenantName: data.tenantName || '',
       status: data.status || 'vacant',
-      // 若本月已有紀錄，使用紀錄的原始起讀值（不用 rooms 被更新過的值）
-      lastReading: existing ? existing.lastReading : (data.lastMeterReading || 0),
-      lastReadingDate: existing ? existing.periodStart : (data.lastMeterDate || today),
+      lastReading: existing ? existing.lastReading : (prev ? prev.currentReading : (data.lastMeterReading || 0)),
+      lastReadingDate: existing ? existing.periodStart : (prev ? prev.periodEnd : (data.lastMeterDate || defaultStartDate)),
       currentReading: existing ? existing.currentReading : undefined,
-      currentReadingDate: existing ? existing.periodEnd : today,
+      currentReadingDate: existing ? existing.periodEnd : defaultEndDate,
       existingReadingId: existing ? existing.id : null,
       isLocked: !!existing,
+      roomLastMeterDate: data.lastMeterDate || '',
     };
   });
 
@@ -419,6 +473,19 @@ const loadData = async () => {
     masterBillAmount: undefined,
   }];
 };
+
+watch(selectedMonth, async () => {
+  unifiedDate.value = isBackfillMode.value
+    ? getMonthEndDate(selectedMonth.value)
+    : new Date().toISOString().split('T')[0] || '';
+  loading.value = true;
+  meterData.value = [];
+  try {
+    await loadData();
+  } finally {
+    loading.value = false;
+  }
+});
 
 // --- 計算邏輯 ---
 const getDaysDiff = (start: string, end: string) => {
@@ -606,10 +673,12 @@ const saveAllReadings = async () => {
         // 新增紀錄
         promises.push(addDoc(collection(db, 'meter_readings'), readingData));
       }
-      promises.push(updateDoc(doc(db, 'rooms', entry.roomId), {
-        lastMeterReading: entry.currentReading,
-        lastMeterDate: entry.currentReadingDate,
-      }));
+      if (!entry.roomLastMeterDate || entry.currentReadingDate >= entry.roomLastMeterDate) {
+        promises.push(updateDoc(doc(db, 'rooms', entry.roomId), {
+          lastMeterReading: entry.currentReading,
+          lastMeterDate: entry.currentReadingDate,
+        }));
+      }
     }
 
     await Promise.all(promises);

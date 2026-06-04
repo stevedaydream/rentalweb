@@ -171,7 +171,7 @@
                       <a v-if="item.paymentProofUrl" :href="item.paymentProofUrl" target="_blank" rel="noopener"
                         class="block w-12 h-10 rounded overflow-hidden border border-amber-300 hover:border-amber-500 transition-colors"
                         title="查看匯款截圖">
-                        <img :src="item.paymentProofUrl" class="w-full h-full object-cover" />
+                        <img :src="item.paymentProofUrl" class="w-full h-full object-cover" alt="付款截圖" width="48" height="40" />
                       </a>
                       <button
                         @click="markPaid(item)"
@@ -195,22 +195,23 @@
                 </td>
                 <td class="px-6 py-4 text-center relative">
                   <button @click.stop="toggleMenu(item.id)"
+                    aria-label="更多選項"
                     class="text-ink-300 hover:text-gold-600 p-1 rounded-full hover:bg-surface-light dark:hover:bg-surface-dark transition-colors"
                     :class="{ 'bg-gold-50 text-gold-600': activeMenuId === item.id }">
-                    <span class="material-symbols-outlined text-[20px]">more_vert</span>
+                    <span class="material-symbols-outlined text-[20px]" aria-hidden="true">more_vert</span>
                   </button>
                   <div v-if="activeMenuId === item.id"
                     class="absolute right-8 top-8 w-36 bg-white dark:bg-ink-800 rounded-xl shadow-xl border border-ink-100 dark:border-ink-700 z-50 overflow-hidden text-left animation-fade-in"
                     @click.stop>
-                    <button @click="handleEdit(item)" class="w-full px-4 py-2 text-sm hover:bg-surface-light dark:hover:bg-surface-dark text-ink-600 dark:text-ink-200 flex items-center gap-2">
-                      <span class="material-symbols-outlined text-[18px]">edit</span>編輯
+                    <button @click="handleEdit(item)" aria-label="編輯" class="w-full px-4 py-2 text-sm hover:bg-surface-light dark:hover:bg-surface-dark text-ink-600 dark:text-ink-200 flex items-center gap-2">
+                      <span class="material-symbols-outlined text-[18px]" aria-hidden="true">edit</span>編輯
                     </button>
-                    <button @click="openHistory(item)" class="w-full px-4 py-2 text-sm hover:bg-surface-light dark:hover:bg-surface-dark text-ink-600 dark:text-ink-200 flex items-center gap-2">
-                      <span class="material-symbols-outlined text-[18px]">history</span>修改紀錄
+                    <button @click="openHistory(item)" aria-label="修改紀錄" class="w-full px-4 py-2 text-sm hover:bg-surface-light dark:hover:bg-surface-dark text-ink-600 dark:text-ink-200 flex items-center gap-2">
+                      <span class="material-symbols-outlined text-[18px]" aria-hidden="true">history</span>修改紀錄
                     </button>
                     <div class="border-t border-ink-100 dark:border-ink-700 my-1"></div>
-                    <button @click="handleDelete(item.id)" class="w-full px-4 py-2 text-sm hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 flex items-center gap-2">
-                      <span class="material-symbols-outlined text-[18px]">delete</span>刪除
+                    <button @click="handleDelete(item.id)" aria-label="刪除" class="w-full px-4 py-2 text-sm hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 flex items-center gap-2">
+                      <span class="material-symbols-outlined text-[18px]" aria-hidden="true">delete</span>刪除
                     </button>
                   </div>
                 </td>

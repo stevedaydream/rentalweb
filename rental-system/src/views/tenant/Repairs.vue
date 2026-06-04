@@ -28,10 +28,12 @@
         </button>
       </div>
 
-      <div
+      <button
         v-for="req in requests"
         :key="req.id"
-        class="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden cursor-pointer"
+        type="button"
+        class="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden w-full text-left"
+        :aria-expanded="expandedId === req.id"
         @click="toggleExpand(req.id)"
       >
         <div class="p-4">
@@ -52,7 +54,8 @@
                 {{ statusLabels[req.status] }}
               </span>
               <span class="material-symbols-outlined text-[18px] text-ink-300 transition-transform duration-200"
-                :class="expandedId === req.id ? 'rotate-180' : ''">
+                :class="expandedId === req.id ? 'rotate-180' : ''"
+                aria-hidden="true">
                 expand_more
               </span>
             </div>
@@ -78,7 +81,7 @@
             <span>處理完成：{{ formatDate(req.resolvedAt) }}</span>
           </div>
         </div>
-      </div>
+      </button>
     </div>
 
     <div v-if="showNewRequest" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
@@ -94,7 +97,7 @@
         <div class="space-y-4">
           <div>
             <label class="block text-sm font-medium mb-1">設備類別</label>
-            <select v-model="form.category" class="w-full p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 outline-none">
+            <select v-model="form.category" class="w-full p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500">
               <option>水電設備</option>
               <option>家電產品</option>
               <option>房屋結構</option>
@@ -105,12 +108,12 @@
 
           <div>
             <label class="block text-sm font-medium mb-1">問題標題</label>
-            <input v-model="form.title" type="text" placeholder="例如：浴室蓮蓬頭漏水" class="w-full p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 outline-none">
+            <input v-model="form.title" type="text" placeholder="例如：浴室蓮蓬頭漏水" class="w-full p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500">
           </div>
 
           <div>
             <label class="block text-sm font-medium mb-1">詳細說明</label>
-            <textarea v-model="form.description" rows="3" class="w-full p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 outline-none"></textarea>
+            <textarea v-model="form.description" rows="3" class="w-full p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"></textarea>
           </div>
 
           <div>

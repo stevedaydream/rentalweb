@@ -13,6 +13,8 @@
           <input
             v-model="email"
             type="email"
+            name="email"
+            autocomplete="email"
             required
             @blur="validateEmail"
             :class="['w-full px-4 py-3 rounded-xl border bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all',
@@ -27,6 +29,8 @@
           <input
             v-model="password"
             type="password"
+            name="new-password"
+            autocomplete="new-password"
             required
             minlength="6"
             @blur="validatePassword"
@@ -42,6 +46,8 @@
           <input
             v-model="confirmPassword"
             type="password"
+            name="confirm-password"
+            autocomplete="new-password"
             required
             @blur="validateConfirmPassword"
             :class="['w-full px-4 py-3 rounded-xl border bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all',

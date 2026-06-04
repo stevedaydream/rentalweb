@@ -62,12 +62,12 @@
        <span class="material-symbols-outlined text-5xl text-yellow-500 mb-4">link_off</span>
        <h2 class="text-xl font-bold text-gray-800 dark:text-gray-200 mb-2">尚未綁定房東</h2>
        <p class="text-gray-600 dark:text-gray-400 mb-6">您目前尚未綁定任何房東，無法查看聯絡資訊或發送訊息。</p>
-       <button 
-         @click="$router.push({ name: 'TenantDashboard' })" 
-         class="px-6 py-2 bg-gold-500 text-white rounded-xl shadow hover:bg-gold-600 transition-colors"
+       <RouterLink
+         :to="{ name: 'TenantDashboard' }"
+         class="px-6 py-2 bg-gold-500 text-white rounded-xl shadow hover:bg-gold-600 transition-colors inline-block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
        >
          前往儀表板綁定
-       </button>
+       </RouterLink>
     </div>
 
     <div v-else class="grid grid-cols-1 lg:grid-cols-3 gap-6">

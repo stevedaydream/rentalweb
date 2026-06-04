@@ -21,7 +21,7 @@
             :class="isActive(item.to) ? 'bg-gold-500/15 text-gold-300' : 'text-ink-300 hover:bg-ink-700 hover:text-ink-100'"
           >
             <div class="flex items-center">
-              <span class="material-symbols-outlined mr-3 text-[20px]">{{ item.icon }}</span>
+              <span class="material-symbols-outlined mr-3 text-[20px]" aria-hidden="true">{{ item.icon }}</span>
               {{ item.name }}
             </div>
             <span
@@ -38,7 +38,7 @@
             @click="handleLogout"
             class="w-full flex items-center px-4 py-3 text-sm font-medium text-ink-400 hover:bg-ink-700 hover:text-red-400 rounded-xl transition-colors"
           >
-            <span class="material-symbols-outlined mr-3">logout</span>
+            <span class="material-symbols-outlined mr-3" aria-hidden="true">logout</span>
             登出系統
           </button>
         </div>
@@ -59,7 +59,7 @@
         v-if="showGoogleLinkBanner"
         class="mx-4 mt-3 mb-0 lg:mx-8 flex items-center gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl px-4 py-3 text-sm"
       >
-        <img src="https://www.svgrepo.com/show/475656/google-color.svg" class="w-5 h-5 shrink-0" alt="Google">
+        <img src="https://www.svgrepo.com/show/475656/google-color.svg" class="w-5 h-5 shrink-0" alt="Google" width="20" height="20">
         <p class="flex-1 text-blue-800 dark:text-blue-200">
           綁定 Gmail 後，下次可直接用 Google 登入，不需輸入身分證號
         </p>
@@ -70,8 +70,8 @@
         >
           {{ linkingGoogle ? '綁定中...' : '立即綁定' }}
         </button>
-        <button @click="dismissBanner" class="shrink-0 text-blue-400 hover:text-blue-600 p-1">
-          <span class="material-symbols-outlined text-[18px]">close</span>
+        <button @click="dismissBanner" class="shrink-0 text-blue-400 hover:text-blue-600 p-1" aria-label="關閉通知">
+          <span class="material-symbols-outlined text-[18px]" aria-hidden="true">close</span>
         </button>
       </div>
 
@@ -92,7 +92,7 @@
       >
         <!-- icon + badge -->
         <div class="relative">
-          <span class="material-symbols-outlined text-[22px]" :class="isActive(item.to) ? 'text-gold-400' : ''">{{ item.icon }}</span>
+          <span class="material-symbols-outlined text-[22px]" :class="isActive(item.to) ? 'text-gold-400' : ''" aria-hidden="true">{{ item.icon }}</span>
 
           <!-- number badge -->
           <span

@@ -1,12 +1,17 @@
 <template>
   <div v-if="show" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="close"></div>
-    <div class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="meter-settings-modal-title"
+      class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]"
+    >
 
       <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-        <h2 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">計算參數設定</h2>
-        <button @click="close" class="text-gray-400 hover:text-gray-600">
-          <span class="material-symbols-outlined">close</span>
+        <h2 id="meter-settings-modal-title" class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">計算參數設定</h2>
+        <button @click="close" aria-label="關閉" class="text-gray-400 hover:text-gray-600">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
         </button>
       </div>
 

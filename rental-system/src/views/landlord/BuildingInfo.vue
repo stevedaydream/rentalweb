@@ -182,7 +182,7 @@
           </template>
 
           <!-- Undo / Clear -->
-          <div class="ml-auto flex gap-1.5">
+          <div class="ml-auto flex items-center gap-1.5">
             <button
               @click="undoShape"
               :disabled="!buildingInfo.shapes.length"
@@ -191,8 +191,14 @@
             >
               <span class="material-symbols-outlined text-[15px]">undo</span>復原
             </button>
+            <template v-if="confirmClearShapes">
+              <span class="text-xs text-red-600">確定清除？</span>
+              <button @click="clearShapes" class="text-xs text-red-600 hover:underline">確定</button>
+              <button @click="confirmClearShapes = false" class="text-xs text-gray-500 hover:underline">取消</button>
+            </template>
             <button
-              @click="clearShapes"
+              v-else
+              @click="confirmClearShapes = true"
               :disabled="!buildingInfo.shapes.length"
               title="清除全部圖形"
               class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs border border-red-200 dark:border-red-900 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 transition-colors"
@@ -438,11 +444,11 @@
           </div>
           <div>
             <label class="block text-sm font-medium text-text-secondary-light mb-1">名稱</label>
-            <input v-model="markerForm.label" type="text" class="form-input" placeholder="例如：B1 安全門、二樓走廊滅火器">
+            <input v-model="markerForm.label" type="text" class="form-input" placeholder="例如：B1 安全門、二樓走廊滅火器…">
           </div>
           <div>
             <label class="block text-sm font-medium text-text-secondary-light mb-1">說明（選填）</label>
-            <textarea v-model="markerForm.description" class="form-input min-h-[80px]" placeholder="使用說明、注意事項..."></textarea>
+            <textarea v-model="markerForm.description" class="form-input min-h-[80px]" placeholder="使用說明、注意事項…"></textarea>
           </div>
         </div>
         <div class="p-6 border-t border-gray-100 dark:border-gray-700 flex justify-between">
@@ -622,6 +628,9 @@ const pendingTextValue = ref('')
 const showFacilityModal = ref(false)
 const editingFacilityId = ref<string | null>(null)
 const facilityForm = reactive({ icon: '⚙️', name: '', location: '', rules: '' })
+
+// Confirm clear shapes
+const confirmClearShapes = ref(false)
 
 // --- Config ---
 const markerConfig: Record<MarkerType, { icon: string; bg: string; triangle: string; label: string }> = {
@@ -824,6 +833,7 @@ const toggleEditing = () => {
     drawTool.value = 'none'
     previewShape.value = null
     isDrawingShape.value = false
+    confirmClearShapes.value = false
   }
 }
 
@@ -914,10 +924,9 @@ const undoShape = () => {
 
 const clearShapes = () => {
   if (!buildingInfo.shapes.length) return
-  if (confirm('確定要清除所有繪製的圖形嗎？')) {
-    buildingInfo.shapes = []
-    hasChanges.value = true
-  }
+  buildingInfo.shapes = []
+  hasChanges.value = true
+  confirmClearShapes.value = false
 }
 
 // --- Template selection ---

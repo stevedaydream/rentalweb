@@ -54,6 +54,7 @@
         </div>
         <select
           v-model="filterLayout"
+          aria-label="篩選格局"
           class="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none"
         >
           <option value="">全部格局</option>
@@ -64,6 +65,7 @@
         </select>
         <select
           v-model="filterPrice"
+          aria-label="篩選價格"
           class="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none"
         >
           <option value="">全部價格</option>
@@ -116,6 +118,8 @@
               :src="getCoverImage(room)"
               class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               alt="房間照片"
+              width="400"
+              height="300"
             >
             <!-- 格局標籤 -->
             <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-white px-2 py-1 rounded-lg text-xs font-medium">
@@ -257,8 +261,8 @@
         @click.self="closeLightbox"
       >
         <!-- 關閉 -->
-        <button @click="closeLightbox" class="absolute top-4 right-4 text-white/70 hover:text-white">
-          <span class="material-symbols-outlined text-[32px]">close</span>
+        <button @click="closeLightbox" aria-label="關閉圖片檢視器" class="absolute top-4 right-4 text-white/70 hover:text-white">
+          <span class="material-symbols-outlined text-[32px]" aria-hidden="true">close</span>
         </button>
 
         <!-- 計數 -->
@@ -271,22 +275,26 @@
           :src="getRoomImages(lightboxRoom)[lightboxIndex]"
           class="max-w-full max-h-[80vh] object-contain rounded-lg select-none"
           alt="放大圖"
+          width="800"
+          height="600"
         >
 
         <!-- 左右箭頭 -->
         <button
           v-if="lightboxIndex > 0"
           @click="lightboxIndex--"
+          aria-label="上一張"
           class="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
         >
-          <span class="material-symbols-outlined text-[28px]">chevron_left</span>
+          <span class="material-symbols-outlined text-[28px]" aria-hidden="true">chevron_left</span>
         </button>
         <button
           v-if="lightboxIndex < getRoomImages(lightboxRoom).length - 1"
           @click="lightboxIndex++"
+          aria-label="下一張"
           class="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
         >
-          <span class="material-symbols-outlined text-[28px]">chevron_right</span>
+          <span class="material-symbols-outlined text-[28px]" aria-hidden="true">chevron_right</span>
         </button>
 
         <!-- 縮圖列 -->
@@ -295,6 +303,8 @@
             v-for="(img, i) in getRoomImages(lightboxRoom)"
             :key="i"
             @click="lightboxIndex = i"
+            :aria-label="`第 ${i + 1} 張圖片`"
+            :aria-pressed="i === lightboxIndex"
             class="flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all"
             :class="i === lightboxIndex ? 'border-white' : 'border-transparent opacity-50 hover:opacity-75'"
           >

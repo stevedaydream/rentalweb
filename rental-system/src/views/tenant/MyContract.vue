@@ -176,7 +176,7 @@ const isActive = (endDate) => !!endDate && new Date(endDate) >= new Date()
 const formatDate = (val) => {
   if (!val) return '—'
   const d = val?.toDate ? val.toDate() : new Date(val)
-  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`
+  return new Intl.DateTimeFormat('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
 }
 
 const loadContracts = async () => {

@@ -3,16 +3,21 @@
     <div v-if="show" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="$emit('update:show', false)"></div>
 
-      <div class="relative bg-white dark:bg-card-dark w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90dvh]">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="contract-template-modal-title"
+        class="relative bg-white dark:bg-card-dark w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90dvh]"
+      >
 
         <!-- Header -->
         <div class="px-6 pt-5 pb-4 flex items-center justify-between border-b border-ink-100 dark:border-ink-800 shrink-0">
-          <h2 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2">
-            <span class="material-symbols-outlined text-[20px] text-gold-500">edit_document</span>
+          <h2 id="contract-template-modal-title" class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2">
+            <span class="material-symbols-outlined text-[20px] text-gold-500" aria-hidden="true">edit_document</span>
             合約範本設定
           </h2>
-          <button @click="$emit('update:show', false)" class="p-1.5 rounded-full hover:bg-surface-light dark:hover:bg-surface-dark text-ink-300 hover:text-ink-600">
-            <span class="material-symbols-outlined">close</span>
+          <button @click="$emit('update:show', false)" aria-label="關閉" class="p-1.5 rounded-full hover:bg-surface-light dark:hover:bg-surface-dark text-ink-300 hover:text-ink-600">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
           </button>
         </div>
 
@@ -86,7 +91,7 @@
           <button @click="save" :disabled="saving"
             class="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-gold-500 hover:bg-gold-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
             <span v-if="saving" class="material-symbols-outlined text-[16px] animate-spin">sync</span>
-            {{ saving ? '儲存中...' : '儲存範本' }}
+            {{ saving ? '儲存中…' : '儲存範本' }}
           </button>
         </div>
 
