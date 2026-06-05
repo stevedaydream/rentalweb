@@ -277,12 +277,12 @@
           <div v-if="!authStore.user" class="p-3 bg-red-100 text-red-700 text-sm rounded-lg mb-4">系統錯誤：無法識別房東身分，請重新登入。</div>
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-medium text-text-secondary-light mb-1">姓名</label>
-              <input v-model="form.name" type="text" class="form-input" placeholder="租客姓名">
+              <label for="modal-name" class="block text-sm font-medium text-text-secondary-light mb-1">姓名</label>
+              <input id="modal-name" v-model="form.name" type="text" class="form-input" placeholder="租客姓名" autocomplete="name">
             </div>
             <div>
-              <label class="block text-sm font-medium text-text-secondary-light mb-1">承租房源</label>
-              <select v-model="form.room" @change="onRoomSelect" class="form-input">
+              <label for="modal-room" class="block text-sm font-medium text-text-secondary-light mb-1">承租房源</label>
+              <select id="modal-room" v-model="form.room" @change="onRoomSelect" class="form-input" autocomplete="off">
                 <option value="" disabled>請選擇房源</option>
                 <option v-for="room in vacantRooms" :key="room.id" :value="room.name">{{ room.name }} ({{ room.price }}元)</option>
                 <option v-if="form.room && !isRoomInList(form.room)" :value="form.room">{{ form.room }} (未知房源)</option>
@@ -291,20 +291,21 @@
             </div>
           </div>
           <div>
-            <label class="block text-sm font-medium text-text-secondary-light mb-1">聯絡電話</label>
-            <input v-model="form.phone" type="tel" class="form-input" placeholder="0912-345-678">
+            <label for="modal-phone" class="block text-sm font-medium text-text-secondary-light mb-1">聯絡電話</label>
+            <input id="modal-phone" v-model="form.phone" type="tel" class="form-input" placeholder="0912-345-678" autocomplete="tel">
           </div>
           <div>
-            <label class="block text-sm font-medium text-text-secondary-light mb-1">電子郵件 (選填)</label>
-            <input v-model="form.email" type="email" class="form-input" placeholder="tenant@example.com">
+            <label for="modal-email" class="block text-sm font-medium text-text-secondary-light mb-1">電子郵件 (選填)</label>
+            <input id="modal-email" v-model="form.email" type="email" class="form-input" placeholder="tenant@example.com" autocomplete="email">
           </div>
           <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
             <p class="text-xs font-bold text-blue-700 dark:text-blue-300 mb-2 flex items-center gap-1">
               <span class="material-symbols-outlined text-[15px]">key</span>
               租客登入帳號（選填）
             </p>
-            <label class="block text-sm font-medium text-text-secondary-light mb-1">身分證號碼</label>
-            <input v-model="form.idNumber" type="text" class="form-input font-mono uppercase" placeholder="A123456789"
+            <label for="modal-id-number" class="block text-sm font-medium text-text-secondary-light mb-1">身分證號碼</label>
+            <input id="modal-id-number" v-model="form.idNumber" type="text" class="form-input font-mono uppercase" placeholder="A123456789"
+              autocomplete="off" spellcheck="false"
               @input="form.idNumber = (form.idNumber || '').toUpperCase()">
             <p class="text-xs text-blue-600 dark:text-blue-400 mt-2">填寫後系統將自動建立帳號，租客可用「手機號碼 + 身分證號」登入</p>
           </div>
@@ -312,12 +313,12 @@
             <p class="text-xs font-bold text-text-secondary-light uppercase mb-3">租約設定</p>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-text-secondary-light mb-1">起租日</label>
-                <input v-model="form.leaseStart" type="date" class="form-input">
+                <label for="modal-lease-start" class="block text-sm font-medium text-text-secondary-light mb-1">起租日</label>
+                <input id="modal-lease-start" v-model="form.leaseStart" type="date" class="form-input" autocomplete="off">
               </div>
               <div>
-                <label class="block text-sm font-medium text-text-secondary-light mb-1">租期（年）</label>
-                <select v-model.number="form.leaseDuration" class="form-input">
+                <label for="modal-lease-duration" class="block text-sm font-medium text-text-secondary-light mb-1">租期（年）</label>
+                <select id="modal-lease-duration" v-model.number="form.leaseDuration" class="form-input" autocomplete="off">
                   <option :value="0.5">0.5 年（6 個月）</option>
                   <option :value="1">1 年</option>
                   <option :value="1.5">1.5 年</option>
@@ -337,17 +338,26 @@
             </div>
             <div class="grid grid-cols-2 gap-4 mt-3">
               <div>
-                <label class="block text-sm font-medium text-text-secondary-light mb-1">每月租金 (NT$)</label>
-                <input v-model.number="form.rent" type="number" class="form-input" placeholder="自動帶入房源價格">
+                <label for="modal-rent" class="block text-sm font-medium text-text-secondary-light mb-1">每月租金 (NT$)</label>
+                <input id="modal-rent" v-model.number="form.rent" type="number" class="form-input" placeholder="自動帶入房源價格" autocomplete="off">
               </div>
               <div>
-                <label class="block text-sm font-medium text-text-secondary-light mb-1">押金月數</label>
-                <select v-model.number="form.depositMonths" class="form-input">
+                <label for="modal-deposit-months" class="block text-sm font-medium text-text-secondary-light mb-1">押金月數</label>
+                <select id="modal-deposit-months" v-model.number="form.depositMonths" class="form-input" autocomplete="off">
                   <option :value="1">1 個月</option>
                   <option :value="2">2 個月（慣例）</option>
                   <option :value="3">3 個月</option>
                 </select>
               </div>
+            </div>
+            <div class="mt-3">
+              <label for="modal-payment-frequency" class="block text-sm font-medium text-text-secondary-light mb-1">繳費方式</label>
+              <select id="modal-payment-frequency" v-model="form.paymentFrequency" class="form-input" autocomplete="off">
+                <option value="monthly">月繳（每月一期）</option>
+                <option value="quarterly">季繳（每季一期，金額 ×3）</option>
+                <option value="semiannual">半年繳（每半年一期，金額 ×6）</option>
+                <option value="yearly">年繳（每年一期，金額 ×12）</option>
+              </select>
             </div>
             <div v-if="form.rent && form.rent > 0" class="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-700 text-sm">
               <p class="font-semibold text-amber-800 dark:text-amber-300 mb-2 flex items-center gap-1">
@@ -373,12 +383,12 @@
             <p class="text-xs font-bold text-text-secondary-light uppercase mb-3">其他資訊</p>
             <div class="space-y-3">
               <div>
-                <label class="block text-sm font-medium text-text-secondary-light mb-1">緊急聯絡人</label>
-                <input v-model="form.emergencyContact" type="text" class="form-input" placeholder="姓名 - 關係 - 電話">
+                <label for="modal-emergency" class="block text-sm font-medium text-text-secondary-light mb-1">緊急聯絡人</label>
+                <input id="modal-emergency" v-model="form.emergencyContact" type="text" class="form-input" placeholder="姓名 - 關係 - 電話" autocomplete="off">
               </div>
               <div>
-                <label class="block text-sm font-medium text-text-secondary-light mb-1">備註</label>
-                <textarea v-model="form.note" class="form-input min-h-[80px]" placeholder="例如：養一隻貓、習慣晚歸..."></textarea>
+                <label for="modal-note" class="block text-sm font-medium text-text-secondary-light mb-1">備註</label>
+                <textarea id="modal-note" v-model="form.note" class="form-input min-h-[80px]" placeholder="例如：養一隻貓、習慣晚歸…"></textarea>
               </div>
             </div>
           </div>
@@ -512,6 +522,10 @@
                       <span class="font-semibold text-text-primary-light dark:text-text-primary-dark">NT$ {{ (drawerTenant?.rent || 0).toLocaleString() }}</span>
                     </div>
                     <div class="flex justify-between">
+                      <span class="text-text-secondary-light">繳費方式</span>
+                      <span class="font-medium">{{ ({ monthly: '月繳', quarterly: '季繳', semiannual: '半年繳', yearly: '年繳' } as Record<string, string>)[drawerTenant?.paymentFrequency || 'monthly'] }}</span>
+                    </div>
+                    <div class="flex justify-between">
                       <span class="text-text-secondary-light">繳費截止日</span>
                       <span class="font-medium">每月 {{ authStore.userProfile?.settings?.paymentDay ?? 5 }} 號</span>
                     </div>
@@ -609,12 +623,12 @@
 
                 <div class="grid grid-cols-2 gap-4">
                   <div>
-                    <label class="block text-sm font-medium text-text-secondary-light mb-1">姓名</label>
-                    <input v-model="form.name" type="text" class="form-input">
+                    <label for="drawer-name" class="block text-sm font-medium text-text-secondary-light mb-1">姓名</label>
+                    <input id="drawer-name" v-model="form.name" type="text" class="form-input" autocomplete="name">
                   </div>
                   <div>
-                    <label class="block text-sm font-medium text-text-secondary-light mb-1">承租房源</label>
-                    <select v-model="form.room" @change="onRoomSelect" class="form-input">
+                    <label for="drawer-room" class="block text-sm font-medium text-text-secondary-light mb-1">承租房源</label>
+                    <select id="drawer-room" v-model="form.room" @change="onRoomSelect" class="form-input" autocomplete="off">
                       <option value="" disabled>請選擇房源</option>
                       <option v-if="currentEditingRoom" :value="currentEditingRoom.name">{{ currentEditingRoom.name }} (目前承租)</option>
                       <option v-for="room in vacantRooms" :key="room.id" :value="room.name">{{ room.name }} ({{ room.price }}元)</option>
@@ -623,23 +637,23 @@
                   </div>
                 </div>
                 <div>
-                  <label class="block text-sm font-medium text-text-secondary-light mb-1">聯絡電話</label>
-                  <input v-model="form.phone" type="tel" class="form-input">
+                  <label for="drawer-phone" class="block text-sm font-medium text-text-secondary-light mb-1">聯絡電話</label>
+                  <input id="drawer-phone" v-model="form.phone" type="tel" class="form-input" autocomplete="tel">
                 </div>
                 <div>
-                  <label class="block text-sm font-medium text-text-secondary-light mb-1">電子郵件 (選填)</label>
-                  <input v-model="form.email" type="email" class="form-input">
+                  <label for="drawer-email" class="block text-sm font-medium text-text-secondary-light mb-1">電子郵件 (選填)</label>
+                  <input id="drawer-email" v-model="form.email" type="email" class="form-input" autocomplete="email">
                 </div>
                 <div class="border-t border-gray-100 dark:border-gray-800 pt-2">
                   <p class="text-xs font-bold text-text-secondary-light uppercase mb-3">租約設定</p>
                   <div class="grid grid-cols-2 gap-4">
                     <div>
-                      <label class="block text-sm font-medium text-text-secondary-light mb-1">起租日</label>
-                      <input v-model="form.leaseStart" type="date" class="form-input">
+                      <label for="drawer-lease-start" class="block text-sm font-medium text-text-secondary-light mb-1">起租日</label>
+                      <input id="drawer-lease-start" v-model="form.leaseStart" type="date" class="form-input" autocomplete="off">
                     </div>
                     <div>
-                      <label class="block text-sm font-medium text-text-secondary-light mb-1">租期（年）</label>
-                      <select v-model.number="form.leaseDuration" class="form-input">
+                      <label for="drawer-lease-duration" class="block text-sm font-medium text-text-secondary-light mb-1">租期（年）</label>
+                      <select id="drawer-lease-duration" v-model.number="form.leaseDuration" class="form-input" autocomplete="off">
                         <option :value="0.5">0.5 年</option>
                         <option :value="1">1 年</option>
                         <option :value="1.5">1.5 年</option>
@@ -658,29 +672,37 @@
                   </div>
                   <div class="grid grid-cols-2 gap-4 mt-3">
                     <div>
-                      <label class="block text-sm font-medium text-text-secondary-light mb-1">每月租金 (NT$)</label>
-                      <input v-model.number="form.rent" type="number" class="form-input">
+                      <label for="drawer-rent" class="block text-sm font-medium text-text-secondary-light mb-1">每月租金 (NT$)</label>
+                      <input id="drawer-rent" v-model.number="form.rent" type="number" class="form-input" autocomplete="off">
                     </div>
                     <div>
-                      <label class="block text-sm font-medium text-text-secondary-light mb-1">押金月數</label>
-                      <select v-model.number="form.depositMonths" class="form-input">
+                      <label for="drawer-deposit-months" class="block text-sm font-medium text-text-secondary-light mb-1">押金月數</label>
+                      <select id="drawer-deposit-months" v-model.number="form.depositMonths" class="form-input" autocomplete="off">
                         <option :value="1">1 個月</option>
                         <option :value="2">2 個月（慣例）</option>
                         <option :value="3">3 個月</option>
                       </select>
                     </div>
                   </div>
+                  <div class="mt-3">
+                    <label for="drawer-payment-frequency" class="block text-sm font-medium text-text-secondary-light mb-1">繳費方式</label>
+                    <select id="drawer-payment-frequency" v-model="form.paymentFrequency" class="form-input" autocomplete="off">
+                      <option value="monthly">月繳（每月一期）</option>
+                      <option value="quarterly">季繳（每季一期，金額 ×3）</option>
+                      <option value="yearly">年繳（每年一期，金額 ×12）</option>
+                    </select>
+                  </div>
                 </div>
                 <div class="border-t border-gray-100 dark:border-gray-800 pt-2">
                   <p class="text-xs font-bold text-text-secondary-light uppercase mb-3">其他資訊</p>
                   <div class="space-y-3">
                     <div>
-                      <label class="block text-sm font-medium text-text-secondary-light mb-1">緊急聯絡人</label>
-                      <input v-model="form.emergencyContact" type="text" class="form-input" placeholder="姓名 - 關係 - 電話">
+                      <label for="drawer-emergency" class="block text-sm font-medium text-text-secondary-light mb-1">緊急聯絡人</label>
+                      <input id="drawer-emergency" v-model="form.emergencyContact" type="text" class="form-input" placeholder="姓名 - 關係 - 電話" autocomplete="off">
                     </div>
                     <div>
-                      <label class="block text-sm font-medium text-text-secondary-light mb-1">備註</label>
-                      <textarea v-model="form.note" class="form-input min-h-[80px]"></textarea>
+                      <label for="drawer-note" class="block text-sm font-medium text-text-secondary-light mb-1">備註</label>
+                      <textarea id="drawer-note" v-model="form.note" class="form-input min-h-[80px]"></textarea>
                     </div>
                   </div>
                 </div>
@@ -885,6 +907,7 @@ interface Tenant {
   uid?: string;
   contractId?: string;
   deposits?: DepositItem[];
+  paymentFrequency?: 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
   renewalStatus?: 'pending' | 'confirmed' | 'declined' | null;
   moveOutSummary?: any;
   createdAt?: any;
@@ -1387,6 +1410,7 @@ const openNewTenantModal = () => {
     name: '', room: '', phone: '', email: '',
     leaseStart: today, leaseEnd: calcLeaseEnd(today, 1),
     leaseDuration: 1, rent: 0, depositMonths: 2,
+    paymentFrequency: 'monthly',
     paymentStatus: 'normal', emergencyContact: '', note: ''
   };
   showModal.value = true;

@@ -42,7 +42,6 @@
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router';
 
 interface FinancialStats {
   unpaidCount: number;
@@ -57,5 +56,4 @@ defineProps<{
   financial: FinancialStats;
 }>();
 
-const router = useRouter();
 </script>

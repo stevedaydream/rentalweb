@@ -58,10 +58,11 @@
 
           <!-- Amount (large, prominent) -->
           <div>
-            <label class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-2">金額</label>
+            <label for="bill-amount" class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-2">金額</label>
             <div class="relative">
               <span class="absolute left-4 top-1/2 -translate-y-1/2 text-ink-400 font-medium text-sm">NT$</span>
               <input
+                id="bill-amount"
                 v-model.number="local.amount"
                 type="number"
                 inputmode="numeric"
@@ -95,13 +96,14 @@
           <!-- Date + Target (2 cols) -->
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-2">日期</label>
-              <input v-model="local.date" type="date" class="form-input text-sm" />
+              <label for="bill-date" class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-2">日期</label>
+              <input id="bill-date" v-model="local.date" type="date" class="form-input text-sm" />
             </div>
             <div class="relative" ref="targetRef">
-              <label class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-2">對象 / 房號</label>
+              <label for="bill-target" class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-2">對象 / 房號</label>
               <div class="relative">
                 <input
+                  id="bill-target"
                   v-model="targetSearch"
                   @focus="showTargetDrop = true"
                   @input="showTargetDrop = true"
@@ -145,8 +147,9 @@
 
           <!-- Description -->
           <div>
-            <label class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-2">備註</label>
+            <label for="bill-description" class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-2">備註</label>
             <textarea
+              id="bill-description"
               v-model="local.description"
               class="form-input text-sm resize-none"
               rows="2"

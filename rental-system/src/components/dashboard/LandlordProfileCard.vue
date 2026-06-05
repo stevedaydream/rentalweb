@@ -87,7 +87,6 @@
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router';
 import { useToastStore } from '../../stores/toast';
 
 interface RoomStats {
@@ -109,7 +108,6 @@ const emit = defineEmits<{
   'copy-code': [];
 }>();
 
-const router = useRouter();
 const toast = useToastStore();
 
 const handleCopyCode = async () => {

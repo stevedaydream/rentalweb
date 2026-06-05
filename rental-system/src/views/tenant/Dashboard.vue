@@ -382,10 +382,12 @@
 
         <div class="p-6 space-y-4">
           <div>
-            <label class="block text-sm font-medium text-text-secondary-light mb-1">顯示名稱</label>
-            <input 
-              v-model="editForm.name" 
-              type="text" 
+            <label for="profile-name" class="block text-sm font-medium text-text-secondary-light mb-1">顯示名稱</label>
+            <input
+              id="profile-name"
+              v-model="editForm.name"
+              type="text"
+              autocomplete="name"
               class="w-full px-4 py-2 rounded-xl border border-ink-100 dark:border-ink-700 bg-white dark:bg-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:border-transparent transition-all"
               placeholder="請輸入您的姓名"
             >
@@ -418,20 +420,24 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-text-secondary-light mb-1">聯絡電話</label>
-            <input 
-              v-model="editForm.phone" 
-              type="tel" 
+            <label for="profile-phone" class="block text-sm font-medium text-text-secondary-light mb-1">聯絡電話</label>
+            <input
+              id="profile-phone"
+              v-model="editForm.phone"
+              type="tel"
+              autocomplete="tel"
               class="w-full px-4 py-2 rounded-xl border border-ink-100 dark:border-ink-700 bg-white dark:bg-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:border-transparent transition-all"
               placeholder="09xx-xxx-xxx"
             >
           </div>
           <div>
-            <label class="block text-sm font-medium text-text-secondary-light mb-1">Email (登入帳號)</label>
-            <input 
-              v-model="editForm.email" 
-              type="email" 
+            <label for="profile-email" class="block text-sm font-medium text-text-secondary-light mb-1">Email (登入帳號)</label>
+            <input
+              id="profile-email"
+              v-model="editForm.email"
+              type="email"
               disabled
+              autocomplete="email"
               class="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 text-gray-500 cursor-not-allowed outline-none transition-all"
             >
           </div>

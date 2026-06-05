@@ -230,6 +230,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // 帳單生成紀錄 (bill_generate_logs)
+    match /bill_generate_logs/{logId} {
+      allow read: if isAdmin() || isLandlordData();
+      allow create: if isAdmin() || isCreatingAsLandlord();
+      allow delete: if isAdmin() || isLandlordData();
+    }
+
     // LINE 綁定碼 (line_bindings)
     match /line_bindings/{code} {
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;

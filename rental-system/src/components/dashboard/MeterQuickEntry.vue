@@ -61,8 +61,6 @@
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router';
-
 export interface MeterRoom {
   id: string;
   name: string;
@@ -78,5 +76,4 @@ const emit = defineEmits<{
   save: [room: MeterRoom];
 }>();
 
-const router = useRouter();
 </script>

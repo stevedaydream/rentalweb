@@ -20,7 +20,7 @@
             選擇房源
           </h2>
           <div v-if="loadingRooms" class="text-sm text-text-secondary-light">載入中...</div>
-          <select v-else v-model="selectedRoomId" class="form-input text-sm">
+          <select v-else v-model="selectedRoomId" class="form-input text-sm" aria-label="選擇房源" autocomplete="off">
             <option value="">-- 選擇房源 --</option>
             <option v-for="r in rooms" :key="r.id" :value="r.id">
               {{ r.name }} (NT${{ r.price.toLocaleString() }}/月)
@@ -42,43 +42,43 @@
           </h2>
 
           <div>
-            <label class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-1.5">購入成本 (NT$)</label>
-            <input v-model.number="params.purchaseCost" type="number" class="form-input text-sm" placeholder="例如 3000000" />
+            <label for="ic-purchase-cost" class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-1.5">購入成本 (NT$)</label>
+            <input id="ic-purchase-cost" v-model.number="params.purchaseCost" type="number" class="form-input text-sm" placeholder="例如 3000000" autocomplete="off" />
             <p class="text-xs text-text-secondary-light mt-1">含房價、裝潢、代書費等總投入</p>
           </div>
 
           <div>
-            <label class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-1.5">月租金 (NT$)</label>
-            <input v-model.number="params.monthlyRent" type="number" class="form-input text-sm" placeholder="例如 12000" />
+            <label for="ic-monthly-rent" class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-1.5">月租金 (NT$)</label>
+            <input id="ic-monthly-rent" v-model.number="params.monthlyRent" type="number" class="form-input text-sm" placeholder="例如 12000" autocomplete="off" />
           </div>
 
           <div>
-            <label class="flex items-center justify-between text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-1.5">
+            <label for="ic-rent-increase-rate" class="flex items-center justify-between text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-1.5">
               <span>租金年增率 (%)</span>
               <button @click="params.rentIncreaseRate = 2.5" class="text-xs text-gold-500 hover:underline">套用內政部參考值 2.5%</button>
             </label>
-            <input v-model.number="params.rentIncreaseRate" type="number" step="0.1" class="form-input text-sm" placeholder="2.5" />
+            <input id="ic-rent-increase-rate" v-model.number="params.rentIncreaseRate" type="number" step="0.1" class="form-input text-sm" placeholder="2.5" autocomplete="off" />
           </div>
 
           <div>
-            <label class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-1.5">年度維護費用 (NT$)</label>
-            <input v-model.number="params.annualMaintenance" type="number" class="form-input text-sm" placeholder="例如 10000" />
+            <label for="ic-annual-maintenance" class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-1.5">年度維護費用 (NT$)</label>
+            <input id="ic-annual-maintenance" v-model.number="params.annualMaintenance" type="number" class="form-input text-sm" placeholder="例如 10000" autocomplete="off" />
           </div>
 
           <div>
-            <label class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-1.5">空置率 (%)</label>
-            <input v-model.number="params.vacancyRate" type="number" step="0.5" min="0" max="100" class="form-input text-sm" placeholder="8.3 (約1個月)" />
+            <label for="ic-vacancy-rate" class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-1.5">空置率 (%)</label>
+            <input id="ic-vacancy-rate" v-model.number="params.vacancyRate" type="number" step="0.5" min="0" max="100" class="form-input text-sm" placeholder="8.3 (約1個月)" autocomplete="off" />
             <p class="text-xs text-text-secondary-light mt-1">每年平均空租比例，1個月≈8.3%</p>
           </div>
 
           <div>
-            <label class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-1.5">個人其他年所得 (NT$)</label>
-            <input v-model.number="params.otherAnnualIncome" type="number" class="form-input text-sm" placeholder="例如 600000" />
+            <label for="ic-other-income" class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-1.5">個人其他年所得 (NT$)</label>
+            <input id="ic-other-income" v-model.number="params.otherAnnualIncome" type="number" class="form-input text-sm" placeholder="例如 600000" autocomplete="off" />
             <p class="text-xs text-text-secondary-light mt-1">薪資等，用於計算稅率級距</p>
           </div>
 
           <div>
-            <label class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-1.5">試算年數</label>
+            <div role="group" aria-label="試算年數" class="text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-1.5">試算年數</div>
             <div class="flex gap-2">
               <button v-for="y in [3,5,10]" :key="y" @click="params.years = y"
                 class="flex-1 py-1.5 rounded-lg text-sm font-medium border transition-all"

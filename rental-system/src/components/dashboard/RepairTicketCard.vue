@@ -45,7 +45,6 @@
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router';
 
 export interface RepairTicket {
   id: string;
@@ -61,7 +60,6 @@ defineProps<{
   tickets: RepairTicket[];
 }>();
 
-const router = useRouter();
 
 const priorityColor = (priority: string) => {
   switch (priority) {

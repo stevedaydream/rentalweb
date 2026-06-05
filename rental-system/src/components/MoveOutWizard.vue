@@ -57,13 +57,13 @@
             </div>
 
             <div>
-              <label class="block text-sm font-medium text-text-secondary-light mb-1">實際退租日</label>
-              <input v-model="moveOutDate" type="date" class="form-input" />
+              <label for="moveout-date" class="block text-sm font-medium text-text-secondary-light mb-1">實際退租日</label>
+              <input id="moveout-date" v-model="moveOutDate" type="date" class="form-input" />
             </div>
 
             <div>
-              <label class="block text-sm font-medium text-text-secondary-light mb-1">退租原因</label>
-              <select v-model="moveOutReason" class="form-input">
+              <label for="moveout-reason" class="block text-sm font-medium text-text-secondary-light mb-1">退租原因</label>
+              <select id="moveout-reason" v-model="moveOutReason" class="form-input">
                 <option value="expired">到期退租</option>
                 <option value="early">提前退租</option>
                 <option value="other">其他</option>
@@ -113,8 +113,8 @@
                   <span class="font-medium">{{ lastMeterReading !== null ? lastMeterReading + ' 度' : '無資料' }}</span>
                 </div>
                 <div>
-                  <label class="block text-text-secondary-light mb-1">退租時電表度數</label>
-                  <input v-model.number="finalMeterReading" type="number" min="0" class="form-input"
+                  <label for="moveout-meter-reading" class="block text-text-secondary-light mb-1">退租時電表度數</label>
+                  <input id="moveout-meter-reading" v-model.number="finalMeterReading" type="number" min="0" class="form-input"
                     placeholder="請輸入電表讀數（可留空）" />
                 </div>
                 <template v-if="electricityUsage !== null && finalMeterReading !== null">
@@ -286,8 +286,8 @@
               </div>
 
               <div>
-                <label class="block text-sm font-medium text-text-secondary-light mb-1">備註（選填）</label>
-                <textarea v-model="notes" class="form-input min-h-[60px]"
+                <label for="moveout-notes" class="block text-sm font-medium text-text-secondary-light mb-1">備註（選填）</label>
+                <textarea id="moveout-notes" v-model="notes" class="form-input min-h-[60px]"
                   placeholder="點交說明、特殊事項等..."></textarea>
               </div>
             </div>

@@ -149,13 +149,11 @@
 import { ref, computed } from 'vue';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
-import { useRouter } from 'vue-router';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../firebase/config';
 
 const authStore = useAuthStore();
 const toast = useToastStore();
-const router = useRouter();
 
 const email = ref('');
 const password = ref('');

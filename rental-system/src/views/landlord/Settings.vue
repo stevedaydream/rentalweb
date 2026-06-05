@@ -29,39 +29,48 @@
           <div class="space-y-4">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-text-secondary-light mb-1">顯示名稱</label>
-                <input 
+                <label for="settings-name" class="block text-sm font-medium text-text-secondary-light mb-1">顯示名稱</label>
+                <input
+                  id="settings-name"
                   v-model="formData.name"
-                  type="text" 
+                  type="text"
+                  autocomplete="name"
                   class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
                   placeholder="例如：陳房東"
                 >
               </div>
               <div>
-                <label class="block text-sm font-medium text-text-secondary-light mb-1">聯絡電話</label>
-                <input 
+                <label for="settings-phone" class="block text-sm font-medium text-text-secondary-light mb-1">聯絡電話</label>
+                <input
+                  id="settings-phone"
                   v-model="formData.phone"
-                  type="tel" 
+                  type="tel"
+                  autocomplete="tel"
                   class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
                   placeholder="0912-345-678"
                 >
               </div>
             </div>
             <div>
-              <label class="block text-sm font-medium text-text-secondary-light mb-1">身分證號</label>
+              <label for="settings-id" class="block text-sm font-medium text-text-secondary-light mb-1">身分證號</label>
               <input
+                id="settings-id"
                 v-model="formData.idNumber"
                 type="text"
+                autocomplete="off"
+                spellcheck="false"
                 class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
                 placeholder="A123456789"
               >
             </div>
             <div>
-              <label class="block text-sm font-medium text-text-secondary-light mb-1">電子信箱 (帳號)</label>
+              <label for="settings-email" class="block text-sm font-medium text-text-secondary-light mb-1">電子信箱 (帳號)</label>
               <input
+                id="settings-email"
                 :value="authStore.user?.email"
                 disabled
                 type="email"
+                autocomplete="email"
                 class="w-full px-4 py-2 bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-500 cursor-not-allowed"
               >
               <p class="text-xs text-text-secondary-light mt-1">如需更改信箱請聯繫系統管理員</p>
@@ -92,33 +101,39 @@
           <div class="space-y-4">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div class="md:col-span-1">
-                <label class="block text-sm font-medium text-text-secondary-light mb-1">銀行代碼</label>
-                <input 
+                <label for="settings-bank" class="block text-sm font-medium text-text-secondary-light mb-1">銀行代碼</label>
+                <input
+                  id="settings-bank"
                   v-model="formData.bankCode"
-                  type="text" 
+                  type="text"
                   maxlength="3"
+                  autocomplete="off"
                   class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
                   placeholder="822"
                 >
               </div>
               <div class="md:col-span-2">
-                <label class="block text-sm font-medium text-text-secondary-light mb-1">銀行帳號</label>
-                <input 
+                <label for="settings-bank-account" class="block text-sm font-medium text-text-secondary-light mb-1">銀行帳號</label>
+                <input
+                  id="settings-bank-account"
                   v-model="formData.bankAccount"
-                  type="text" 
+                  type="text"
+                  autocomplete="off"
                   class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
                   placeholder="請輸入帳號"
                 >
               </div>
             </div>
             <div>
-               <label class="block text-sm font-medium text-text-secondary-light mb-1">戶名</label>
-                <input
-                  v-model="formData.bankAccountName"
-                  type="text"
-                  class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
-                  placeholder="預設為您的姓名"
-                >
+              <label for="settings-bank-name" class="block text-sm font-medium text-text-secondary-light mb-1">戶名</label>
+              <input
+                id="settings-bank-name"
+                v-model="formData.bankAccountName"
+                type="text"
+                autocomplete="name"
+                class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
+                placeholder="預設為您的姓名"
+              >
             </div>
             <div class="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-4">
               <p class="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">每月帳單週期</p>

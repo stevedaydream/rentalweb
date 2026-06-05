@@ -34,6 +34,14 @@ const feeElectricityText = computed(() => {
   return note ? `${base}（備註：${note}）` : base
 })
 const paymentDay = computed(() => props.form?.paymentDay || 5)
+const paymentFrequency = computed(() => props.form?.paymentFrequency || 'monthly')
+const paymentFrequencyLabel = computed(() => ({ monthly: '月', quarterly: '季', semiannual: '半年', yearly: '年' })[paymentFrequency.value] || '月')
+const paymentPeriodLabel = computed(() => ({ monthly: '1 個月', quarterly: '3 個月', semiannual: '6 個月', yearly: '12 個月' })[paymentFrequency.value] || '1 個月')
+const billingAmount = computed(() => {
+  const rent = Number(props.form?.rentfee) || 0
+  const m = { monthly: 1, quarterly: 3, semiannual: 6, yearly: 12 }[paymentFrequency.value] || 1
+  return (rent * m).toLocaleString()
+})
 </script>
 
 <style scoped>
@@ -89,7 +97,7 @@ const paymentDay = computed(() => props.form?.paymentDay || 5)
 
     <div class="section-title">第三條　租金約定及支付</div>
     <p>
-      承租人每月租金為新臺幣 {{ form.rentfee }} 元整，每期應繳納 1 個月租金，並於每月 {{ paymentDay }} 日前支付，不得藉任何理由拖延或拒絕。<br>
+      承租人每月租金為新臺幣 {{ form.rentfee }} 元整，採{{ paymentFrequencyLabel }}繳方式，每期應繳納 {{ paymentPeriodLabel }}租金（合計新臺幣 {{ billingAmount }} 元），並於每{{ paymentFrequencyLabel }}{{ paymentDay }} 日前支付，不得藉任何理由拖延或拒絕。<br>
       出租人於租賃期間亦不得藉任何理由要求調漲租金。<br>
       租金支付方式：現金或轉帳，帳戶資訊詳契約正本。
     </p>

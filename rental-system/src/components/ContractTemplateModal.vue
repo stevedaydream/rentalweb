@@ -30,8 +30,8 @@
               <span class="w-6 h-6 rounded-full bg-gold-100 dark:bg-gold-900/30 text-gold-600 dark:text-gold-400 text-xs flex items-center justify-center font-black shrink-0">3</span>第三條　租金支付日期
             </h3>
             <div class="flex items-center gap-3 mt-3">
-              <span class="text-sm text-text-secondary-light">每月</span>
-              <input v-model.number="local.paymentDay" type="number" min="1" max="28"
+              <label for="contract-payment-day" class="text-sm text-text-secondary-light">每月</label>
+              <input id="contract-payment-day" v-model.number="local.paymentDay" type="number" min="1" max="28"
                 class="w-20 form-input text-sm text-center" />
               <span class="text-sm text-text-secondary-light">日前支付</span>
             </div>
@@ -58,8 +58,8 @@
               </div>
               <!-- 電費備註 -->
               <div class="flex items-center gap-3">
-                <span class="w-16 text-sm text-text-secondary-light shrink-0">電費備註</span>
-                <input v-model="local.feeElectricityNote" type="text"
+                <label for="contract-electricity-note" class="w-16 text-sm text-text-secondary-light shrink-0">電費備註</label>
+                <input id="contract-electricity-note" v-model="local.feeElectricityNote" type="text"
                   class="flex-1 form-input text-sm"
                   placeholder="例：公共區域電費由房東負擔（留空則不顯示）" />
               </div>
@@ -71,7 +71,9 @@
             <h3 class="flex items-center gap-2 font-bold text-sm text-text-primary-light dark:text-text-primary-dark">
               <span class="w-6 h-6 rounded-full bg-gold-100 dark:bg-gold-900/30 text-gold-600 dark:text-gold-400 text-xs flex items-center justify-center font-black shrink-0">21</span>第二十一條　其他約定
             </h3>
+            <label for="contract-article21" class="sr-only">其他約定條款</label>
             <textarea
+              id="contract-article21"
               v-model="local.customArticle21"
               class="form-input text-sm resize-none mt-3"
               rows="4"

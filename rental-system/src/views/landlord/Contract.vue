@@ -139,6 +139,16 @@
                   class="w-full px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-500 text-sm cursor-not-allowed" />
               </div>
             </div>
+            <div>
+              <label for="contract-payment-freq" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">繳費方式</label>
+              <select id="contract-payment-freq" v-model="form.paymentFrequency"
+                class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500">
+                <option value="monthly">月繳（每月一期）</option>
+                <option value="quarterly">季繳（每季合繳三個月）</option>
+                <option value="semiannual">半年繳（每半年合繳六個月）</option>
+                <option value="yearly">年繳（每年合繳十二個月）</option>
+              </select>
+            </div>
           </div>
 
         </div>
@@ -182,8 +192,12 @@
             <span class="font-medium">NT${{ Number(form.rentfee).toLocaleString() }} / NT${{ Number(form.deposit).toLocaleString() }}</span>
           </div>
           <div class="flex justify-between">
+            <span class="text-text-secondary-light">繳費方式</span>
+            <span class="font-medium">{{ { monthly: '月繳', quarterly: '季繳', semiannual: '半年繳', yearly: '年繳' }[form.paymentFrequency] || '月繳' }}</span>
+          </div>
+          <div class="flex justify-between">
             <span class="text-text-secondary-light">付款日</span>
-            <span class="font-medium">每月 {{ form.paymentDay }} 日前</span>
+            <span class="font-medium">每{{ { monthly: '月', quarterly: '季', semiannual: '半年', yearly: '年' }[form.paymentFrequency] || '月' }} {{ form.paymentDay }} 日前</span>
           </div>
         </div>
 
@@ -554,6 +568,7 @@ const form = ref({
   signature: '', landlordSignature: '',
   today: getTodayRoc(),
   // Template fields
+  paymentFrequency: 'monthly',
   paymentDay: 5,
   feeWater: 'landlord',
   feeElectricity: 'tenant',

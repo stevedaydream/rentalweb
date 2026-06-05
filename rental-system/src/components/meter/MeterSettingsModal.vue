@@ -48,8 +48,8 @@
         </section>
 
         <section v-if="local.mode === 'fixed'" class="animation-fade-in">
-          <label class="block text-sm font-bold mb-2">每度電費 (元)</label>
-          <input v-model.number="local.fixedRate" type="number" step="0.1" class="form-input text-lg font-bold w-32">
+          <label for="settings-unit-price" class="block text-sm font-bold mb-2">每度電費 (元)</label>
+          <input id="settings-unit-price" v-model.number="local.fixedRate" type="number" step="0.1" class="form-input text-lg font-bold w-32">
         </section>
 
         <section v-if="local.mode === 'tiered'" class="space-y-6 animation-fade-in">
@@ -82,8 +82,8 @@
           </div>
 
           <div>
-            <h3 class="text-sm font-bold text-gray-500 uppercase mb-3">步驟 3：夏月設定</h3>
-            <select v-model="local.tieredConfig.season" class="form-input">
+            <label for="settings-season" class="text-sm font-bold text-gray-500 uppercase mb-3 block">步驟 3：夏月設定</label>
+            <select id="settings-season" v-model="local.tieredConfig.season" class="form-input">
               <option value="auto">自動判斷 (依日期比例拆分)</option>
               <option value="average">平均費率 (夏月+非夏月各半)</option>
               <option value="summer">強制夏月費率</option>

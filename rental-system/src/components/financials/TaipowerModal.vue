@@ -22,21 +22,21 @@
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-text-secondary-light mb-1">計費月份 (迄月)</label>
-          <input v-model="local.month" type="month" class="form-input">
+          <label for="taipower-month" class="block text-sm font-medium text-text-secondary-light mb-1">計費月份 (迄月)</label>
+          <input id="taipower-month" v-model="local.month" type="month" class="form-input">
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-text-secondary-light mb-1">帳單金額</label>
+          <label for="taipower-amount" class="block text-sm font-medium text-text-secondary-light mb-1">帳單金額</label>
           <div class="relative">
             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">NT$</span>
-            <input v-model.number="local.amount" type="number" class="form-input pl-10 text-lg font-bold" placeholder="0">
+            <input id="taipower-amount" v-model.number="local.amount" type="number" class="form-input pl-10 text-lg font-bold" placeholder="0">
           </div>
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-text-secondary-light mb-1">總用電度數</label>
-          <input v-model.number="local.usage" type="number" class="form-input" placeholder="0">
+          <label for="taipower-usage" class="block text-sm font-medium text-text-secondary-light mb-1">總用電度數</label>
+          <input id="taipower-usage" v-model.number="local.usage" type="number" class="form-input" placeholder="0">
         </div>
       </div>
 

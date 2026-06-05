@@ -15,80 +15,94 @@
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
-            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">房號</label>
+            <label for="receipt-room-no" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">房號</label>
             <select
+              id="receipt-room-no"
               v-model="form.roomNo"
               @change="onRoomSelect(form.roomNo)"
               class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors"
               required
+              autocomplete="off"
             >
               <option value="" disabled>選擇房號</option>
               <option v-for="r in rooms" :key="r.id" :value="r.name">{{ r.name }}</option>
             </select>
           </div>
           <div>
-            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">地址</label>
+            <label for="receipt-address" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">地址</label>
             <input
+              id="receipt-address"
               v-model="form.address"
               class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors"
               placeholder="地址（選擇房號後自動帶入）"
               required
+              autocomplete="street-address"
             />
           </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
-            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">承租人姓名</label>
-            <input 
-              v-model="form.tenant" 
-              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors" 
-              placeholder="姓名" 
-              required 
+            <label for="receipt-tenant" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">承租人姓名</label>
+            <input
+              id="receipt-tenant"
+              v-model="form.tenant"
+              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors"
+              placeholder="姓名"
+              required
+              autocomplete="name"
             />
           </div>
           <div>
-            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">出租人姓名</label>
-            <input 
-              v-model="form.landlord" 
-              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors" 
-              placeholder="房東或代理人" 
-              required 
+            <label for="receipt-landlord" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">出租人姓名</label>
+            <input
+              id="receipt-landlord"
+              v-model="form.landlord"
+              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors"
+              placeholder="房東或代理人"
+              required
+              autocomplete="name"
             />
           </div>
         </div>
 
         <div>
-          <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">定金金額</label>
+          <label for="receipt-deposit" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">定金金額</label>
           <div class="relative">
             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">NT$</span>
-            <input 
-              v-model="form.deposit" 
-              type="number" 
-              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors pl-12 text-lg font-bold" 
-              placeholder="0" 
-              required 
+            <input
+              id="receipt-deposit"
+              v-model="form.deposit"
+              type="number"
+              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors pl-12 text-lg font-bold"
+              placeholder="0"
+              required
+              autocomplete="off"
             />
           </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
-            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">保留起算日</label>
-            <input 
-              v-model="form.startDate" 
-              type="date" 
-              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors" 
-              required 
+            <label for="receipt-start-date" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">保留起算日</label>
+            <input
+              id="receipt-start-date"
+              v-model="form.startDate"
+              type="date"
+              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none bg-white dark:bg-gray-700 transition-colors"
+              required
+              autocomplete="off"
             />
           </div>
           <div>
-            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">保留截止日 (自動+7天)</label>
-            <input 
-              :value="computedEndDate" 
-              type="date" 
-              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none bg-gray-50 text-gray-500 transition-colors" 
-              readonly 
+            <label for="receipt-end-date" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">保留截止日 (自動+7天)</label>
+            <input
+              id="receipt-end-date"
+              :value="computedEndDate"
+              type="date"
+              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none bg-gray-50 text-gray-500 transition-colors"
+              readonly
+              autocomplete="off"
             />
           </div>
         </div>

@@ -9,10 +9,26 @@
       </div>
       <div class="flex gap-2 flex-wrap items-center">
         <MonthPicker v-model="currentMonth" />
-        <button @click="showGenerateConfirm = true" :disabled="loading"
-          class="px-3 py-2 bg-ink-700 text-white rounded-lg text-sm font-medium flex items-center gap-1 hover:bg-ink-800 disabled:opacity-50 transition-colors">
-          <span class="material-symbols-outlined text-[18px]">magic_button</span>一鍵生成帳單
-        </button>
+        <div class="flex items-center gap-1">
+          <button @click="showGenerateConfirm = true" :disabled="loading"
+            class="px-3 py-2 bg-ink-700 text-white rounded-lg text-sm font-medium flex items-center gap-1 hover:bg-ink-800 disabled:opacity-50 transition-colors">
+            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">magic_button</span>
+            一鍵生成帳單
+            <span v-if="generateLogs.length > 0"
+              class="ml-1 bg-white/20 text-white text-[11px] font-bold px-1.5 py-0.5 rounded-full leading-none"
+              :title="`本月已生成 ${generateLogs.length} 次`"
+            >{{ generateLogs.length }}</span>
+          </button>
+          <button
+            v-if="generateLogs.length > 0"
+            @click="showLogsModal = true"
+            aria-label="查看本月生成紀錄"
+            class="p-2 rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-800 text-ink-500 hover:text-gold-600 hover:border-gold-400 transition-colors"
+            title="查看本月生成紀錄"
+          >
+            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">history</span>
+          </button>
+        </div>
         <!-- 更多操作下拉 -->
         <div class="relative">
           <button @click.stop="showMoreMenu = !showMoreMenu"
@@ -86,6 +102,89 @@
           </p>
         </div>
       </div>
+
+      <!-- Generated Bills Summary -->
+      <Transition
+        enter-active-class="transition-all duration-300 ease-out"
+        enter-from-class="opacity-0 -translate-y-2"
+        leave-active-class="transition-all duration-200 ease-in"
+        leave-to-class="opacity-0 -translate-y-2"
+      >
+        <div v-if="showGeneratedSummary && generatedSummary.length > 0"
+          class="bg-white dark:bg-card-dark rounded-2xl border border-green-200 dark:border-green-800 shadow-sm overflow-hidden"
+        >
+          <!-- Header -->
+          <div class="flex items-center justify-between px-5 py-3.5 bg-green-50 dark:bg-green-900/20 border-b border-green-100 dark:border-green-800">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[20px] text-green-600" aria-hidden="true">check_circle</span>
+              <span class="font-bold text-green-800 dark:text-green-300 text-sm">
+                本次生成 {{ generatedSummary.length }} 筆帳單
+              </span>
+              <span class="text-xs text-green-600 dark:text-green-400">{{ currentMonth }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-green-700 dark:text-green-400 font-medium">
+                合計 NT$ {{ generatedSummary.reduce((s, i) => s + i.amount, 0).toLocaleString() }}
+              </span>
+              <button
+                @click="showGeneratedSummary = false"
+                aria-label="收起摘要"
+                class="text-green-500 hover:text-green-700 dark:hover:text-green-300 p-1 rounded-full hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors"
+              >
+                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">close</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- List -->
+          <div class="divide-y divide-ink-50 dark:divide-ink-800">
+            <div
+              v-for="(item, idx) in generatedSummary"
+              :key="idx"
+              class="flex items-center gap-3 px-5 py-3 hover:bg-surface-light dark:hover:bg-surface-dark transition-colors"
+            >
+              <!-- Category badge -->
+              <span
+                class="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full"
+                :class="item.category === '租金收入'
+                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                  : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'"
+              >
+                {{ item.category }}
+              </span>
+
+              <!-- Target + description -->
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-text-primary-light dark:text-text-primary-dark truncate">{{ item.target }}</p>
+                <p class="text-xs text-text-secondary-light truncate">{{ item.description }}</p>
+              </div>
+
+              <!-- Amount -->
+              <span class="shrink-0 text-sm font-bold text-green-600 dark:text-green-400">
+                +{{ item.amount.toLocaleString() }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Per-tenant totals -->
+          <div class="border-t border-ink-100 dark:border-ink-800 bg-surface-light dark:bg-surface-dark px-5 py-3 space-y-2">
+            <p class="text-[11px] font-bold text-text-secondary-light uppercase tracking-wide mb-2">各租客本次應收</p>
+            <div
+              v-for="t in generatedTenantTotals"
+              :key="t.target"
+              class="flex items-center gap-2"
+            >
+              <span class="text-sm font-medium text-text-primary-light dark:text-text-primary-dark min-w-0 flex-shrink-0 w-32 truncate">{{ t.target }}</span>
+              <span class="text-xs text-text-secondary-light flex-1 truncate">
+                {{ t.categories.map(c => `${c.name} ${c.amount.toLocaleString()}`).join(' + ') }}
+              </span>
+              <span class="shrink-0 font-extrabold text-sm text-text-primary-light dark:text-text-primary-dark">
+                = NT$ {{ t.total.toLocaleString() }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </Transition>
 
       <!-- Category Summary -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -288,6 +387,100 @@
       </div>
     </div>
 
+    <!-- 生成紀錄 Modal -->
+    <div v-if="showLogsModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showLogsModal = false"></div>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="logs-modal-title"
+        class="relative bg-white dark:bg-card-dark rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[80vh]"
+      >
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-ink-100 dark:border-ink-800 shrink-0">
+          <div>
+            <h2 id="logs-modal-title" class="font-bold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2">
+              <span class="material-symbols-outlined text-[20px] text-gold-500" aria-hidden="true">history</span>
+              帳單生成紀錄
+            </h2>
+            <p class="text-xs text-text-secondary-light mt-0.5">{{ currentMonth }}・共 {{ generateLogs.length }} 次</p>
+          </div>
+          <button @click="showLogsModal = false" aria-label="關閉" class="text-ink-300 hover:text-ink-600 p-1 rounded-full hover:bg-surface-light transition-colors">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          </button>
+        </div>
+
+        <!-- Log list -->
+        <div class="overflow-y-auto flex-1 divide-y divide-ink-50 dark:divide-ink-800">
+          <details
+            v-for="(log, idx) in generateLogs"
+            :key="log.id"
+            class="group"
+            :open="idx === 0"
+          >
+            <summary class="flex items-center gap-3 px-6 py-4 cursor-pointer hover:bg-surface-light dark:hover:bg-surface-dark list-none select-none">
+              <span class="w-6 h-6 rounded-full bg-ink-100 dark:bg-ink-700 text-xs font-bold flex items-center justify-center text-text-secondary-light shrink-0">
+                {{ generateLogs.length - idx }}
+              </span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-text-primary-light dark:text-text-primary-dark">
+                  第 {{ generateLogs.length - idx }} 次生成
+                  <span class="ml-2 text-xs text-text-secondary-light font-normal">
+                    {{ log.generatedAt?.toDate ? log.generatedAt.toDate().toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—' }}
+                  </span>
+                </p>
+                <p class="text-xs text-text-secondary-light">{{ log.billCount }} 筆・合計 NT$ {{ (log.items || []).reduce((s, i) => s + i.amount, 0).toLocaleString() }}</p>
+              </div>
+              <span class="material-symbols-outlined text-[18px] text-ink-300 group-open:rotate-180 transition-transform" aria-hidden="true">expand_more</span>
+            </summary>
+
+            <!-- Detail items -->
+            <div class="px-6 pb-4 space-y-1">
+              <div
+                v-for="(item, i) in log.items"
+                :key="i"
+                class="flex items-center gap-2 text-sm py-1.5 border-b border-ink-50 dark:border-ink-800 last:border-0"
+              >
+                <span
+                  class="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                  :class="item.category === '租金收入'
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                    : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'"
+                >{{ item.category }}</span>
+                <span class="flex-1 text-text-primary-light dark:text-text-primary-dark truncate">{{ item.target }}</span>
+                <span class="text-xs text-text-secondary-light truncate max-w-[120px]">{{ item.description }}</span>
+                <span class="shrink-0 font-bold text-green-600 dark:text-green-400">+{{ item.amount.toLocaleString() }}</span>
+              </div>
+
+              <!-- Per-tenant subtotals -->
+              <div class="mt-2 pt-2 border-t border-ink-100 dark:border-ink-700 space-y-1">
+                <p class="text-[10px] font-bold text-text-secondary-light uppercase tracking-wide mb-1.5">各租客應收</p>
+                <div
+                  v-for="t in (() => {
+                    const m = new Map()
+                    for (const it of (log.items || [])) {
+                      if (!m.has(it.target)) m.set(it.target, 0)
+                      m.set(it.target, m.get(it.target) + it.amount)
+                    }
+                    return Array.from(m.entries()).map(([target, total]) => ({ target, total }))
+                  })()"
+                  :key="t.target"
+                  class="flex justify-between text-xs"
+                >
+                  <span class="text-text-secondary-light truncate">{{ t.target }}</span>
+                  <span class="font-bold text-text-primary-light dark:text-text-primary-dark shrink-0 ml-2">NT$ {{ t.total.toLocaleString() }}</span>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <div v-if="generateLogs.length === 0" class="px-6 py-12 text-center text-text-secondary-light text-sm">
+            本月尚無生成紀錄
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 點擊外部關閉更多選單 overlay -->
     <div v-if="showMoreMenu" class="fixed inset-0 z-40" @click="showMoreMenu = false"></div>
 
@@ -356,6 +549,55 @@ const editingId = ref<string | null>(null)
 const activeMenuId = ref<string | null>(null)
 const selectedHistory = ref<TransactionHistory[]>([])
 
+interface GeneratedBillItem {
+  target: string
+  category: string
+  description: string
+  amount: number
+}
+
+interface GenerateLog {
+  id: string
+  landlordId: string
+  month: string
+  generatedAt: any
+  billCount: number
+  items: GeneratedBillItem[]
+}
+
+const generatedSummary = ref<GeneratedBillItem[]>([])
+const showGeneratedSummary = ref(false)
+const generateLogs = ref<GenerateLog[]>([])
+const showLogsModal = ref(false)
+let unsubscribeLogs: Unsubscribe | null = null
+
+const initLogsListener = (uid: string, month: string) => {
+  unsubscribeLogs?.()
+  unsubscribeLogs = onSnapshot(
+    query(
+      collection(db, 'bill_generate_logs'),
+      where('landlordId', '==', uid),
+      where('month', '==', month),
+      orderBy('generatedAt', 'desc')
+    ),
+    (snap) => {
+      generateLogs.value = snap.docs.map(d => ({ id: d.id, ...d.data() } as GenerateLog))
+    },
+    (err) => console.error('讀取生成紀錄失敗:', err)
+  )
+}
+
+const generatedTenantTotals = computed(() => {
+  const map = new Map<string, { categories: { name: string; amount: number }[]; total: number }>()
+  for (const item of generatedSummary.value) {
+    if (!map.has(item.target)) map.set(item.target, { categories: [], total: 0 })
+    const entry = map.get(item.target)!
+    entry.categories.push({ name: item.category, amount: item.amount })
+    entry.total += item.amount
+  }
+  return Array.from(map.entries()).map(([target, data]) => ({ target, ...data }))
+})
+
 let unsubscribeBills: Unsubscribe | null = null
 let unsubscribeTaipower: Unsubscribe | null = null
 
@@ -406,9 +648,26 @@ const initDataListeners = (uid: string) => {
   )
 }
 
-onMounted(() => { if (authStore.user) initDataListeners(authStore.effectiveUid) })
-watch(() => authStore.user, (u) => { if (u) initDataListeners(u.uid); else { unsubscribeBills?.(); unsubscribeTaipower?.(); transactions.value = []; loading.value = false } })
-onUnmounted(() => { unsubscribeBills?.(); unsubscribeTaipower?.() })
+onMounted(() => {
+  if (authStore.user) {
+    initDataListeners(authStore.effectiveUid)
+    initLogsListener(authStore.effectiveUid, currentMonth.value)
+  }
+})
+watch(() => authStore.user, (u) => {
+  if (u) {
+    initDataListeners(u.uid)
+    initLogsListener(u.uid, currentMonth.value)
+  } else {
+    unsubscribeBills?.(); unsubscribeTaipower?.(); unsubscribeLogs?.()
+    transactions.value = []; generateLogs.value = []; loading.value = false
+  }
+})
+watch(currentMonth, (month) => {
+  if (authStore.user) initLogsListener(authStore.effectiveUid, month)
+  showGeneratedSummary.value = false
+})
+onUnmounted(() => { unsubscribeBills?.(); unsubscribeTaipower?.(); unsubscribeLogs?.() })
 
 // --- Computed ---
 const monthlyTransactions = computed(() =>
@@ -516,6 +775,50 @@ const markPaid = async (item: Transaction) => {
   }
 }
 
+// --- Billing frequency helpers ---
+const shouldGenerateBill = (tenant: any, month: string): boolean => {
+  const freq = tenant.paymentFrequency || 'monthly'
+  if (freq === 'monthly') return true
+  if (!tenant.leaseStart) return false
+  const [cy, cm] = month.split('-').map(Number) as [number, number]
+  const [ly, lm] = tenant.leaseStart.substring(0, 7).split('-').map(Number) as [number, number]
+  const diff = (cy - ly) * 12 + (cm - lm)
+  if (diff < 0) return false
+  if (freq === 'quarterly') return diff % 3 === 0
+  if (freq === 'semiannual') return diff % 6 === 0
+  if (freq === 'yearly') return diff % 12 === 0
+  return true
+}
+
+const getBillingAmount = (tenant: any): number => {
+  const rent = Number(tenant.rent) || 0
+  const freq = tenant.paymentFrequency || 'monthly'
+  if (freq === 'quarterly') return rent * 3
+  if (freq === 'semiannual') return rent * 6
+  if (freq === 'yearly') return rent * 12
+  return rent
+}
+
+const getBillingDescription = (tenant: any, month: string): string => {
+  const freq = tenant.paymentFrequency || 'monthly'
+  if (freq === 'quarterly') {
+    const [y, m] = month.split('-').map(Number) as [number, number]
+    const endM = m + 2 > 12 ? m + 2 - 12 : m + 2
+    const endY = m + 2 > 12 ? y + 1 : y
+    return `${month}～${endY}-${String(endM).padStart(2, '0')} 季度房租`
+  }
+  if (freq === 'semiannual') {
+    const [y, m] = month.split('-').map(Number) as [number, number]
+    const endM = m + 5 > 12 ? m + 5 - 12 : m + 5
+    const endY = m + 5 > 12 ? y + 1 : y
+    return `${month}～${endY}-${String(endM).padStart(2, '0')} 半年度房租`
+  }
+  if (freq === 'yearly') {
+    return `${month.substring(0, 4)} 年度房租`
+  }
+  return `${month} 月份房租`
+}
+
 // --- Generate Monthly Bills ---
 const confirmGenerateBills = async () => {
   showGenerateConfirm.value = false
@@ -542,21 +845,26 @@ const generateMonthlyBills = async () => {
     const readings = readingsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
     let count = 0
     const batch: Promise<any>[] = []
+    const newItems: GeneratedBillItem[] = []
 
     tenants.forEach((tenant: any) => {
+      if (!shouldGenerateBill(tenant, currentMonth.value)) return
       const exists = transactions.value.some(t =>
         (t.tenantId === tenant.uid || t.relatedTenantDocId === tenant.id) &&
         t.date.startsWith(currentMonth.value) && t.category === '租金收入'
       )
       if (!exists) {
+        const desc = getBillingDescription(tenant, currentMonth.value)
+        const amount = getBillingAmount(tenant)
         count++
+        newItems.push({ target: `${tenant.name} ${tenant.room}`, category: '租金收入', description: desc, amount })
         batch.push(addDoc(collection(db, 'bills'), {
           tenantId: tenant.uid || null, relatedTenantDocId: tenant.id,
           landlordId: uid, date: `${currentMonth.value}-01`,
           type: 'income', category: '租金收入',
           target: `${tenant.name} ${tenant.room}`,
-          description: `${currentMonth.value} 月份房租`,
-          amount: Number(tenant.rent) || 0,
+          description: desc,
+          amount,
           status: 'pending', dueDate, history: [], createdAt: serverTimestamp(),
         }))
       }
@@ -566,20 +874,34 @@ const generateMonthlyBills = async () => {
       const exists = transactions.value.some(t => t.relatedUsageId === reading.id)
       const matched: any = tenants.find((t: any) => t.room === reading.roomName)
       if (!exists && reading.cost > 0 && matched) {
+        const desc = `${currentMonth.value} 電費 (${reading.periodStart}~${reading.periodEnd} 用電 ${reading.usage}度)`
+        const amount = Number(reading.cost) || 0
         count++
+        newItems.push({ target: `${matched.name} ${reading.roomName}`, category: '電費', description: desc, amount })
         batch.push(addDoc(collection(db, 'bills'), {
           tenantId: matched.uid || null, relatedTenantDocId: matched.id,
           relatedUsageId: reading.id, landlordId: uid,
           date: reading.periodEnd, type: 'income', category: '電費',
           target: `${matched.name} ${reading.roomName}`,
-          description: `${currentMonth.value} 電費 (${reading.periodStart}~${reading.periodEnd} 用電 ${reading.usage}度)`,
-          amount: Number(reading.cost) || 0,
+          description: desc,
+          amount,
           status: 'pending', dueDate, history: [], createdAt: serverTimestamp(),
         }))
       }
     })
 
     await Promise.all(batch)
+    if (count > 0) {
+      generatedSummary.value = newItems
+      showGeneratedSummary.value = true
+      await addDoc(collection(db, 'bill_generate_logs'), {
+        landlordId: uid,
+        month: currentMonth.value,
+        generatedAt: serverTimestamp(),
+        billCount: count,
+        items: newItems,
+      })
+    }
     toast[count > 0 ? 'success' : 'info'](count > 0 ? `成功產生 ${count} 筆帳單` : '本月帳單皆已存在')
   } catch (err) {
     console.error('generateMonthlyBills error:', err)
