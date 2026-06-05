@@ -68,7 +68,7 @@ rental-system/
 |------------|---------|
 | `users` | uid, role('landlord'\|'tenant'\|'admin'), landlordId? |
 | `rooms` | id, name, status('occupied'\|'vacant'\|'maintenance'), landlordId, floor, rent, deposit, tenantId, tenantName, isPublic? |
-| `tenants` | id, uid, name, email, phone, landlordId, roomId, roomName, boundLandlordCode, status('active'\|'inactive'), moveInDate |
+| `tenants` | id, uid, name, email, phone, landlordId, roomId, roomName, boundLandlordCode, status('active'\|'inactive'), moveInDate, paymentFrequency('monthly'\|'quarterly'\|'semiannual'\|'yearly') |
 | `bills` | id, tenantId, tenantName, landlordId, roomId, roomName, amount, status('pending'\|'waiting_confirmation'\|'completed'\|'overdue'), month, dueDate, paidAt, electricityFee, waterFee, managementFee, paymentProofUrl?, ecpayOrderId?, paymentMethod?, paymentGateway? |
 | `payment_proofs` | id, billId, tenantId, landlordId, imageUrl, uploadedAt, ocrRaw?(預留), matchResult?(預留), status('pending'\|'approved'\|'rejected') |
 | `repair_requests` | id, tenantId, tenantName, landlordId, roomId, type, description, status('pending'\|'processing'\|'resolved'), priority('low'\|'medium'\|'high'), imageUrl |
@@ -84,6 +84,7 @@ rental-system/
 | `public_profiles` | doc ID = uid，公開資訊（lineBotId 等） |
 | `taipower_bills` | 台電帳單記錄，landlordId |
 | `settings` | 全域系統設定（房東可讀寫） |
+| `bill_generate_logs` | 帳單生成紀錄，landlordId, month, generatedAt, billCount, items[] |
 | `maintenance` | 舊版報修（已被 repair_requests 取代，規則仍保留） |
 
 ---
@@ -187,3 +188,8 @@ rental-system/
 | 2026-04-11 | rooms 新增欄位：lastMeterReading、lastMeterReadingDate（退租時寫入，下個租客電費基準） |
 | 2026-04-11 | contracts 新增欄位：renewalStatus（pending/confirmed/declined）、renewalNote、renewalRespondedAt |
 | 2026-04-11 | tenants 新增欄位：isHistorical（bool）、moveOutSummary（object） |
+| 2026-06-04 | 全站 web-design-guidelines 審查與修正（P0–P3）：ToastContainer 補 aria-live、10 個 Modal 補 role="dialog"、全站 RouterLink 替換導航按鈕、div/tr 互動元素語意化、confirm() 改 inline 確認、icon aria-hidden/aria-label 補齊、autocomplete 補齊、label for/id 綁定、focus-visible:ring 替換 outline-none、`…` 省略號統一、Intl.DateTimeFormat 替換硬編碼日期 |
+| 2026-06-04 | auth/Identity.vue + auth/Onboarding.vue 全面重新設計（frontend-design skill）：Identity 採「業主証件」深黑 Editorial 風格雙卡片，Onboarding 採羊皮紙底色合約文件風格底線輸入欄 |
+| 2026-06-05 | 繳費方式功能（paymentFrequency）：支援月繳/季繳/半年繳/年繳，入口於 TenantList Drawer 編輯、新增 Modal、Contract Step 1；帳單生成自動依週期跳月、金額乘倍數；Preview.vue 第三條條款反映頻率 |
+| 2026-06-05 | Financials 帳單生成摘要：生成後顯示本次明細卡片（含各租客應收合計），切換月份自動隱藏 |
+| 2026-06-05 | Financials 生成紀錄持久化：每次生成寫入 bill_generate_logs collection；按鈕顯示本月生成次數 badge；歷史 icon 可開 Modal 查看每次明細與各租客應收 |

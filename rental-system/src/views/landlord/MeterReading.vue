@@ -152,7 +152,13 @@
                 :class="room.isLocked ? 'bg-green-50/50 dark:bg-green-900/5' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'">
 
                 <td class="px-6 py-4">
-                  <p class="font-bold text-base">{{ room.name }}</p>
+                  <div class="flex items-center gap-1.5">
+                    <p class="font-bold text-base">{{ room.name }}</p>
+                    <span v-if="room.electricitySettings"
+                      class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-gold-100 text-gold-700 dark:bg-gold-900/30 dark:text-gold-300 whitespace-nowrap"
+                      :title="`個別電費方案：${room.electricitySettings.mode}`"
+                    >個別方案</span>
+                  </div>
                   <p class="text-xs text-text-secondary-light">{{ room.tenantName }}</p>
                 </td>
 
@@ -228,6 +234,16 @@
                       aria-label="查看計算詳情">
                       <span class="material-symbols-outlined text-[18px]" aria-hidden="true">calculate</span>
                     </button>
+                    <button
+                      @click="openRoomSettings(room)"
+                      class="p-1.5 rounded-lg transition-colors"
+                      :class="room.electricitySettings
+                        ? 'text-gold-600 bg-gold-50 dark:bg-gold-900/20 hover:bg-gold-100'
+                        : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'"
+                      :title="room.electricitySettings ? `個別電費方案：${room.electricitySettings.mode}` : '設定電費方案（目前使用全域）'"
+                      :aria-label="`${room.name} 電費方案設定`">
+                      <span class="material-symbols-outlined text-[18px]" aria-hidden="true">electric_bolt</span>
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -297,11 +313,23 @@
       </div>
     </div>
 
-    <!-- 設定 Modal -->
+    <!-- 全域設定 Modal -->
     <MeterSettingsModal
       v-model:show="showSettingsModal"
       v-model="settings"
       :landlord-id="authStore.effectiveUid"
+    />
+
+    <!-- 逐房間電費方案 Modal -->
+    <MeterSettingsModal
+      v-if="roomSettingsTarget"
+      v-model:show="showRoomSettingsModal"
+      :model-value="roomSettingsTarget.electricitySettings ?? settings"
+      @update:model-value="onRoomSettingsSaved"
+      @reset-room="onRoomSettingsReset"
+      :landlord-id="authStore.effectiveUid"
+      :room-id="roomSettingsTarget.roomId"
+      :room-name="roomSettingsTarget.name"
     />
 
     <!-- 計算詳情 Modal -->
@@ -348,6 +376,27 @@ const meterData = ref<MeterEntry[]>([]);
 
 const showSettingsModal = ref(false);
 const showDetailModal = ref(false);
+
+// 逐房間電費方案
+const roomSettingsTarget = ref<MeterEntry | null>(null)
+const showRoomSettingsModal = ref(false)
+
+const openRoomSettings = (room: MeterEntry) => {
+  roomSettingsTarget.value = room
+  showRoomSettingsModal.value = true
+}
+
+const onRoomSettingsSaved = (newSettings: Settings) => {
+  if (roomSettingsTarget.value) {
+    roomSettingsTarget.value.electricitySettings = newSettings
+  }
+}
+
+const onRoomSettingsReset = () => {
+  if (roomSettingsTarget.value) {
+    roomSettingsTarget.value.electricitySettings = undefined
+  }
+}
 const detailLog = ref('');
 const detailTotal = ref(0);
 const unifiedDate = ref(new Date().toISOString().split('T')[0] || '');
@@ -460,6 +509,7 @@ const loadData = async () => {
       existingReadingId: existing ? existing.id : null,
       isLocked: !!existing,
       roomLastMeterDate: data.lastMeterDate || '',
+      electricitySettings: data.electricitySettings || undefined,
     };
   });
 
@@ -511,7 +561,12 @@ const calculateGroupAvgRate = (group: MeterGroup) => {
   return usage === 0 ? 0 : group.masterBillAmount / usage;
 };
 
-const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup) => {
+// 取得此房間實際使用的設定（個別 > 全域）
+const getRoomSettings = (room: MeterEntry): Settings =>
+  room.electricitySettings ?? settings.value
+
+const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup, s?: Settings) => {
+  const activeSettings = s ?? getRoomSettings(room)
   let totalCost = 0;
   let log = '';
   const days = getDaysDiff(room.lastReadingDate, room.currentReadingDate);
@@ -521,12 +576,15 @@ const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup
   let usageNonSummer = 0;
   let useAverageRate = false;
 
-  if (settings.value.tieredConfig.season === 'average') {
+  // tiered_avg 模式：不分夏/非夏，直接用平均費率
+  const isAvgMode = activeSettings.mode === 'tiered_avg'
+
+  if (isAvgMode || activeSettings.tieredConfig.season === 'average') {
     useAverageRate = true;
-    log += `季節判定: 採用平均費率 (夏月+非夏月)/2\n`;
-  } else if (settings.value.tieredConfig.season === 'summer') {
+    log += isAvgMode ? `模式: 平均費率（不分夏/非夏）\n` : `季節判定: 採用平均費率 (夏月+非夏月)/2\n`;
+  } else if (activeSettings.tieredConfig.season === 'summer') {
     usageSummer = usage;
-  } else if (settings.value.tieredConfig.season === 'non-summer') {
+  } else if (activeSettings.tieredConfig.season === 'non-summer') {
     usageNonSummer = usage;
   } else {
     const summerRatio = summerDays / days;
@@ -537,7 +595,7 @@ const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup
   }
 
   let scaleFactor = days / 30;
-  if (settings.value.tieredConfig.strategy === 'split') {
+  if (activeSettings.tieredConfig.strategy === 'split') {
     scaleFactor *= (group.officialMetersCount / group.roomCount);
     log += `級距策略: 資本拆分 (總表${group.officialMetersCount} / 房數${group.roomCount})\n`;
   } else {
@@ -551,7 +609,7 @@ const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup
     let cost = 0;
     let prevLimit = 0;
     let partLog = type === 'summer' ? '--- [夏月計算] ---\n' : type === 'non-summer' ? '--- [非夏月計算] ---\n' : '--- [平均費率計算] ---\n';
-    for (const tier of settings.value.tiers) {
+    for (const tier of activeSettings.tiers) {
       if (remaining <= 0) break;
       const scaledLimit = (tier.limit === 99999) ? 99999 : tier.limit * scaleFactor;
       const gap = scaledLimit - (prevLimit * scaleFactor);
@@ -580,20 +638,22 @@ const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup
 };
 
 const calculateElectricity = (room: MeterEntry) => {
+  const s = getRoomSettings(room)
   const usage = Math.max(0, (room.currentReading || 0) - room.lastReading);
   if (usage === 0) return { cost: 0, log: '無用量' };
-  if (settings.value.mode === 'fixed') {
-    const cost = Math.round(usage * settings.value.fixedRate);
-    return { cost, log: `固定費率: ${usage}度 x $${settings.value.fixedRate} = $${cost}` };
+  if (s.mode === 'fixed') {
+    const cost = Math.round(usage * s.fixedRate);
+    return { cost, log: `固定費率: ${usage}度 x $${s.fixedRate} = $${cost}` };
   }
   const group = meterGroups.value[0];
   if (!group) return { cost: 0, log: '錯誤: 無群組設定' };
-  if (settings.value.mode === 'bill_share') {
+  if (s.mode === 'bill_share') {
     const rate = calculateGroupAvgRate(group);
     const cost = Math.round(usage * rate);
     return { cost, log: `帳單分攤: ${usage}度 x 平均單價$${rate.toFixed(4)} = $${cost}` };
   }
-  return calculateTieredLogic(usage, room, group);
+  // 'tiered' 和 'tiered_avg' 皆走此路徑
+  return calculateTieredLogic(usage, room, group, s);
 };
 
 // --- Computed ---

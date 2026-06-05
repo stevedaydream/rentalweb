@@ -148,6 +148,15 @@
         { "fieldPath": "tenantUid", "order": "ASCENDING" },
         { "fieldPath": "signedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "bill_generate_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "landlordId", "order": "ASCENDING" },
+        { "fieldPath": "month", "order": "ASCENDING" },
+        { "fieldPath": "generatedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
