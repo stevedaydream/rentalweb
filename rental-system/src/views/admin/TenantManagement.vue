@@ -61,7 +61,7 @@
       </div>
 
       <div v-else class="overflow-x-auto">
-        <table class="w-full text-sm text-left">
+        <table class="w-full min-w-[820px] text-sm text-left whitespace-nowrap">
           <thead class="text-xs text-gray-500 uppercase bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
             <tr>
               <th class="px-6 py-4 font-semibold">租客資訊</th>

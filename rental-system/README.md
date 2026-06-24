@@ -54,7 +54,7 @@ npm start
 | 前端 (Vite) | http://localhost:5173 |
 | Firebase Emulator UI | http://localhost:4000 |
 | Functions | http://localhost:5001 |
-| Firestore | http://localhost:8080 |
+| Firestore | http://localhost:8085 |
 | Auth | http://localhost:9099 |
 | Storage | http://localhost:9199 |
 

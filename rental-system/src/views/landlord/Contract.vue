@@ -499,7 +499,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
 import axios from 'axios'
 import { useAuthStore } from '../../stores/auth'
 import { useToastStore } from '../../stores/toast'
@@ -515,6 +516,7 @@ import ContractTemplateModal from '../../components/ContractTemplateModal.vue'
 
 const authStore = useAuthStore()
 const toast = useToastStore()
+const route = useRoute()
 
 // ---- UI state ----
 const activeTab = ref('new')
@@ -940,8 +942,58 @@ const initData = async () => {
       form.value.feeManagement = t.feeManagement ?? 'none'
       form.value.customArticle21 = t.customArticle21 ?? ''
     }
+
+    await prefillFromRenewal()
   } catch (e) {
     console.error('initData 失敗:', e)
+  }
+}
+
+// 由 TenantList「一鍵續約」導入：?renew=contractId 預填租客 / 房源 / 新租期 / 租金
+const prefillFromRenewal = async () => {
+  const renewId = route.query.renew
+  if (!renewId) return
+  try {
+    const snap = await getDoc(doc(db, 'contracts', String(renewId)))
+    if (!snap.exists()) return
+    const c = snap.data()
+    activeTab.value = 'new'
+    step.value = 1
+
+    const t = tenants.value.find(t => t.id === c.tenantDocId)
+    if (t) {
+      selectedTenantId.value = t.id
+      form.value.tenant = t.name || c.tenantName || ''
+      form.value.tenantId = t.idNumber || ''
+      form.value.tenantPhone = t.phone || ''
+    } else {
+      form.value.tenant = c.tenantName || ''
+    }
+
+    const r = rooms.value.find(r => (r.name || r.roomName) === c.roomNumber)
+    if (r) {
+      selectedRoomId.value = r.id
+      form.value.roomNo = r.name || r.roomName || ''
+      form.value.address = r.address || ''
+    } else {
+      form.value.roomNo = c.roomNumber || ''
+    }
+
+    form.value.rentfee = c.rent || ''
+    form.value.startDate = c.startDate || getTodayString()
+    // 先以年限觸發自動算到期日，再以續約實際到期日覆寫（支援自訂日期）
+    if (c.startDate && c.endDate) {
+      const years = Math.max(1, Math.round(
+        (new Date(c.endDate).getTime() - new Date(c.startDate).getTime()) / (365.25 * 86400000)
+      ))
+      form.value.duration = years
+    }
+    await nextTick()
+    if (c.endDate) form.value.endDate = c.endDate
+
+    toast.info('已帶入續約資料，請確認後完成簽署')
+  } catch (e) {
+    console.error('prefillFromRenewal 失敗:', e)
   }
 }
 

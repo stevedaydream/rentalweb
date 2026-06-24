@@ -167,7 +167,7 @@
             <span class="text-xs font-normal text-text-secondary-light ml-1">（含年增率 {{ params.rentIncreaseRate }}%）</span>
           </h2>
           <div class="overflow-x-auto">
-            <table class="w-full text-sm">
+            <table class="w-full min-w-[640px] text-sm whitespace-nowrap">
               <thead>
                 <tr class="text-xs text-text-secondary-light uppercase border-b border-ink-100 dark:border-ink-800">
                   <th class="pb-2 text-left">年份</th>

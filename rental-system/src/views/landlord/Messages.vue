@@ -28,7 +28,7 @@
 
     <div class="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
       <div class="overflow-x-auto min-h-[400px]">
-        <table class="w-full text-sm text-left">
+        <table class="w-full min-w-[880px] text-sm text-left whitespace-nowrap">
           <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
             <tr>
               <th class="px-6 py-4 w-4">狀態</th>

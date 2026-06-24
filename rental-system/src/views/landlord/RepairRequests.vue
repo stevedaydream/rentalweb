@@ -82,7 +82,7 @@
       </div>
 
       <div class="overflow-x-auto">
-        <table class="w-full text-sm text-left">
+        <table class="w-full min-w-[880px] text-sm text-left whitespace-nowrap">
           <thead class="text-xs text-text-secondary-light uppercase bg-surface-light dark:bg-surface-dark">
             <tr>
               <th class="px-6 py-4">優先級</th>

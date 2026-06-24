@@ -224,7 +224,7 @@
         </div>
 
         <div class="overflow-x-auto min-h-[300px]">
-          <table class="w-full text-sm text-left">
+          <table class="w-full min-w-[880px] text-sm text-left whitespace-nowrap">
             <thead class="text-xs text-text-secondary-light uppercase bg-surface-light dark:bg-surface-dark">
               <tr>
                 <th class="px-6 py-3">日期</th>
@@ -285,11 +285,17 @@
                     </div>
                   </template>
                   <template v-else>
-                    <span class="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full"
-                      :class="statusStyles[item.status] || 'text-green-600 bg-green-50'">
-                      <span class="material-symbols-outlined text-[14px]">{{ statusIcons[item.status] || 'check_circle' }}</span>
-                      {{ statusLabels[item.status] || '已結清' }}
-                    </span>
+                    <div class="inline-flex items-center gap-1.5 flex-wrap justify-center">
+                      <span class="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full"
+                        :class="statusStyles[item.status] || 'text-green-600 bg-green-50'">
+                        <span class="material-symbols-outlined text-[14px]">{{ statusIcons[item.status] || 'check_circle' }}</span>
+                        {{ statusLabels[item.status] || '已結清' }}
+                      </span>
+                      <span v-if="item.status === 'completed' && billLateDays(item) > 0"
+                        class="inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 font-medium">
+                        <span class="material-symbols-outlined text-[13px]" aria-hidden="true">schedule</span>遲繳 {{ billLateDays(item) }} 天
+                      </span>
+                    </div>
                   </template>
                 </td>
                 <td class="px-6 py-4 text-center relative">
@@ -523,6 +529,9 @@ interface Transaction {
   relatedUsageId?: string
   relatedTenantDocId?: string
   relatedContractId?: string
+  dueDate?: string
+  paidAt?: string
+  paymentDate?: string
   createdAt?: any
 }
 
@@ -759,12 +768,20 @@ const categoryBadge = (cat: string) => {
 }
 
 // --- Mark as Paid (quick action) ---
+// 遲繳天數：實際收款日（paidAt 優先，相容舊資料 paymentDate）晚於截止日的天數
+const billLateDays = (item: Transaction): number => {
+  const paid = item.paidAt || item.paymentDate
+  if (!paid || !item.dueDate) return 0
+  const diff = Math.floor((new Date(paid).getTime() - new Date(item.dueDate).getTime()) / 86400000)
+  return diff > 0 ? diff : 0
+}
+
 const markPaid = async (item: Transaction) => {
   markingPaidId.value = item.id
   try {
     await updateDoc(doc(db, 'bills', item.id), {
       status: 'completed',
-      paidAt: new Date().toISOString().split('T')[0],
+      paidAt: item.paymentDate || new Date().toISOString().split('T')[0],
       updatedAt: serverTimestamp(),
     })
     toast.success(`已標記「${item.target}」收款完成`)

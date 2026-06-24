@@ -76,7 +76,7 @@
            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-500"></div>
         </div>
 
-        <table class="w-full text-sm text-left">
+        <table class="w-full min-w-[720px] text-sm text-left whitespace-nowrap">
           <thead class="text-xs text-text-secondary-light uppercase bg-surface-light dark:bg-surface-dark">
             <tr>
               <th class="px-6 py-4 w-20 text-center">狀態</th>

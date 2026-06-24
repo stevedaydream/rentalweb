@@ -79,7 +79,7 @@
     <!-- Table -->
     <div class="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-visible">
       <div class="overflow-x-auto min-h-[400px]">
-        <table class="w-full text-sm text-left">
+        <table class="w-full min-w-[760px] text-sm text-left whitespace-nowrap">
           <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-700">
             <tr>
               <th class="px-6 py-4 font-semibold">租客資訊</th>
@@ -550,6 +550,17 @@
                       : '待租客回覆是否續租'
                     }}
                   </div>
+
+                  <!-- 一鍵續約 -->
+                  <button v-if="drawerTenant?.contractId"
+                    @click="openRenewModal(drawerTenant)"
+                    class="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold transition-colors"
+                    :class="drawerTenant.renewalStatus === 'confirmed'
+                      ? 'bg-green-600 text-white hover:bg-green-700'
+                      : 'bg-gold-500 text-white hover:bg-gold-600'">
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">autorenew</span>
+                    一鍵續約
+                  </button>
                 </div>
 
                 <!-- 備註 -->
@@ -738,9 +749,13 @@
                       <span class="font-semibold text-sm text-text-primary-light dark:text-text-primary-dark">{{ bill.monthStr }}</span>
                       <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">{{ bill.category }}</span>
                     </div>
-                    <div class="flex items-center gap-3 mt-1">
+                    <div class="flex items-center gap-3 mt-1 flex-wrap">
                       <span class="text-xs text-text-secondary-light">NT$ {{ bill.amount.toLocaleString() }}</span>
                       <span v-if="bill.dueDate" class="text-xs text-text-secondary-light">截止 {{ bill.dueDate }}</span>
+                      <span v-if="bill.status === 'completed' && billLateDays(bill) > 0"
+                        class="inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 font-medium">
+                        <span class="material-symbols-outlined text-[13px]" aria-hidden="true">schedule</span>遲繳 {{ billLateDays(bill) }} 天
+                      </span>
                     </div>
                   </div>
                   <div class="flex items-center gap-2 shrink-0">
@@ -851,11 +866,73 @@
       </div>
     </Teleport>
 
+    <!-- 一鍵續約 Modal -->
+    <Teleport to="body">
+      <div v-if="showRenewModal" class="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div class="bg-white dark:bg-card-dark rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4">
+          <div class="flex items-start gap-3">
+            <span class="material-symbols-outlined text-gold-500 text-2xl shrink-0 mt-0.5">autorenew</span>
+            <div>
+              <h3 class="font-bold text-text-primary-light dark:text-text-primary-dark">續約 — {{ renewingTenant?.name }}</h3>
+              <p class="text-sm text-text-secondary-light mt-1">
+                {{ renewingTenant?.room }}・原到期日 {{ renewingTenant?.leaseEnd || '—' }}
+              </p>
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <div>
+              <label for="renew-start" class="block text-xs font-bold text-text-secondary-light mb-1">新起租日</label>
+              <input id="renew-start" v-model="renewForm.startDate" type="date"
+                class="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-ink-800 text-sm focus-visible:ring-2 focus-visible:ring-gold-400 outline-none" />
+            </div>
+            <div>
+              <label for="renew-duration" class="block text-xs font-bold text-text-secondary-light mb-1">續約年限</label>
+              <select id="renew-duration" v-model.number="renewForm.duration"
+                class="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-ink-800 text-sm focus-visible:ring-2 focus-visible:ring-gold-400 outline-none">
+                <option :value="1">1 年</option>
+                <option :value="2">2 年</option>
+                <option :value="0.5">半年</option>
+              </select>
+            </div>
+            <div>
+              <label for="renew-end" class="block text-xs font-bold text-text-secondary-light mb-1">新到期日（可調整）</label>
+              <input id="renew-end" v-model="renewForm.endDate" type="date"
+                class="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-ink-800 text-sm focus-visible:ring-2 focus-visible:ring-gold-400 outline-none" />
+            </div>
+            <div>
+              <label for="renew-rent" class="block text-xs font-bold text-text-secondary-light mb-1">月租金</label>
+              <input id="renew-rent" v-model.number="renewForm.rent" type="number" min="0"
+                class="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-ink-800 text-sm focus-visible:ring-2 focus-visible:ring-gold-400 outline-none" />
+            </div>
+          </div>
+
+          <p class="text-xs text-blue-600 dark:text-blue-400 flex items-start gap-1">
+            <span class="material-symbols-outlined text-[15px] shrink-0" aria-hidden="true">info</span>
+            確認後將更新租期與租金、以 LINE 通知租客，並前往簽署新合約。
+          </p>
+
+          <div class="flex gap-3 pt-1">
+            <button @click="showRenewModal = false; renewingTenant = null"
+              class="flex-1 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+              取消
+            </button>
+            <button @click="confirmRenew" :disabled="isRenewing"
+              class="flex-1 py-2 rounded-xl bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+              <span v-if="isRenewing" class="material-symbols-outlined animate-spin text-[15px]">sync</span>
+              {{ isRenewing ? '處理中…' : '確認續約' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { auth, db, functions } from '../../firebase/config';
 import { httpsCallable } from 'firebase/functions';
 import { useAuthStore } from '../../stores/auth';
@@ -876,6 +953,7 @@ import {
   getDocs,
   orderBy,
   limit,
+  deleteField,
 } from 'firebase/firestore';
 
 // --- Type Definitions ---
@@ -928,11 +1006,14 @@ interface DrawerBill {
   amount: number;
   status: 'completed' | 'pending' | 'overdue';
   dueDate?: string;
+  paidAt?: string;
+  paymentDate?: string;
 }
 
 // --- State ---
 const authStore = useAuthStore();
 const toast = useToastStore();
+const router = useRouter();
 const tenants = ref<Tenant[]>([]);
 const availableRooms = ref<Room[]>([]);
 const loading = ref(true);
@@ -1037,10 +1118,10 @@ const refreshBillStatuses = async () => {
       const tid = data.relatedTenantDocId as string;
       if (!tid) return;
       const cur = map[tid];
-      if (data.status === 'overdue' || (data.dueDate && data.dueDate < today)) {
-        map[tid] = 'overdue';
-      } else if (data.status === 'completed') {
+      if (data.status === 'completed') {
         if (!cur) map[tid] = 'normal';
+      } else if (data.status === 'overdue' || (data.dueDate && data.dueDate < today)) {
+        map[tid] = 'overdue';
       } else {
         if (cur !== 'overdue') map[tid] = 'unpaid';
       }
@@ -1472,6 +1553,101 @@ const enterDrawerEdit = () => {
 };
 
 // --- Drawer Bills ---
+// 遲繳天數：實際收款日（paidAt 優先，相容舊資料 paymentDate）晚於截止日的天數
+const billLateDays = (bill: DrawerBill): number => {
+  const paid = bill.paidAt || bill.paymentDate;
+  if (!paid || !bill.dueDate) return 0;
+  const diff = Math.floor((new Date(paid).getTime() - new Date(bill.dueDate).getTime()) / 86400000);
+  return diff > 0 ? diff : 0;
+};
+
+// ── 一鍵續約 ──────────────────────────────────────────────
+const showRenewModal = ref(false);
+const renewingTenant = ref<Tenant | null>(null);
+const isRenewing = ref(false);
+const renewForm = ref({ startDate: '', duration: 1, endDate: '', rent: 0 });
+
+const addDays = (dateStr: string, days: number): string => {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0] as string;
+};
+const calcRenewEnd = (start: string, years: number): string => {
+  if (!start || !years) return '';
+  const d = new Date(start);
+  const y = Math.floor(years);
+  const m = Math.round((years - y) * 12);
+  d.setFullYear(d.getFullYear() + y);
+  d.setMonth(d.getMonth() + m);
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().split('T')[0] as string;
+};
+
+const openRenewModal = (tenant: Tenant) => {
+  if (!tenant.contractId) { toast.warning('此租客尚未建立租約，無法續約'); return; }
+  renewingTenant.value = tenant;
+  const oldEnd = tenant.leaseEnd || todayStr();
+  const newStart = addDays(oldEnd, 1);
+  renewForm.value = {
+    startDate: newStart,
+    duration: 1,
+    endDate: calcRenewEnd(newStart, 1),
+    rent: tenant.rent || 0,
+  };
+  showRenewModal.value = true;
+};
+
+// 起租日 / 續約年限變動時自動重算到期日（房東仍可手動覆寫）
+watch(() => [renewForm.value.startDate, renewForm.value.duration], () => {
+  renewForm.value.endDate = calcRenewEnd(renewForm.value.startDate, Number(renewForm.value.duration));
+});
+
+const confirmRenew = async () => {
+  const tenant = renewingTenant.value;
+  if (!tenant?.contractId) return;
+  if (!renewForm.value.startDate || !renewForm.value.endDate) { toast.warning('請填寫完整租期'); return; }
+  if (new Date(renewForm.value.endDate) <= new Date(renewForm.value.startDate)) { toast.warning('到期日需晚於起租日'); return; }
+  isRenewing.value = true;
+  try {
+    const newRent = Number(renewForm.value.rent) || 0;
+    await updateDoc(doc(db, 'contracts', tenant.contractId), {
+      startDate: renewForm.value.startDate,
+      endDate: renewForm.value.endDate,
+      rent: newRent,
+      status: 'active',
+      previousEndDate: tenant.leaseEnd || '',
+      lastRenewedAt: serverTimestamp(),
+      renewalStatus: deleteField(),
+      renewalNote: deleteField(),
+      renewalRespondedAt: deleteField(),
+      updatedAt: serverTimestamp(),
+    });
+    await updateDoc(doc(db, 'tenants', tenant.id), {
+      leaseStart: renewForm.value.startDate,
+      leaseEnd: renewForm.value.endDate,
+      rent: newRent,
+      updatedAt: serverTimestamp(),
+    });
+    // 通知租客（非致命）
+    try {
+      const notify = httpsCallable(functions, 'notifyTenantRenewal');
+      await notify({ contractId: tenant.contractId });
+    } catch (e) {
+      console.warn('notifyTenantRenewal failed', e);
+    }
+    const cid = tenant.contractId;
+    toast.success('續約完成，即將前往簽署新合約');
+    showRenewModal.value = false;
+    renewingTenant.value = null;
+    closeDrawer();
+    router.push({ name: 'Contract', query: { renew: cid } });
+  } catch (e) {
+    toast.error('續約失敗，請稍後再試');
+  } finally {
+    isRenewing.value = false;
+  }
+};
+
 const fetchDrawerBills = async () => {
   if (!drawerTenant.value) return;
   drawerBillsLoading.value = true;
@@ -1497,7 +1673,9 @@ const fetchDrawerBills = async () => {
         category: data.category || '—',
         amount: Number(data.amount) || 0,
         status: data.status || 'pending',
-        dueDate: data.dueDate || ''
+        dueDate: data.dueDate || '',
+        paidAt: data.paidAt || '',
+        paymentDate: data.paymentDate || ''
       } as DrawerBill;
     });
   } catch (e) {
@@ -1513,10 +1691,12 @@ const markDrawerBillPaid = async (bill: DrawerBill) => {
     const today = new Date().toISOString().split('T')[0]!;
     await updateDoc(doc(db, 'bills', bill.id), {
       status: 'completed',
+      paidAt: today,
       paymentDate: today,
       updatedAt: serverTimestamp()
     });
     bill.status = 'completed';
+    bill.paidAt = today;
     toast.success('已標記收款完成');
     refreshBillStatuses();
   } catch {

@@ -115,10 +115,10 @@
         <p class="text-xs text-gray-500 uppercase font-bold">{{ isBackfillMode ? '本期電費合計' : '本月電費合計' }}</p>
         <p class="text-base font-bold mt-1">NT$ {{ totalEstimatedCost.toLocaleString() }}</p>
       </div>
-      <div class="p-4 bg-white dark:bg-card-dark border border-gray-100 dark:border-gray-800 rounded-xl shadow-sm flex items-center justify-between gap-2">
-        <div>
-          <p class="text-xs text-gray-500 uppercase font-bold">統一抄表日</p>
-          <p class="text-xs text-gray-400 mt-0.5">套用至所有未填房間</p>
+      <div class="p-4 bg-white dark:bg-card-dark border border-gray-100 dark:border-gray-800 rounded-xl shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div class="min-w-0">
+          <p class="text-xs text-gray-500 uppercase font-bold whitespace-nowrap">統一抄表日</p>
+          <p class="text-xs text-gray-400 mt-0.5 whitespace-nowrap">套用至所有未填房間</p>
         </div>
         <input type="date" v-model="unifiedDate" @change="applyUnifiedDate"
           class="px-2 py-1 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-xs focus:ring-2 focus:ring-primary outline-none font-mono">
@@ -131,7 +131,7 @@
         <div v-if="loading" class="absolute inset-0 z-10 bg-white/50 dark:bg-card-dark/50 flex items-center justify-center">
           <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
         </div>
-        <table class="w-full text-sm text-left">
+        <table class="w-full min-w-[820px] text-sm text-left whitespace-nowrap">
           <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50">
             <tr>
               <th class="px-6 py-4">房號 / 租客</th>

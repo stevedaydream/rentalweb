@@ -41,7 +41,22 @@
       "Bash(firebase use:*)",
       "Bash(firebase functions:artifacts:setpolicy)",
       "Bash(gcloud run:*)",
-      "Bash(echo \"EXIT:$?\")"
+      "Bash(echo \"EXIT:$?\")",
+      "PowerShell(npx vue-tsc -b 2>&1 | Select-Object -First 40)",
+      "Skill(agent-browser)",
+      "PowerShell(npx vue-tsc -b 2>&1 | Select-Object -First 30; Write-Output \"exit=$LASTEXITCODE\")",
+      "Bash(agent-browser --help)",
+      "Bash(agent-browser open *)",
+      "Bash(agent-browser resize *)",
+      "Bash(agent-browser skills *)",
+      "Bash(agent-browser set *)",
+      "Bash(agent-browser wait *)",
+      "Bash(agent-browser snapshot *)",
+      "Bash(agent-browser get *)",
+      "Bash(agent-browser screenshot *)",
+      "Bash(agent-browser click *)",
+      "Bash(agent-browser tab *)",
+      "Bash(agent-browser close *)"
     ]
   }
 }

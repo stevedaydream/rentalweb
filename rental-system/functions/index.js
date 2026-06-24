@@ -197,7 +197,7 @@ async function getLineConfig(landlordId) {
     if (!channelSecret || !channelAccessToken || !envLandlordId || envLandlordId === 'your_firebase_uid_here') {
       throw new Error('請在 functions/.env 填入 LINE_CHANNEL_SECRET、LINE_CHANNEL_ACCESS_TOKEN、LINE_LANDLORD_ID');
     }
-    return { channelSecret, channelAccessToken, landlordId: envLandlordId };
+    return { channelSecret, channelAccessToken, landlordId: envLandlordId, ownerLineUserId: process.env.LINE_OWNER_USER_ID };
   }
 
   // 生產環境：每位房東各自的設定文件
@@ -420,6 +420,213 @@ async function handleCommand(cmd, tenantUid, config, client, replyToken, db) {
 }
 
 /**
+ * Handle a command from the LANDLORD (channel owner) via LINE.
+ * 房東用自己的官方帳號查詢名下租客狀態。永遠回傳 true（房東頻道訊息不存為租客訊息）。
+ */
+async function handleLandlordCommand(cmd, config, client, replyToken, db) {
+  const raw = (cmd || '').trim();
+  const [head, ...rest] = raw.split(/\s+/);
+  const arg = rest.join(' ').trim();
+  const lid = config.landlordId;
+  const today = new Date().toISOString().split('T')[0];
+
+  const menu = () => client.replyMessage({ replyToken, messages: [{ type: 'text', text:
+    '🏠 房東查詢指令\n━━━━━━━━━━\n' +
+    '🔍 租客 <房號> → 該租客完整狀態\n' +
+    '💰 欠費 → 名下逾期租客\n' +
+    '📅 到期 → 90 天內到期租約\n' +
+    '⚡ 電費 <房號> → 該房電表度數\n' +
+    '🔧 報修 → 待處理報修\n' +
+    '━━━━━━━━━━\n例：租客 402',
+  }] });
+
+  // 取得某房號最新電表（回傳格式化字串或 null）
+  const meterTextByRoom = async (roomName) => {
+    const roomSnap = await db.collection('rooms')
+      .where('landlordId', '==', lid).where('name', '==', roomName).limit(1).get();
+    if (roomSnap.empty) return null;
+    const roomId = roomSnap.docs[0].id;
+    const meterSnap = await db.collection('meter_readings')
+      .where('roomId', '==', roomId).orderBy('yearMonth', 'desc').limit(1).get();
+    if (meterSnap.empty) return null;
+    const m = meterSnap.docs[0].data();
+    const usage = (m.usage != null) ? Number(m.usage).toFixed(1)
+      : (m.currentReading != null && m.lastReading != null) ? (m.currentReading - m.lastReading).toFixed(1) : null;
+    const dateStr = m.periodEnd || (m.createdAt?.toDate ? m.createdAt.toDate().toLocaleDateString('zh-TW') : '-');
+    let s = `抄表期間：${dateStr}\n本期度數：${m.currentReading} 度`;
+    if (m.lastReading != null) s += `\n上期度數：${m.lastReading} 度`;
+    if (usage !== null) s += `\n本期用電：${usage} 度`;
+    if (m.cost) s += `\n電費金額：NT$${Number(m.cost).toLocaleString()}`;
+    return s;
+  };
+
+  try {
+    // ── 選單 ──────────────────────────────────────────────
+    if (['選單', '功能', '說明', 'help', 'menu'].includes(head)) {
+      await menu();
+      return true;
+    }
+
+    // ── 租客 <房號或姓名>：綜合查詢 ─────────────────────────
+    if (['租客', '查租客'].includes(head)) {
+      if (!arg) { await client.replyMessage({ replyToken, messages: [{ type: 'text', text: '請輸入房號或姓名，例：租客 402' }] }); return true; }
+      const tenantsSnap = await db.collection('tenants').where('landlordId', '==', lid).get();
+      const matches = tenantsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .filter(t => !t.isHistorical &&
+          (String(t.room || t.roomNumber || '') === arg || String(t.name || '') === arg ||
+           String(t.room || t.roomNumber || '').includes(arg) || String(t.name || '').includes(arg)));
+      if (matches.length === 0) {
+        await client.replyMessage({ replyToken, messages: [{ type: 'text', text: `查無「${arg}」的在租租客，請確認房號或姓名。` }] });
+        return true;
+      }
+      const tn = matches[0];
+      const roomName = tn.room || tn.roomNumber || '';
+
+      // 繳費（未繳/逾期）
+      const billSnap = await db.collection('bills')
+        .where('landlordId', '==', lid).where('relatedTenantDocId', '==', tn.id)
+        .where('status', 'in', ['pending', 'overdue']).get();
+      let owe = 0, overdueN = 0;
+      billSnap.docs.forEach(d => {
+        const b = d.data();
+        owe += Number(b.totalAmount ?? b.amount ?? 0);
+        if (b.status === 'overdue' || (b.dueDate && b.dueDate < today)) overdueN++;
+      });
+      const payLine = billSnap.empty ? '✅ 無未繳' : `⚠️ 未繳 ${billSnap.size} 筆 / NT$${owe.toLocaleString()}${overdueN ? `（逾期 ${overdueN}）` : ''}`;
+
+      // 合約到期
+      const endDate = tn.leaseEnd || '';
+      let leaseLine = '—';
+      if (endDate) {
+        const diff = Math.ceil((new Date(endDate) - new Date()) / 864e5);
+        leaseLine = `${endDate}（${diff > 0 ? `剩 ${diff} 天` : '已到期'}）`;
+      }
+
+      // 報修（待處理/處理中）
+      let repairLine = '✅ 無';
+      if (tn.uid) {
+        const rep = await db.collection('repair_requests')
+          .where('tenantId', '==', tn.uid).where('status', 'in', ['pending', 'processing']).get();
+        if (!rep.empty) repairLine = `🔧 ${rep.size} 筆待處理`;
+      }
+
+      // 電表
+      const meterTxt = roomName ? await meterTextByRoom(roomName) : null;
+
+      let text =
+        `👤 ${tn.name || '租客'}${roomName ? `（${roomName}）` : ''}\n━━━━━━━━━━\n` +
+        `💰 繳費：${payLine}\n` +
+        `📅 合約到期：${leaseLine}\n` +
+        `🔧 報修：${repairLine}`;
+      if (meterTxt) text += `\n━━━━━━━━━━\n⚡ 最新電表\n${meterTxt}`;
+      await client.replyMessage({ replyToken, messages: [{ type: 'text', text }] });
+      return true;
+    }
+
+    // ── 欠費 / 逾期 ────────────────────────────────────────
+    if (['欠費', '逾期', '催繳'].includes(head)) {
+      const snap = await db.collection('bills')
+        .where('landlordId', '==', lid).where('status', 'in', ['pending', 'overdue']).get();
+      const byTenant = {};
+      snap.docs.forEach(d => {
+        const b = d.data();
+        const isOverdue = b.status === 'overdue' || (b.dueDate && b.dueDate < today);
+        if (!isOverdue) return;
+        const key = b.tenantName || b.relatedTenantDocId || '租客';
+        byTenant[key] = byTenant[key] || { amount: 0, count: 0, due: '' };
+        byTenant[key].amount += Number(b.totalAmount ?? b.amount ?? 0);
+        byTenant[key].count++;
+        if (!byTenant[key].due || (b.dueDate && b.dueDate < byTenant[key].due)) byTenant[key].due = b.dueDate || '';
+      });
+      const names = Object.keys(byTenant);
+      if (names.length === 0) {
+        await client.replyMessage({ replyToken, messages: [{ type: 'text', text: '✅ 目前沒有逾期租客，收款正常！' }] });
+        return true;
+      }
+      let total = 0;
+      const lines = names.map(n => {
+        const v = byTenant[n]; total += v.amount;
+        return `• ${n}：NT$${v.amount.toLocaleString()}（${v.count} 筆${v.due ? `，最早 ${v.due}` : ''}）`;
+      }).join('\n');
+      await client.replyMessage({ replyToken, messages: [{ type: 'text', text:
+        `💰 逾期租客（${names.length} 人）\n━━━━━━━━━━\n${lines}\n━━━━━━━━━━\n合計：NT$${total.toLocaleString()}`,
+      }] });
+      return true;
+    }
+
+    // ── 到期 ──────────────────────────────────────────────
+    if (['到期', '租約', '合約'].includes(head)) {
+      const snap = await db.collection('contracts')
+        .where('landlordId', '==', lid).where('status', '==', 'active').get();
+      const rsLabel = { pending: '待回覆', confirmed: '已確認續租', declined: '不續租' };
+      const items = snap.docs.map(d => d.data())
+        .map(c => ({ ...c, _end: c.endDate || c.leaseEnd || '' }))
+        .filter(c => {
+          if (!c._end) return false;
+          const diff = Math.ceil((new Date(c._end) - new Date()) / 864e5);
+          return diff <= 90;
+        })
+        .sort((a, b) => a._end.localeCompare(b._end));
+      if (items.length === 0) {
+        await client.replyMessage({ replyToken, messages: [{ type: 'text', text: '✅ 90 天內沒有租約到期。' }] });
+        return true;
+      }
+      const lines = items.map(c => {
+        const diff = Math.ceil((new Date(c._end) - new Date()) / 864e5);
+        const left = diff > 0 ? `剩 ${diff} 天` : '⚠️ 已到期';
+        const rs = c.renewalStatus ? `｜${rsLabel[c.renewalStatus] || c.renewalStatus}` : '';
+        return `• ${c.tenantName || '租客'}${c.roomNumber || c.roomName ? `（${c.roomNumber || c.roomName}）` : ''}\n  ${c._end}（${left}）${rs}`;
+      }).join('\n');
+      await client.replyMessage({ replyToken, messages: [{ type: 'text', text:
+        `📅 90 天內到期租約（${items.length} 筆）\n━━━━━━━━━━\n${lines}`,
+      }] });
+      return true;
+    }
+
+    // ── 電費 <房號> ───────────────────────────────────────
+    if (['電費', '電表', '抄表'].includes(head)) {
+      if (!arg) { await client.replyMessage({ replyToken, messages: [{ type: 'text', text: '請輸入房號，例：電費 402' }] }); return true; }
+      const meterTxt = await meterTextByRoom(arg);
+      if (!meterTxt) {
+        await client.replyMessage({ replyToken, messages: [{ type: 'text', text: `查無「${arg}」的電表記錄，請確認房號。` }] });
+        return true;
+      }
+      await client.replyMessage({ replyToken, messages: [{ type: 'text', text: `⚡ ${arg} 電表\n━━━━━━━━━━\n${meterTxt}` }] });
+      return true;
+    }
+
+    // ── 報修 ──────────────────────────────────────────────
+    if (['報修', '維修'].includes(head)) {
+      const snap = await db.collection('repair_requests')
+        .where('landlordId', '==', lid).where('status', 'in', ['pending', 'processing']).get();
+      if (snap.empty) {
+        await client.replyMessage({ replyToken, messages: [{ type: 'text', text: '✅ 目前沒有待處理的報修。' }] });
+        return true;
+      }
+      const statusMap = { pending: '待處理', processing: '處理中' };
+      const items = snap.docs.map(d => d.data())
+        .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+      const lines = items.map(r => {
+        const room = r.roomName || r.room || r.roomId || '';
+        return `• ${r.tenantName || '租客'}${room ? `（${room}）` : ''}｜${statusMap[r.status] || r.status}\n  ${r.type || '報修'}：${(r.description || '').substring(0, 30)}`;
+      }).join('\n');
+      await client.replyMessage({ replyToken, messages: [{ type: 'text', text:
+        `🔧 待處理報修（${snap.size} 筆）\n━━━━━━━━━━\n${lines}`,
+      }] });
+      return true;
+    }
+
+    // 非指令 → 回房東選單
+    await menu();
+    return true;
+  } catch (e) {
+    logger.error('handleLandlordCommand error', { cmd, error: e.message });
+    await client.replyMessage({ replyToken, messages: [{ type: 'text', text: '⚠️ 查詢時發生錯誤，請稍後再試。' }] }).catch(() => {});
+    return true;
+  }
+}
+
+/**
  * lineWebhook — receives events from LINE platform
  * Webhook URL: https://asia-east1-rental-8897a.cloudfunctions.net/lineWebhook?lid={landlordId}
  * 每位房東在 LINE Developers Console 填入各自帶有 ?lid= 的 URL
@@ -558,6 +765,12 @@ exports.lineWebhook = onRequest(
         }
       } catch (e) {
         logger.warn('Error looking up tenant by lineUserId', e);
+      }
+
+      // --- 房東本人發話：走房東查詢指令（永遠處理，不存為租客訊息）---
+      if (config.ownerLineUserId && lineUserId === config.ownerLineUserId) {
+        await handleLandlordCommand(messageText, config, client, event.replyToken, db);
+        continue;
       }
 
       // --- 指令處理（帳單/電費/合約/公告/報修/選單）---
@@ -1049,6 +1262,56 @@ exports.submitRenewalResponse = onCall(
     }
 
     return { success: true };
+  }
+);
+
+// ============================================================
+// notifyTenantRenewal — 房東一鍵續約後，通知租客新租期 LINE
+// ============================================================
+exports.notifyTenantRenewal = onCall(
+  { region: 'asia-east1' },
+  async (request) => {
+    const { HttpsError } = require('firebase-functions/v2/https');
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError('unauthenticated', '請先登入');
+
+    const { contractId } = request.data;
+    if (!contractId) throw new HttpsError('invalid-argument', '缺少必要參數');
+
+    const db = getFirestore();
+    const contractSnap = await db.collection('contracts').doc(contractId).get();
+    if (!contractSnap.exists) throw new HttpsError('not-found', '合約不存在');
+
+    const c = contractSnap.data();
+    if (c.landlordId !== uid) throw new HttpsError('permission-denied', '無操作權限');
+
+    // 通知租客 LINE（非致命，失敗僅記錄）
+    try {
+      if (!c.tenantId) return { success: true, notified: false };
+      const lineConfigSnap = await db.collection('line_configs').doc(c.landlordId).get();
+      if (!lineConfigSnap.exists || !lineConfigSnap.data().channelAccessToken) {
+        return { success: true, notified: false };
+      }
+      const tenantUserSnap = await db.collection('users').doc(c.tenantId).get();
+      if (!tenantUserSnap.exists || !tenantUserSnap.data().lineUserId) {
+        return { success: true, notified: false };
+      }
+      const client = new line.messagingApi.MessagingApiClient({
+        channelAccessToken: lineConfigSnap.data().channelAccessToken,
+      });
+      const roomLabel = c.roomNumber || c.roomName || '';
+      const text =
+        `🔑 租約續約通知\n━━━━━━━━━━\n` +
+        `您的租約已完成續約${roomLabel ? `（${roomLabel}）` : ''}\n` +
+        `新租期：${c.startDate || ''} ~ ${c.endDate || ''}\n` +
+        (c.rent ? `月租金：NT$${Number(c.rent).toLocaleString()}\n` : '') +
+        `━━━━━━━━━━\n如有疑問請與房東聯繫。`;
+      await client.pushMessage({ to: tenantUserSnap.data().lineUserId, messages: [{ type: 'text', text }] });
+      return { success: true, notified: true };
+    } catch (e) {
+      logger.warn('notifyTenantRenewal: LINE notify failed', { contractId, error: e.message });
+      return { success: true, notified: false };
+    }
   }
 );
 

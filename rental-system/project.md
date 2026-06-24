@@ -106,7 +106,7 @@ rental-system/
 - 抄表記錄（手動輸入 + Excel 批次匯入）+ 抄表歷史
 - 報修管理（查看/處理租客報修申請）
 - 公告發布
-- 合約管理（自訂範本、PDF 匯出、電子簽名）
+- 合約管理（自訂範本、PDF 匯出、電子簽名、一鍵續約：延長租期+調租金+通知租客+導向重簽）
 - 收據管理（押金/保證書 PDF）
 - 房東設定（LINE Bot 設定、個人資料）
 - 訊息中心（LINE 訊息收發）
@@ -152,6 +152,8 @@ rental-system/
 | `createTenantAccount` | Callable（房東/Admin）：以手機+身分證建立租客 Firebase Auth 帳號 |
 | `resetTenantPassword` | Callable（Admin）：重設租客登入密碼 |
 | `submitRenewalResponse` | Callable（租客）：回覆是否續租，同步 LINE 通知房東 |
+| `notifyTenantRenewal` | Callable（房東）：一鍵續約後 LINE 通知租客新租期 |
+| `lineWebhook`（房東指令） | webhook 內 `handleLandlordCommand`：房東本人（`lineUserId===ownerLineUserId`）可查租客/欠費/到期/電費/報修 |
 | `notifyBillCreated` | Firestore 觸發：帳單建立時推播 LINE |
 | `notifyAnnouncementCreated` | Firestore 觸發：公告建立時推播 |
 | `scheduledReminderDaily` | 定時：每日繳費提醒 |
@@ -193,3 +195,11 @@ rental-system/
 | 2026-06-05 | 繳費方式功能（paymentFrequency）：支援月繳/季繳/半年繳/年繳，入口於 TenantList Drawer 編輯、新增 Modal、Contract Step 1；帳單生成自動依週期跳月、金額乘倍數；Preview.vue 第三條條款反映頻率 |
 | 2026-06-05 | Financials 帳單生成摘要：生成後顯示本次明細卡片（含各租客應收合計），切換月份自動隱藏 |
 | 2026-06-05 | Financials 生成紀錄持久化：每次生成寫入 bill_generate_logs collection；按鈕顯示本月生成次數 badge；歷史 icon 可開 Modal 查看每次明細與各租客應收 |
+| 2026-06-23 | 修正 TenantList 繳費狀態誤判：原 `refreshBillStatuses` 將 `dueDate < today` 判斷置於 `completed` 之前，導致已繳清帳單只要過截止日即被標逾期（全部租客誤顯示逾期）。改為先判斷 `completed`，與 Dashboard / Financials 一致 |
+| 2026-06-23 | 統一收款日期欄位：所有收款路徑（Financials markPaid、TenantList markDrawerBillPaid）以 `paidAt` 為準；確認租客截圖時 `paidAt` 取租客 `paymentDate`。新增遲繳顯示（方案 A）：帳務頁已收款列與租客抽屜帳單，當 `(paidAt‖paymentDate) > dueDate` 顯示「遲繳 N 天」橘色標籤（純推算、未存欄位） |
+| 2026-06-23 | 房東一鍵續約：TenantList 抽屜「一鍵續約」按鈕 + 確認 Modal（新起租日自動帶、續約年限、新到期日/租金可調）→ 更新 contracts/tenants 租期與租金、清除 renewalStatus、寫入 `previousEndDate`/`lastRenewedAt` → callable `notifyTenantRenewal` 推 LINE 通知租客 → 導向 Contract.vue（`?renew=contractId` 預填租客/房源/新租期/租金）完成重簽 |
+| 2026-06-24 | LINE 房東查詢指令：維持「每房東一頻道（?lid=）」架構，webhook 加 `handleLandlordCommand`，房東本人發話（`lineUserId===config.ownerLineUserId`）走房東處理器。指令：`租客 <房號>`（綜合卡：繳費/到期/電表/報修）、`欠費`、`到期`(90天)、`電費 <房號>`、`報修`、`選單`。模擬器以 `LINE_OWNER_USER_ID` env 啟用 |
+| 2026-06-24 | TenantList 手機表格優化：`<table>` 加 `min-w-[760px] whitespace-nowrap`，窄螢幕改水平捲動，欄位內容不再逐字斷行成直行 |
+| 2026-06-24 | 同上手機表格優化套用至 Financials（交易明細表 `min-w-[880px]`）與 MeterReading（主抄表表 `min-w-[820px]`）|
+| 2026-06-24 | 手機「直行」全站排查：所有資料表加 `min-w-[…] whitespace-nowrap`（Messages、RepairRequests、MeterReadingHistory×2、Announcements、InvestmentCalculator、admin TenantManagement/LandlordManagement）；tenant/Bills 表為 `hidden md:block`（手機用卡片）故略過 |
+| 2026-06-24 | 真正根因修正：手機「直行」其實出自統計卡而非表格——MeterReading「統一抄表日」卡用 `flex justify-between` 把中文字與 date input 並排，手機卡片過窄將中文擠成一字一行。改為 `flex-col sm:flex-row` 手機堆疊 + 文字容器 `min-w-0` + 標籤 `whitespace-nowrap` |

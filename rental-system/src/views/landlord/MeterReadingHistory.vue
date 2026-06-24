@@ -58,7 +58,7 @@
            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
         </div>
 
-        <table class="w-full text-sm text-left">
+        <table class="w-full min-w-[820px] text-sm text-left whitespace-nowrap">
           <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50">
             <tr>
               <th class="px-6 py-4">
@@ -164,7 +164,7 @@
       </div>
       <div v-else class="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
-          <table class="w-full text-sm text-left">
+          <table class="w-full text-sm text-left whitespace-nowrap">
             <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50">
               <tr>
                 <th class="px-5 py-4 whitespace-nowrap sticky left-0 bg-gray-50 dark:bg-gray-800/50 z-10">月份</th>
