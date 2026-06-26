@@ -104,6 +104,22 @@
 
 ---
 
+## BF-007：續約後舊租期消失（一鍵續約立即覆寫合約租期）
+
+- **問題描述**：在租約到期前按「一鍵續約」，續約手續完成後，合約內容立刻變成新的合約期間；舊的、尚未走完的租期不再顯示。
+- **根本原因**：`TenantList.vue` 的 `confirmRenew` 採「原地覆寫」——直接 `updateDoc` 同一份 `contracts` 文件的 `startDate/endDate/rent`，並同步覆寫 `tenants.leaseStart/leaseEnd`。因此一按續約，畫面即把「下一期」當成「目前這期」，舊到期日只被存成 `previousEndDate` 字串、不再呈現。資料模型只能容納單一租期，是設計層面的缺陷而非單行 Bug。
+- **最終解法**：改為「排程續約（pending next-term）」模型：
+  1. 續約時**不動**目前租期，新租期存入 `contracts.pendingRenewal: { startDate, endDate, rent }`，並清除房東不續約註記與租客回覆狀態。
+  2. 到期自動接續（兩道、皆冪等，gate＝「目前租期已走完 **且** 已到新起租日」，升級後清除 `pendingRenewal`）：
+     - 前端惰性接續：`TenantList.startListeners` 載入合約時呼叫 `maybePromotePendingRenewal`，到期即升為正式租期並寫回 `tenants`。
+     - 伺服端備援：`scheduledReminderDaily` 每日掃描 `where('pendingRenewal','!=',null)`，房東未開 App 時也能讓租客端正確切換。
+  3. `Contract.vue` 的 `prefillFromRenewal` 改優先讀 `pendingRenewal`，重簽帶入的是新租期。
+- **牽扯檔案**：`src/views/landlord/TenantList.vue`（`confirmRenew`、`maybePromotePendingRenewal`、`startListeners` 合約載入、`setLandlordRenewalDecision`、抽屜 UI）、`src/views/landlord/Contract.vue`（`prefillFromRenewal`）、`functions/index.js`（`scheduledReminderDaily` 排程接續備援）
+
+> **注意**：續約相關功能切勿原地覆寫 `contracts` 的當期 `startDate/endDate`；新一期一律走 `pendingRenewal`，由「目前租期走完」的 gate 觸發接續。伺服端備援需重新部署 Functions 才生效。
+
+---
+
 ## BF 範本
 
 ### BF-XXX：標題

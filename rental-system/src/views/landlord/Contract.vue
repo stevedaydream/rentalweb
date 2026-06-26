@@ -740,7 +740,21 @@ const submitContract = async () => {
   loading.value = true
   try {
     const token = await auth.currentUser?.getIdToken()
+
+    // 凍結當下範本骨架，使重組永遠等於當初簽署的版本
+    let frozenTemplate = '', frozenVersion = 1
+    try {
+      const tplRes = await axios.post(`${apiBase}/getContractTemplate`, { templateType: 'Contract' }, {
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+      })
+      frozenTemplate = tplRes.data?.html || ''
+      frozenVersion = tplRes.data?.version || 1
+    } catch (e) {
+      console.warn('取得範本骨架失敗，將以伺服端預設範本產生（未凍結）:', e)
+    }
+
     const payload = buildPdfPayload()
+    if (frozenTemplate) payload.templateHtml = frozenTemplate
 
     const res = await axios.post(`${apiBase}/generatePdf`, payload, {
       responseType: 'arraybuffer',
@@ -774,6 +788,8 @@ const submitContract = async () => {
       ...form.value,
       rentfee: Number(form.value.rentfee) || 0,
       deposit: Number(form.value.deposit) || 0,
+      templateHtml: frozenTemplate || null,
+      templateVersion: frozenVersion,
       signedAt: serverTimestamp(),
     })
 
@@ -979,17 +995,19 @@ const prefillFromRenewal = async () => {
       form.value.roomNo = c.roomNumber || ''
     }
 
-    form.value.rentfee = c.rent || ''
-    form.value.startDate = c.startDate || getTodayString()
+    // 排程續約：合約本身仍是目前租期，新一期存在 pendingRenewal，重簽要帶新租期
+    const term = c.pendingRenewal?.startDate ? c.pendingRenewal : c
+    form.value.rentfee = term.rent || c.rent || ''
+    form.value.startDate = term.startDate || getTodayString()
     // 先以年限觸發自動算到期日，再以續約實際到期日覆寫（支援自訂日期）
-    if (c.startDate && c.endDate) {
+    if (term.startDate && term.endDate) {
       const years = Math.max(1, Math.round(
-        (new Date(c.endDate).getTime() - new Date(c.startDate).getTime()) / (365.25 * 86400000)
+        (new Date(term.endDate).getTime() - new Date(term.startDate).getTime()) / (365.25 * 86400000)
       ))
       form.value.duration = years
     }
     await nextTick()
-    if (c.endDate) form.value.endDate = c.endDate
+    if (term.endDate) form.value.endDate = term.endDate
 
     toast.info('已帶入續約資料，請確認後完成簽署')
   } catch (e) {

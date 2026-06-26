@@ -55,6 +55,53 @@ function injectStyles(html) {
 }
 
 // --- 主程式 ---
+// 範本版本：骨架改版時遞增。舊合約已凍存當時骨架（signed_contracts.templateHtml），不受影響。
+const TEMPLATE_VERSIONS = { Contract: 1, Guarantee: 1, Deposit: 1, MoveOutSummary: 1 };
+
+const templateFileFor = (templateType) => {
+  switch (templateType) {
+    case 'Guarantee': return 'guaranteeTemplate.html';
+    case 'Deposit': return 'depositTemplate.html';
+    case 'Contract': return 'contractTemplate.html';
+    case 'MoveOutSummary': return 'moveoutSummaryTemplate.html';
+    default: return null;
+  }
+};
+
+// 取得目前部署的範本骨架（raw HTML）+ 版本，供前端在簽署當下凍結進快照
+exports.getContractTemplate = onRequest({ region: "asia-east1" }, async (req, res) => {
+  const origin = req.headers.origin;
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  res.set('Access-Control-Allow-Origin', allowedOrigin);
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.set('Vary', 'Origin');
+  if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+  if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Unauthorized: missing token' });
+    return;
+  }
+  try {
+    await getAuth().verifyIdToken(authHeader.split('Bearer ')[1]);
+  } catch (e) {
+    logger.warn('getContractTemplate: invalid token', e.message);
+    res.status(401).json({ error: 'Unauthorized: invalid token' });
+    return;
+  }
+
+  const templateType = (req.body && req.body.templateType) || 'Contract';
+  const templateFile = templateFileFor(templateType);
+  if (!templateFile) { res.status(400).json({ error: '未知的模板類型' }); return; }
+  const templatePath = path.join(__dirname, 'templates', templateFile);
+  if (!fs.existsSync(templatePath)) { res.status(404).json({ error: '找不到模板檔案' }); return; }
+
+  const html = fs.readFileSync(templatePath, 'utf8');
+  res.json({ html, version: TEMPLATE_VERSIONS[templateType] || 1 });
+});
+
 exports.generatePdf = onRequest({ memory: "1GiB", timeoutSeconds: 60, region: "asia-east1" }, async (req, res) => {
 
   // 1. CORS 設定：限制為允許的來源
@@ -113,21 +160,19 @@ exports.generatePdf = onRequest({ memory: "1GiB", timeoutSeconds: 60, region: "a
         launchArgs = chromium.args;
       }
 
-      // 3. 讀取模板
-      let templateFile;
-      switch (templateType) {
-        case 'Guarantee': templateFile = 'guaranteeTemplate.html'; break;
-        case 'Deposit': templateFile = 'depositTemplate.html'; break;
-        case 'Contract': templateFile = 'contractTemplate.html'; break;
-        case 'MoveOutSummary': templateFile = 'moveoutSummaryTemplate.html'; break;
-        default: throw new Error('未知的模板類型');
+      // 3. 讀取模板：優先使用簽署時凍結的骨架（data.templateHtml），否則讀目前部署的範本檔
+      let template = typeof data.templateHtml === 'string' && data.templateHtml.trim()
+        ? data.templateHtml
+        : null;
+      if (!template) {
+        const templateFile = templateFileFor(templateType);
+        if (!templateFile) throw new Error('未知的模板類型');
+        const templatePath = path.join(__dirname, 'templates', templateFile);
+        if (!fs.existsSync(templatePath)) {
+          throw new Error(`找不到模板檔案: ${templatePath}`);
+        }
+        template = fs.readFileSync(templatePath, 'utf8');
       }
-
-      const templatePath = path.join(__dirname, 'templates', templateFile);
-      if (!fs.existsSync(templatePath)) {
-        throw new Error(`找不到模板檔案: ${templatePath}`);
-      }
-      let template = fs.readFileSync(templatePath, 'utf8');
 
       // 4. 產生 PDF
       template = injectStyles(template);
@@ -1077,6 +1122,42 @@ exports.scheduledReminderDaily = onSchedule(
     const expiry30 = fmt(in30);
     const expiry60 = fmt(in60);
     const expiry90 = fmt(in90);
+    const todayStr = fmt(today);
+
+    // ── 排程續約自動接續：目前租期走完即把 pendingRenewal 升為正式租期 ──
+    // （與前端惰性接續同邏輯的伺服端備援，確保房東未開 App 時租客端也正確切換）
+    let promotedRenewals = 0;
+    try {
+      const pendingSnap = await db.collection('contracts')
+        .where('pendingRenewal', '!=', null)
+        .get();
+      for (const cDoc of pendingSnap.docs) {
+        const c = cDoc.data();
+        const pr = c.pendingRenewal;
+        if (!pr || !pr.startDate) continue;
+        if (c.endDate && todayStr <= c.endDate) continue; // 目前租期尚未走完
+        if (todayStr < pr.startDate) continue;
+        await cDoc.ref.update({
+          startDate: pr.startDate,
+          endDate: pr.endDate,
+          rent: pr.rent,
+          previousEndDate: c.endDate || '',
+          pendingRenewal: FieldValue.delete(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        if (c.tenantDocId) {
+          await db.collection('tenants').doc(c.tenantDocId).update({
+            leaseStart: pr.startDate,
+            leaseEnd: pr.endDate,
+            rent: pr.rent,
+            updatedAt: FieldValue.serverTimestamp(),
+          }).catch((e) => logger.warn('promote: tenant update failed', { contractId: cDoc.id, error: e.message }));
+        }
+        promotedRenewals++;
+      }
+    } catch (e) {
+      logger.warn('scheduledReminderDaily: promote pendingRenewal failed', { error: e.message });
+    }
 
     // 取得所有已設定 LINE Bot 的房東
     const configsSnap = await db.collection('line_configs').get();
@@ -1197,6 +1278,7 @@ exports.scheduledReminderDaily = onSchedule(
       landlords: configsSnap.size,
       billsSent: totalBills,
       contractsSent: totalContracts,
+      promotedRenewals,
     });
   }
 );

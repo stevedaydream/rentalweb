@@ -106,7 +106,7 @@ rental-system/
 - 抄表記錄（手動輸入 + Excel 批次匯入）+ 抄表歷史
 - 報修管理（查看/處理租客報修申請）
 - 公告發布
-- 合約管理（自訂範本、PDF 匯出、電子簽名、一鍵續約：延長租期+調租金+通知租客+導向重簽）
+- 合約管理（自訂範本、PDF 匯出、電子簽名、排程續約：續約後目前租期維持到期滿、新租期存 pendingRenewal 到期自動接續+通知租客+導向重簽；房東「標記不續約」註記）
 - 收據管理（押金/保證書 PDF）
 - 房東設定（LINE Bot 設定、個人資料）
 - 訊息中心（LINE 訊息收發）
@@ -145,7 +145,8 @@ rental-system/
 ### Cloud Functions
 | 函式 | 說明 |
 |------|------|
-| `generatePdf` | 使用 Puppeteer 產生合約/收據 PDF，需 Auth Token |
+| `generatePdf` | 使用 Puppeteer 產生合約/收據 PDF，需 Auth Token；可選 `templateHtml`（重組時帶入凍結骨架，否則讀目前部署範本檔） |
+| `getContractTemplate` | onRequest（需 Auth Token）：回傳目前部署的範本骨架 raw HTML + 版本，供前端簽署當下凍結進 `signed_contracts.templateHtml` |
 | `lineWebhook` | LINE Bot webhook（多房東） |
 | `sendLineReply` | Callable：房東回覆租客 LINE 訊息 |
 | `sendLineBillNotifications` | Callable：推播帳單通知給租客 |
@@ -202,4 +203,6 @@ rental-system/
 | 2026-06-24 | TenantList 手機表格優化：`<table>` 加 `min-w-[760px] whitespace-nowrap`，窄螢幕改水平捲動，欄位內容不再逐字斷行成直行 |
 | 2026-06-24 | 同上手機表格優化套用至 Financials（交易明細表 `min-w-[880px]`）與 MeterReading（主抄表表 `min-w-[820px]`）|
 | 2026-06-24 | 手機「直行」全站排查：所有資料表加 `min-w-[…] whitespace-nowrap`（Messages、RepairRequests、MeterReadingHistory×2、Announcements、InvestmentCalculator、admin TenantManagement/LandlordManagement）；tenant/Bills 表為 `hidden md:block`（手機用卡片）故略過 |
+| 2026-06-27 | 合約範本凍結（真快照）：原本 `signed_contracts` 只凍資料，重組（`redownloadContract`→`generatePdf`）時法律條文骨架仍讀「目前部署」的 `functions/templates/contractTemplate.html`，骨架改版會讓舊約走樣。新增 callable `getContractTemplate` 回傳 raw 骨架+版本；簽署當下將整份骨架凍進 `signed_contracts.templateHtml`（+`templateVersion`，約 15KB）；`generatePdf` 改為優先用傳入的 `templateHtml`、否則 fallback 讀檔（向後相容舊約與其他範本類型）。為日後「搬手機本地重組」鋪路：快照自帶骨架，可零伺服器渲染 |
+| 2026-06-27 | 續約改為「排程續約」：修正原本 confirmRenew 立即覆寫合約租期、導致舊租期未走完即消失的問題。改為新租期存入 `contracts.pendingRenewal`，目前租期維持顯示，到期後由前端惰性接續（TenantList 載入時）＋ `scheduledReminderDaily` 伺服端備援自動升為正式租期（皆冪等，gate 為「目前租期已走完且已到新起租日」）。Contract.vue `prefillFromRenewal` 改優先讀 `pendingRenewal`。新增房東「標記不續約」（`contracts.landlordRenewalDecision='not_renewing'`，可取消），抽屜顯示下一期與不續約紅標；contracts 新增欄位 `pendingRenewal`、`landlordRenewalDecision` |
 | 2026-06-24 | 真正根因修正：手機「直行」其實出自統計卡而非表格——MeterReading「統一抄表日」卡用 `flex justify-between` 把中文字與 date input 並排，手機卡片過窄將中文擠成一字一行。改為 `flex-col sm:flex-row` 手機堆疊 + 文字容器 `min-w-0` + 標籤 `whitespace-nowrap` |

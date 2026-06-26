@@ -551,16 +551,41 @@
                     }}
                   </div>
 
-                  <!-- 一鍵續約 -->
-                  <button v-if="drawerTenant?.contractId"
-                    @click="openRenewModal(drawerTenant)"
-                    class="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold transition-colors"
-                    :class="drawerTenant.renewalStatus === 'confirmed'
-                      ? 'bg-green-600 text-white hover:bg-green-700'
-                      : 'bg-gold-500 text-white hover:bg-gold-600'">
-                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">autorenew</span>
-                    一鍵續約
-                  </button>
+                  <!-- 已排程的下一期租約 -->
+                  <div v-if="drawerTenant?.pendingRenewal" class="flex items-start gap-2 text-xs px-3 py-1.5 rounded-lg font-medium bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300">
+                    <span class="material-symbols-outlined text-[14px] mt-px" aria-hidden="true">event_available</span>
+                    <span>已續約：下一期 {{ drawerTenant.pendingRenewal.startDate }} ~ {{ drawerTenant.pendingRenewal.endDate }}（目前租期到期後自動接續）</span>
+                  </div>
+
+                  <!-- 房東不續約註記 -->
+                  <div v-if="drawerTenant?.landlordRenewalDecision === 'not_renewing'" class="flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg font-medium bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300">
+                    <span class="material-symbols-outlined text-[14px]" aria-hidden="true">do_not_disturb_on</span>
+                    房東已標記不續約，租約到期後退租
+                  </div>
+
+                  <!-- 續約 / 不續約操作 -->
+                  <div v-if="drawerTenant?.contractId" class="grid grid-cols-2 gap-2">
+                    <button @click="openRenewModal(drawerTenant)"
+                      class="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold transition-colors"
+                      :class="drawerTenant.renewalStatus === 'confirmed'
+                        ? 'bg-green-600 text-white hover:bg-green-700'
+                        : 'bg-gold-500 text-white hover:bg-gold-600'">
+                      <span class="material-symbols-outlined text-[18px]" aria-hidden="true">autorenew</span>
+                      {{ drawerTenant.pendingRenewal ? '調整續約' : '一鍵續約' }}
+                    </button>
+                    <button v-if="drawerTenant.landlordRenewalDecision === 'not_renewing'"
+                      @click="setLandlordRenewalDecision(drawerTenant, null)"
+                      class="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold border border-border-light dark:border-border-dark text-text-secondary-light dark:text-text-secondary-dark hover:bg-surface-light dark:hover:bg-surface-dark transition-colors">
+                      <span class="material-symbols-outlined text-[18px]" aria-hidden="true">undo</span>
+                      取消不續約
+                    </button>
+                    <button v-else
+                      @click="setLandlordRenewalDecision(drawerTenant, 'not_renewing')"
+                      class="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                      <span class="material-symbols-outlined text-[18px]" aria-hidden="true">do_not_disturb_on</span>
+                      標記不續約
+                    </button>
+                  </div>
                 </div>
 
                 <!-- 備註 -->
@@ -987,6 +1012,8 @@ interface Tenant {
   deposits?: DepositItem[];
   paymentFrequency?: 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
   renewalStatus?: 'pending' | 'confirmed' | 'declined' | null;
+  pendingRenewal?: { startDate: string; endDate: string; rent: number } | null;
+  landlordRenewalDecision?: 'not_renewing' | null;
   moveOutSummary?: any;
   createdAt?: any;
 }
@@ -1161,6 +1188,10 @@ const startListeners = () => {
           const cd = contractSnap.data();
           tenantData.deposits = cd.deposits || [];
           tenantData.renewalStatus = cd.renewalStatus || null;
+          tenantData.pendingRenewal = cd.pendingRenewal || null;
+          tenantData.landlordRenewalDecision = cd.landlordRenewalDecision || null;
+          // 到期惰性接續：目前租期已走完且有排程的下一期 → 升為正式租期
+          await maybePromotePendingRenewal(tenantData);
         }
       }
       return tenantData;
@@ -1610,22 +1641,19 @@ const confirmRenew = async () => {
   isRenewing.value = true;
   try {
     const newRent = Number(renewForm.value.rent) || 0;
+    // 排程續約：保留目前租期，新租期存為「下一期」，到期再自動接續
     await updateDoc(doc(db, 'contracts', tenant.contractId), {
-      startDate: renewForm.value.startDate,
-      endDate: renewForm.value.endDate,
-      rent: newRent,
       status: 'active',
-      previousEndDate: tenant.leaseEnd || '',
+      pendingRenewal: {
+        startDate: renewForm.value.startDate,
+        endDate: renewForm.value.endDate,
+        rent: newRent,
+      },
       lastRenewedAt: serverTimestamp(),
       renewalStatus: deleteField(),
       renewalNote: deleteField(),
       renewalRespondedAt: deleteField(),
-      updatedAt: serverTimestamp(),
-    });
-    await updateDoc(doc(db, 'tenants', tenant.id), {
-      leaseStart: renewForm.value.startDate,
-      leaseEnd: renewForm.value.endDate,
-      rent: newRent,
+      landlordRenewalDecision: deleteField(),
       updatedAt: serverTimestamp(),
     });
     // 通知租客（非致命）
@@ -1636,7 +1664,7 @@ const confirmRenew = async () => {
       console.warn('notifyTenantRenewal failed', e);
     }
     const cid = tenant.contractId;
-    toast.success('續約完成，即將前往簽署新合約');
+    toast.success('續約完成，目前租期將維持到期滿後自動接續，即將前往簽署新合約');
     showRenewModal.value = false;
     renewingTenant.value = null;
     closeDrawer();
@@ -1645,6 +1673,56 @@ const confirmRenew = async () => {
     toast.error('續約失敗，請稍後再試');
   } finally {
     isRenewing.value = false;
+  }
+};
+
+// 到期惰性接續：目前租期已走完且有排程的下一期 → 升為正式租期（冪等，升級後清除 pending）
+const maybePromotePendingRenewal = async (tenantData: Tenant) => {
+  const pr = tenantData.pendingRenewal;
+  if (!pr?.startDate || !tenantData.contractId) return;
+  // 必須「目前租期已走完」且「已到新期起租日」才接續，確保舊租約走完整期
+  if (tenantData.leaseEnd && todayStr() <= tenantData.leaseEnd) return;
+  if (todayStr() < pr.startDate) return;
+  try {
+    await updateDoc(doc(db, 'contracts', tenantData.contractId), {
+      startDate: pr.startDate,
+      endDate: pr.endDate,
+      rent: pr.rent,
+      previousEndDate: tenantData.leaseEnd || '',
+      pendingRenewal: deleteField(),
+      updatedAt: serverTimestamp(),
+    });
+    await updateDoc(doc(db, 'tenants', tenantData.id), {
+      leaseStart: pr.startDate,
+      leaseEnd: pr.endDate,
+      rent: pr.rent,
+      updatedAt: serverTimestamp(),
+    });
+    // 即時反映到當前清單資料，避免等待 snapshot 重觸
+    tenantData.leaseStart = pr.startDate;
+    tenantData.leaseEnd = pr.endDate;
+    tenantData.rent = pr.rent;
+    tenantData.pendingRenewal = null;
+  } catch (e) {
+    console.warn('promote pendingRenewal failed', e);
+  }
+};
+
+// 房東標記不續約 / 取消標記
+const setLandlordRenewalDecision = async (tenant: Tenant | null, decision: 'not_renewing' | null) => {
+  if (!tenant?.contractId) { toast.warning('此租客尚未建立租約'); return; }
+  try {
+    await updateDoc(doc(db, 'contracts', tenant.contractId), {
+      landlordRenewalDecision: decision ?? deleteField(),
+      updatedAt: serverTimestamp(),
+    });
+    tenant.landlordRenewalDecision = decision;
+    if (drawerTenant.value && drawerTenant.value.id === tenant.id) {
+      drawerTenant.value.landlordRenewalDecision = decision;
+    }
+    toast.success(decision === 'not_renewing' ? '已標記不續約，租約到期後可進行退租' : '已取消不續約標記');
+  } catch (e) {
+    toast.error('操作失敗，請稍後再試');
   }
 };
 
