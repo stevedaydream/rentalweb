@@ -194,6 +194,21 @@ service cloud.firestore {
       allow update, delete: if isAdmin() || isLandlordData();
     }
 
+    // 退租紀錄存檔 (moveOutRecords) — 房東所有，退租結算永久保留
+    // 讀取以 isLandlordData()（不需 get()）優先短路，避免 list 查詢時 isAdmin() 的 get() 評估錯誤
+    match /moveOutRecords/{recordId} {
+      allow read: if isLandlordData() || isAdmin();
+      allow create: if isCreatingAsLandlord() || isAdmin();
+      allow update, delete: if isLandlordData() || isAdmin();
+    }
+
+    // 收據紀錄存檔 (receipts) — 房東所有，含雙方簽名，供稽核 / 重印
+    match /receipts/{receiptId} {
+      allow read: if isLandlordData() || isAdmin();
+      allow create: if isCreatingAsLandlord() || isAdmin();
+      allow update, delete: if isLandlordData() || isAdmin();
+    }
+
     // 合約範本 (contract_templates) — 每位房東一份，doc ID = landlordId
     match /contract_templates/{uid} {
       allow read, write: if isAdmin() || request.auth.uid == uid;

@@ -513,6 +513,7 @@ import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage
 import Signature from '../../components/Signature.vue'
 import Preview from '../../components/Preview.vue'
 import ContractTemplateModal from '../../components/ContractTemplateModal.vue'
+import { printHtmlPdf } from '../../utils/contractRender'
 
 const authStore = useAuthStore()
 const toast = useToastStore()
@@ -732,6 +733,29 @@ const buildPdfPayload = (data = form.value) => {
 // ---- Submit & save ----
 const apiBase = import.meta.env.VITE_API_BASE
 
+// 伺服端 fallback：以 Puppeteer 產生 PDF 並下載（本地組裝失敗或無凍結骨架時使用）
+const serverGeneratePdfDownload = async (payload, token, filename) => {
+  const res = await axios.post(`${apiBase}/generatePdf`, payload, {
+    responseType: 'arraybuffer',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+  })
+  let data = res.data
+  if (data && typeof data === 'object' && !(data instanceof ArrayBuffer)) {
+    const keys = Object.keys(data)
+    const uint8 = new Uint8Array(keys.length)
+    for (let i = 0; i < keys.length; i++) uint8[i] = data[i]
+    data = uint8.buffer
+  }
+  const blob = new Blob([data], { type: 'application/pdf' })
+  const link = document.createElement('a')
+  link.href = window.URL.createObjectURL(blob)
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(link.href)
+}
+
 const submitContract = async () => {
   if (!form.value.signature && !form.value.landlordSignature) {
     toast.warning('請至少完成一方簽名')
@@ -756,28 +780,16 @@ const submitContract = async () => {
     const payload = buildPdfPayload()
     if (frozenTemplate) payload.templateHtml = frozenTemplate
 
-    const res = await axios.post(`${apiBase}/generatePdf`, payload, {
-      responseType: 'arraybuffer',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
-    })
-
-    // Handle potential mock.js interference
-    let finalData = res.data
-    if (finalData && typeof finalData === 'object' && !(finalData instanceof ArrayBuffer)) {
-      const keys = Object.keys(finalData)
-      const uint8 = new Uint8Array(keys.length)
-      for (let i = 0; i < keys.length; i++) uint8[i] = finalData[i]
-      finalData = uint8.buffer
+    // 本地組裝優先（列印另存 PDF）；無凍結骨架或失敗則退回伺服端 generatePdf
+    let usedPrint = false
+    try {
+      if (!frozenTemplate) throw new Error('無凍結骨架，改用伺服端')
+      await printHtmlPdf(frozenTemplate, payload, `租賃合約_${form.value.tenant}_${getTodayString()}`)
+      usedPrint = true
+    } catch (e) {
+      console.warn('本地 PDF 組裝失敗，改用伺服端 generatePdf:', e)
+      await serverGeneratePdfDownload(payload, token, `租賃合約_${form.value.tenant}_${Date.now()}.pdf`)
     }
-
-    const blob = new Blob([finalData], { type: 'application/pdf' })
-    const link = document.createElement('a')
-    link.href = window.URL.createObjectURL(blob)
-    link.download = `租賃合約_${form.value.tenant}_${Date.now()}.pdf`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(link.href)
 
     // Save full form data for future re-download
     const selectedTenant = tenants.value.find(t => t.id === selectedTenantId.value)
@@ -793,7 +805,7 @@ const submitContract = async () => {
       signedAt: serverTimestamp(),
     })
 
-    toast.success('合約已生成並下載！')
+    toast.success(usedPrint ? '合約已生成，請在列印視窗選「另存為 PDF」' : '合約已生成並下載！')
 
   } catch (e) {
     console.error('PDF 下載失敗:', e)
@@ -827,28 +839,18 @@ const loadHistory = async () => {
 const redownloadContract = async (c) => {
   redownloading.value = c.id
   try {
-    const token = await auth.currentUser?.getIdToken()
     const payload = buildPdfPayload(c)
-    const res = await axios.post(`${apiBase}/generatePdf`, payload, {
-      responseType: 'arraybuffer',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
-    })
-    let data = res.data
-    if (data && typeof data === 'object' && !(data instanceof ArrayBuffer)) {
-      const keys = Object.keys(data)
-      const uint8 = new Uint8Array(keys.length)
-      for (let i = 0; i < keys.length; i++) uint8[i] = data[i]
-      data = uint8.buffer
+    // 凍結骨架在 → 本地組裝（列印另存 PDF）；否則退回伺服端 generatePdf
+    try {
+      if (!c.templateHtml) throw new Error('此合約無凍結骨架，改用伺服端')
+      await printHtmlPdf(c.templateHtml, payload, `租賃合約_${c.tenant}_${c.startDate}`)
+      toast.success('已開啟列印視窗，請選「另存為 PDF」')
+    } catch (e) {
+      console.warn('本地 PDF 組裝失敗，改用伺服端 generatePdf:', e)
+      const token = await auth.currentUser?.getIdToken()
+      await serverGeneratePdfDownload(payload, token, `租賃合約_${c.tenant}_${c.startDate}.pdf`)
+      toast.success('合約已重新下載')
     }
-    const blob = new Blob([data], { type: 'application/pdf' })
-    const link = document.createElement('a')
-    link.href = window.URL.createObjectURL(blob)
-    link.download = `租賃合約_${c.tenant}_${c.startDate}.pdf`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(link.href)
-    toast.success('合約已重新下載')
   } catch (e) {
     console.error('重新下載失敗:', e)
     toast.error('重新下載失敗，請稍後再試')

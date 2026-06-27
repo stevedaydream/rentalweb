@@ -597,6 +597,14 @@
                 <!-- ── 歷史租客操作 ── -->
                 <template v-if="drawerTenant?.isHistorical">
                   <button
+                    @click="printMoveOutSummary(drawerTenant!)"
+                    :disabled="isPrintingSettlement"
+                    class="w-full py-2.5 rounded-xl text-sm font-bold bg-gold-500 text-white hover:bg-gold-600 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                  >
+                    <span class="material-symbols-outlined text-[18px]" :class="{ 'animate-spin': isPrintingSettlement }">{{ isPrintingSettlement ? 'sync' : 'print' }}</span>
+                    {{ isPrintingSettlement ? '產生中…' : '列印退租結清單' }}
+                  </button>
+                  <button
                     @click="downloadTenantArchive(drawerTenant!)"
                     :disabled="isDownloading"
                     class="w-full py-2.5 border border-blue-200 dark:border-blue-700 rounded-xl text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
@@ -621,6 +629,13 @@
                     class="w-full py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center gap-2 transition-colors"
                   >
                     <span class="material-symbols-outlined text-[18px]">edit</span>編輯租客資料與合約
+                  </button>
+                  <button
+                    @click="openMoveInInspection"
+                    class="w-full py-2.5 border border-gold-200 dark:border-gold-700 rounded-xl text-sm font-medium text-gold-700 dark:text-gold-300 hover:bg-gold-50 dark:hover:bg-gold-900/20 flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <span class="material-symbols-outlined text-[18px]">checklist</span>
+                    {{ drawerTenant?.moveInInspection ? '查看 / 編輯入住點交' : '建立入住點交清單' }}
                   </button>
                   <button
                     v-if="drawerTenant?.room"
@@ -852,6 +867,14 @@
     </Transition>
 
     <!-- Move-out Wizard -->
+    <MoveInInspectionModal
+      v-if="showMoveInInspection && drawerTenant"
+      :tenant="drawerTenant"
+      :landlord-id="authStore.effectiveUid"
+      @close="showMoveInInspection = false"
+      @saved="onMoveInInspectionSaved"
+    />
+
     <MoveOutWizard
       v-if="showMoveOutWizard && drawerTenant"
       :tenant="drawerTenant"
@@ -963,7 +986,12 @@ import { httpsCallable } from 'firebase/functions';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
 import MoveOutWizard from '../../components/MoveOutWizard.vue';
+import MoveInInspectionModal from '../../components/MoveInInspectionModal.vue';
+import type { InspectionItem } from '../../utils/inventory';
 import TenantImportModal from '../../components/TenantImportModal.vue';
+import { printHtmlPdf } from '../../utils/contractRender';
+import { amountToChineseCapital } from '../../utils/chineseAmount';
+import moveoutSummaryTemplate from '../../templates/moveoutSummary.html?raw';
 import {
   collection,
   query,
@@ -1015,6 +1043,7 @@ interface Tenant {
   pendingRenewal?: { startDate: string; endDate: string; rent: number } | null;
   landlordRenewalDecision?: 'not_renewing' | null;
   moveOutSummary?: any;
+  moveInInspection?: { inspectedAt?: any; items?: InspectionItem[] };
   createdAt?: any;
 }
 
@@ -1435,7 +1464,7 @@ const tenantsWithStatus = computed(() => {
 const stats = computed(() => {
   const today = new Date();
   const sixtyDaysLater = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000);
-  const activeTenants = tenantsWithStatus.value.filter(t => t.paymentStatus !== 'pending');
+  const activeTenants = tenantsWithStatus.value.filter(t => !t.isHistorical && t.paymentStatus !== 'pending');
   return {
     total: activeTenants.length,
     expiring: activeTenants.filter(t => {
@@ -1880,6 +1909,75 @@ const callGeneratePdf = async (payload: Record<string, any>, filename: string) =
   URL.revokeObjectURL(url);
 };
 
+// 蒐集退租結清單資料（合約/收據共用的本地組裝資料來源；伺服端 fallback 也共用）
+const buildMoveOutSummaryData = async (tenant: Tenant) => {
+  const summary: any = tenant.moveOutSummary || {};
+  const reasonLabel: Record<string, string> = { expired: '到期退租', early: '提前退租', other: '其他' };
+  // moveOutRecords 為完整結算來源；讀取失敗（規則未載入/索引）時退回 moveOutSummary，結清單仍可印
+  let m: any = null;
+  try {
+    const snap = await getDocs(query(
+      collection(db, 'moveOutRecords'),
+      where('tenantDocId', '==', tenant.id),
+      orderBy('createdAt', 'desc'),
+      limit(1),
+    ));
+    if (!snap.empty) m = snap.docs[0]!.data();
+  } catch (e) {
+    console.warn('讀取 moveOutRecords 失敗，改用 moveOutSummary：', e);
+  }
+  const fmtAmt = (v: any) => (v != null && v !== '') ? `NT$ ${Number(v).toLocaleString()}` : '—';
+  const refundRaw = Number(m?.depositRefund ?? summary.depositRefund ?? 0) || 0;
+  const deductionsHtml = (Array.isArray(m?.deductions) && m.deductions.length > 0)
+    ? m.deductions.map((d: any) =>
+        `<tr><td class="k neg">扣款：${d.label}</td><td class="v neg">－ ${fmtAmt(d.amount)}</td></tr>`,
+      ).join('')
+    : '';
+  const today = new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return {
+    tenantName: tenant.name,
+    phone: tenant.phone || '',
+    room: summary.room || tenant.room || '',
+    leaseStart: summary.leaseStart || '',
+    leaseEnd: summary.leaseEnd || '',
+    moveOutDate: summary.moveOutDate || '',
+    moveOutReason: reasonLabel[summary.moveOutReason] || summary.moveOutReason || '',
+    depositPaid: fmtAmt(m?.depositPaid ?? summary.depositPaid),
+    electricitySettlement: fmtAmt(m?.electricitySettlement),
+    waterSettlement: fmtAmt(m?.waterSettlement),
+    deductionsHtml,
+    depositRefund: fmtAmt(m?.depositRefund ?? summary.depositRefund),
+    refundWords: refundRaw > 0 ? amountToChineseCapital(refundRaw) : '',
+    notes: m?.notes || '',
+    today,
+    settlementNo: `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`,
+  };
+};
+
+const isPrintingSettlement = ref(false);
+// 單張退租結清單：本地組裝列印另存 PDF；失敗退回伺服端 generatePdf
+const printMoveOutSummary = async (tenant: Tenant) => {
+  isPrintingSettlement.value = true;
+  try {
+    const data = await buildMoveOutSummaryData(tenant);
+    try {
+      await printHtmlPdf(moveoutSummaryTemplate, data, `退租結清單_${tenant.name}`);
+      toast.success('已開啟列印視窗，請選「另存為 PDF」');
+    } catch (e) {
+      console.warn('本地結清單組裝失敗，改用伺服端 generatePdf:', e);
+      await callGeneratePdf({ templateType: 'MoveOutSummary', ...data }, `${tenant.name}_退租結清單.pdf`);
+      toast.success('退租結清單 PDF 已下載');
+    }
+  } catch (e) {
+    console.error('printMoveOutSummary error:', e);
+    toast.error('產生退租結清單失敗，請稍後再試');
+  } finally {
+    isPrintingSettlement.value = false;
+  }
+};
+
 const downloadTenantArchive = async (tenant: Tenant) => {
   isDownloading.value = true;
   try {
@@ -2091,6 +2189,15 @@ const clearMeterReadings = async () => {
 // --- Move-out Wizard ---
 const showMoveOutWizard = ref(false);
 const openMoveOutWizard = () => { showMoveOutWizard.value = true; };
+
+const showMoveInInspection = ref(false);
+const openMoveInInspection = () => { showMoveInInspection.value = true; };
+// 儲存後就地更新抽屜租客，使同場退租流程立即帶入點交清單
+const onMoveInInspectionSaved = (items: InspectionItem[]) => {
+  if (drawerTenant.value) {
+    drawerTenant.value.moveInInspection = { inspectedAt: new Date(), items };
+  }
+};
 const onMoveOutCompleted = () => {
   showMoveOutWizard.value = false;
   closeDrawer();
