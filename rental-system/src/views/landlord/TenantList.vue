@@ -111,8 +111,8 @@
                   <div>
                     <div class="flex items-center gap-2">
                       <p class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ tenant.name }}</p>
-                      <span v-if="tenant.isHistorical" class="bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 text-[10px] px-1.5 py-0.5 rounded-full font-medium">已退租</span>
-                      <span v-else-if="tenant.isOnlineUser" class="bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5 rounded-full font-medium">已綁定帳號</span>
+                      <span v-if="tenant.isOnlineUser && !tenant.isHistorical" class="bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5 rounded-full font-medium">已綁定帳號</span>
+                      <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium" :class="LIFECYCLE_BADGE[tenantLifecycle(tenant).key]">{{ tenantLifecycle(tenant).label }}</span>
                     </div>
                     <p class="text-xs text-text-secondary-light mt-0.5">{{ tenant.phone }}</p>
                   </div>
@@ -625,6 +625,13 @@
                 <!-- ── 在租租客操作 ── -->
                 <template v-else>
                   <button
+                    v-if="drawerTenant?.onboarding?.status === 'in_progress'"
+                    @click="continueOnboarding(drawerTenant!)"
+                    class="w-full py-2.5 rounded-xl bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <span class="material-symbols-outlined text-[18px]">play_arrow</span>繼續上線（第 {{ drawerTenant.onboarding.step }} 步）
+                  </button>
+                  <button
                     @click="enterDrawerEdit"
                     class="w-full py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center gap-2 transition-colors"
                   >
@@ -988,6 +995,7 @@ import { useToastStore } from '../../stores/toast';
 import MoveOutWizard from '../../components/MoveOutWizard.vue';
 import MoveInInspectionModal from '../../components/MoveInInspectionModal.vue';
 import type { InspectionItem } from '../../utils/inventory';
+import { tenantLifecycle, LIFECYCLE_BADGE, type OnboardingState } from '../../utils/onboarding';
 import TenantImportModal from '../../components/TenantImportModal.vue';
 import { printHtmlPdf } from '../../utils/contractRender';
 import { amountToChineseCapital } from '../../utils/chineseAmount';
@@ -1044,6 +1052,7 @@ interface Tenant {
   landlordRenewalDecision?: 'not_renewing' | null;
   moveOutSummary?: any;
   moveInInspection?: { inspectedAt?: any; items?: InspectionItem[] };
+  onboarding?: OnboardingState;
   createdAt?: any;
 }
 
@@ -2192,6 +2201,7 @@ const openMoveOutWizard = () => { showMoveOutWizard.value = true; };
 
 const showMoveInInspection = ref(false);
 const openMoveInInspection = () => { showMoveInInspection.value = true; };
+const continueOnboarding = (t: Tenant) => { router.push({ name: 'OnboardingMode', params: { tenantId: t.id } }); };
 // 儲存後就地更新抽屜租客，使同場退租流程立即帶入點交清單
 const onMoveInInspectionSaved = (items: InspectionItem[]) => {
   if (drawerTenant.value) {

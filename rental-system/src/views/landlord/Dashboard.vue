@@ -19,6 +19,25 @@
       </div>
     </div>
 
+    <!-- 開始簽約：新租客上線一條龍入口 -->
+    <RouterLink
+      :to="{ name: 'OnboardingMode' }"
+      class="block rounded-2xl bg-gradient-to-r from-gold-500 to-gold-600 text-white p-5 md:p-6 shadow-lg shadow-gold-500/20 hover:shadow-xl transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400"
+    >
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <span class="material-symbols-outlined text-[34px]" aria-hidden="true">draw</span>
+          <div>
+            <h2 class="text-lg font-bold">開始簽約</h2>
+            <p class="text-sm text-white/85">建檔 → 簽約 → 收押金 → 入住點交，引導新租客一條龍上線</p>
+          </div>
+        </div>
+        <span class="shrink-0 px-4 py-2 bg-white/20 rounded-xl text-sm font-bold flex items-center gap-1.5">
+          開始<span class="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_forward</span>
+        </span>
+      </div>
+    </RouterLink>
+
     <div v-if="isLoading" role="status" aria-label="載入中" class="flex justify-center py-12">
       <span class="material-symbols-outlined animate-spin motion-reduce:animate-none text-4xl text-ink-200">progress_activity</span>
     </div>

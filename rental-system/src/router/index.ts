@@ -28,6 +28,7 @@ const LandlordSettings = () => import('../views/landlord/Settings.vue');
 const LandlordMessages = () => import('../views/landlord/Messages.vue');
 const InvestmentCalculator = () => import('../views/landlord/InvestmentCalculator.vue');
 const LandlordBuildingInfo = () => import('../views/landlord/BuildingInfo.vue');
+const OnboardingMode = () => import('../views/landlord/OnboardingMode.vue');
 
 const TenantDashboard = () => import('../views/tenant/Dashboard.vue');
 const TenantBills = () => import('../views/tenant/Bills.vue');
@@ -78,6 +79,14 @@ const routes = [
       { path: 'building-info', name: 'LandlordBuildingInfo', component: LandlordBuildingInfo },
       { path: 'reviews', name: 'LandlordReviews', component: LandlordReviews },
     ]
+  },
+
+  // 租客上線（全螢幕獨立模式，換掉房東後台 chrome）
+  {
+    path: '/landlord/onboarding/:tenantId?',
+    name: 'OnboardingMode',
+    component: OnboardingMode,
+    meta: { requiresAuth: true, role: 'landlord' },
   },
 
   // 租客系統
