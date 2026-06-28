@@ -160,15 +160,31 @@
             <div v-else class="text-center py-16 text-text-secondary-light">請先於 ①建檔 建立租客，再進行簽約。</div>
           </section>
 
-          <!-- ③④ Phase 3 佔位 -->
-          <section v-else class="flex flex-col items-center justify-center text-center py-16 gap-4">
-            <span class="material-symbols-outlined text-[56px] text-gold-300">{{ currentStep.icon }}</span>
+          <!-- ③ 收押金 -->
+          <section v-else-if="currentStep.key === 'receipt'">
+            <DepositReceiptForm
+              v-if="tenantId"
+              :prefill="receiptPrefill"
+              :landlord-id="authStore.effectiveUid"
+              @saved="onReceiptSaved"
+            />
+            <div v-else class="text-center py-16 text-text-secondary-light">請先於 ①建檔 建立租客。</div>
+            <p v-if="completedKeys.receipt" class="mt-3 text-sm text-green-600 dark:text-green-400 text-center font-medium">押金收據已產生 ✓，可按「下一步」繼續。</p>
+          </section>
+
+          <!-- ④ 入住點交 -->
+          <section v-else class="flex flex-col items-center justify-center text-center py-12 gap-4">
+            <span class="material-symbols-outlined text-[56px]" :class="completedKeys.inspection ? 'text-green-500' : 'text-gold-300'">checklist</span>
             <div>
-              <h3 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">{{ currentStep.label }}</h3>
-              <p class="text-sm text-text-secondary-light mt-1 max-w-sm">
-                此步驟將於後續階段接入（{{ stepHint }}）。目前可「略過」或「下一步」繼續，流程進度會保留。
-              </p>
+              <h3 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">入住點交</h3>
+              <p class="text-sm text-text-secondary-light mt-1 max-w-sm">逐項勾選房間配備與入住狀況，退租時依此點交計算賠償。</p>
             </div>
+            <button @click="showInspection = true" :disabled="!tenantId"
+              class="px-5 py-2.5 rounded-xl bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 transition-colors disabled:opacity-50 flex items-center gap-2">
+              <span class="material-symbols-outlined text-[18px]">checklist</span>
+              {{ completedKeys.inspection ? '查看 / 編輯入住點交' : '建立入住點交' }}
+            </button>
+            <p v-if="completedKeys.inspection" class="text-sm text-green-600 dark:text-green-400 font-medium">入住點交已完成 ✓</p>
           </section>
         </div>
       </main>
@@ -193,6 +209,14 @@
         </div>
       </footer>
     </div>
+
+    <MoveInInspectionModal
+      v-if="showInspection && tenantId"
+      :tenant="inspectionTenant"
+      :landlord-id="authStore.effectiveUid"
+      @close="showInspection = false"
+      @saved="onInspectionSaved"
+    />
   </div>
 </template>
 
@@ -207,6 +231,9 @@ import {
 } from 'firebase/firestore';
 import { ONBOARDING_STEPS, type OnboardingStepKey, type OnboardingState } from '../../utils/onboarding';
 import ContractForm from '../../components/ContractForm.vue';
+import DepositReceiptForm from '../../components/DepositReceiptForm.vue';
+import MoveInInspectionModal from '../../components/MoveInInspectionModal.vue';
+import type { InspectionItem } from '../../utils/inventory';
 
 const route = useRoute();
 const router = useRouter();
@@ -260,9 +287,6 @@ const captureIdPhoto = () => {
 
 const currentStep = computed(() => steps[step.value - 1]!);
 const maxReached = ref(1);
-const stepHint = computed(() =>
-  ({ profile: '', contract: '內嵌合約表單與電子簽名', receipt: '訂金 / 押金收據', inspection: '入住點交清單' }[currentStep.value.key] || ''),
-);
 
 const isSkipped = (k: OnboardingStepKey) => skipped.value.includes(k);
 const stepDone = (k: OnboardingStepKey) => !!completedKeys.value[k];
@@ -283,6 +307,25 @@ const onContractSaved = async (contractId: string) => {
   }
   completedKeys.value.contract = true;
   await next();
+};
+
+// ③收押金
+const receiptPrefill = computed(() => ({
+  roomNo: form.value.room,
+  tenant: form.value.name,
+  rentfee: form.value.rent,
+  deposit: form.value.deposit,
+  duration: form.value.duration,
+  startDate: form.value.leaseStart,
+}));
+const onReceiptSaved = () => { completedKeys.value.receipt = true; };
+
+// ④入住點交（複用 MoveInInspectionModal）
+const showInspection = ref(false);
+const inspectionTenant = computed(() => ({ id: tenantId.value, name: form.value.name, room: form.value.room }));
+const onInspectionSaved = (_items: InspectionItem[]) => {
+  completedKeys.value.inspection = true;
+  showInspection.value = false;
 };
 
 onMounted(async () => {
