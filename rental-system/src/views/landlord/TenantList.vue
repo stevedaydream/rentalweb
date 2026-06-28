@@ -1221,15 +1221,20 @@ const startListeners = () => {
     const manualTenants = await Promise.all(snapshot.docs.map(async (d) => {
       const tenantData = { id: d.id, ...d.data() } as Tenant;
       if (tenantData.contractId) {
-        const contractSnap = await getDoc(doc(db, 'contracts', tenantData.contractId));
-        if (contractSnap.exists()) {
-          const cd = contractSnap.data();
-          tenantData.deposits = cd.deposits || [];
-          tenantData.renewalStatus = cd.renewalStatus || null;
-          tenantData.pendingRenewal = cd.pendingRenewal || null;
-          tenantData.landlordRenewalDecision = cd.landlordRenewalDecision || null;
-          // 到期惰性接續：目前租期已走完且有排程的下一期 → 升為正式租期
-          await maybePromotePendingRenewal(tenantData);
+        try {
+          const contractSnap = await getDoc(doc(db, 'contracts', tenantData.contractId));
+          if (contractSnap.exists()) {
+            const cd = contractSnap.data();
+            tenantData.deposits = cd.deposits || [];
+            tenantData.renewalStatus = cd.renewalStatus || null;
+            tenantData.pendingRenewal = cd.pendingRenewal || null;
+            tenantData.landlordRenewalDecision = cd.landlordRenewalDecision || null;
+            // 到期惰性接續：目前租期已走完且有排程的下一期 → 升為正式租期
+            await maybePromotePendingRenewal(tenantData);
+          }
+        } catch (e) {
+          // 合約不存在或無權讀取時略過，避免單筆讀取錯誤中斷整個監聽
+          console.warn('讀取合約失敗（略過）:', tenantData.contractId, e);
         }
       }
       return tenantData;

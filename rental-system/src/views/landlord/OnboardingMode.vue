@@ -319,9 +319,36 @@ const contractPrefill = computed(() => ({
   startDate: form.value.leaseStart,
   duration: form.value.duration,
 }));
-const onContractSaved = async (contractId: string) => {
+// 簽署完成（_signedId 為 signed_contracts 的 PDF 紀錄 id，僅供歷史）。
+// 這裡另建「營運用」contracts doc（含押金排程），tenant.contractId 指向它——
+// 與 TenantList/saveTenant 的資料模型一致，避免 contractId 指到不存在的 contracts。
+const onContractSaved = async (_signedId: string) => {
   if (tenantId.value) {
-    try { await updateDoc(doc(db, 'tenants', tenantId.value), { contractId }); } catch (e) { console.warn('set contractId failed', e); }
+    try {
+      const rent = Number(form.value.rent) || 0;
+      const depositMonths = Number(form.value.depositMonths) || 2;
+      const deposits: { label: string; amount: number; status: string }[] = [];
+      for (let n = 1; n <= depositMonths; n++) deposits.push({ label: `押金（第 ${n} 個月）`, amount: rent, status: 'unpaid' });
+      deposits.push({ label: '首月租金', amount: rent, status: 'unpaid' });
+      const contractRef = await addDoc(collection(db, 'contracts'), {
+        landlordId: authStore.effectiveUid,
+        tenantDocId: tenantId.value,
+        tenantName: form.value.name,
+        roomNumber: form.value.room,
+        rent,
+        depositMonths,
+        startDate: form.value.leaseStart,
+        endDate: computedLeaseEnd.value,
+        paymentDay: authStore.userProfile?.settings?.paymentDay ?? 5,
+        status: 'active',
+        deposits,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, 'tenants', tenantId.value), { contractId: contractRef.id });
+    } catch (e) {
+      console.warn('建立合約 doc 失敗', e);
+    }
   }
   completedKeys.value.contract = true;
   await next();

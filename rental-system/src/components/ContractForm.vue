@@ -1,5 +1,23 @@
 <template>
   <div class="space-y-6">
+    <!-- 房源 / 租客選擇（獨立合約頁） -->
+    <div v-if="showSelectors" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div>
+        <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">選擇房源（自動帶入）</label>
+        <select v-model="selectedRoomId" @change="onRoomSelect" class="form-input">
+          <option value="">-- 選擇房源 --</option>
+          <option v-for="r in rooms" :key="r.id" :value="r.id">{{ r.name }}{{ r.address ? ` — ${r.address}` : '' }}</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">選擇租客（自動帶入）</label>
+        <select v-model="selectedTenantId" @change="onTenantSelect" class="form-input">
+          <option value="">-- 選擇現有租客 --</option>
+          <option v-for="t in tenants" :key="t.id" :value="t.id">{{ t.name }}</option>
+        </select>
+      </div>
+    </div>
+
     <!-- 合約資料（自租客帶入，可調整） -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
       <div>
@@ -118,12 +136,12 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
 import { useToastStore } from '../stores/toast'
 import { db, auth } from '../firebase/config'
-import { collection, addDoc, getDoc, doc, serverTimestamp } from 'firebase/firestore'
+import { collection, addDoc, getDoc, getDocs, query, where, doc, serverTimestamp } from 'firebase/firestore'
 import Preview from './Preview.vue'
 import Signature from './Signature.vue'
 import ContractTemplateModal from './ContractTemplateModal.vue'
@@ -137,8 +155,29 @@ const CONTRACT_TEMPLATE_VERSION = 1
 const props = defineProps({
   prefill: { type: Object, default: () => ({}) },
   landlordId: { type: String, required: true },
+  showSelectors: { type: Boolean, default: false }, // 獨立合約頁：顯示房源/租客下拉
 })
 const emit = defineEmits(['saved'])
+
+// 獨立頁用：房源 / 租客下拉（精靈模式不顯示，資料由 prefill 帶入）
+const rooms = ref([])
+const tenants = ref([])
+const selectedRoomId = ref('')
+const selectedTenantId = ref('')
+const onRoomSelect = () => {
+  const r = rooms.value.find(x => x.id === selectedRoomId.value)
+  if (!r) return
+  form.value.roomNo = r.name || r.roomName || ''
+  form.value.address = r.address || ''
+  form.value.rentfee = r.price || r.rent || ''
+}
+const onTenantSelect = () => {
+  const t = tenants.value.find(x => x.id === selectedTenantId.value)
+  if (!t) return
+  form.value.tenant = t.name || ''
+  form.value.tenantId = t.idNumber || ''
+  form.value.tenantPhone = t.phone || ''
+}
 
 const authStore = useAuthStore()
 const toast = useToastStore()
@@ -309,6 +348,22 @@ onMounted(async () => {
   if (p.rentfee) form.value.rentfee = p.rentfee
   if (p.startDate) form.value.startDate = p.startDate
   if (p.duration) form.value.duration = p.duration
+  // 續約自訂到期日：待 start/duration 的 watcher 算完後覆寫
+  if (p.endDate) { await nextTick(); form.value.endDate = p.endDate }
+
+  // 獨立頁：載入房源 / 租客供下拉
+  if (props.showSelectors) {
+    try {
+      const [roomsSnap, tenantsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'rooms'), where('landlordId', '==', props.landlordId))),
+        getDocs(query(collection(db, 'tenants'), where('landlordId', '==', props.landlordId))),
+      ])
+      rooms.value = roomsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+      tenants.value = tenantsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    } catch (e) {
+      console.warn('載入房源/租客失敗:', e)
+    }
+  }
 
   try {
     const tplSnap = await getDoc(doc(db, 'contract_templates', props.landlordId))
