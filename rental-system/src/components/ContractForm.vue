@@ -129,6 +129,10 @@ import Signature from './Signature.vue'
 import ContractTemplateModal from './ContractTemplateModal.vue'
 import { printHtmlPdf } from '../utils/contractRender'
 import { loadLandlordSignature } from '../utils/signature'
+import contractTemplate from '../templates/contractTemplate.html?raw'
+
+// 與 functions/index.js TEMPLATE_VERSIONS.Contract 對齊
+const CONTRACT_TEMPLATE_VERSION = 1
 
 const props = defineProps({
   prefill: { type: Object, default: () => ({}) },
@@ -253,29 +257,17 @@ const submitContract = async () => {
   }
   loading.value = true
   try {
-    const token = await auth.currentUser?.getIdToken()
-    // 凍結當下範本骨架
-    let frozenTemplate = '', frozenVersion = 1
-    try {
-      const tplRes = await axios.post(`${apiBase}/getContractTemplate`, { templateType: 'Contract' }, {
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      })
-      frozenTemplate = tplRes.data?.html || ''
-      frozenVersion = tplRes.data?.version || 1
-    } catch (e) {
-      console.warn('取得範本骨架失敗，改用伺服端預設範本:', e)
-    }
-
+    // 合約範本已打包於前端，直接本地組裝列印（不呼叫 Function）
     const payload = buildPdfPayload()
-    if (frozenTemplate) payload.templateHtml = frozenTemplate
+    payload.templateHtml = contractTemplate
 
     let usedPrint = false
     try {
-      if (!frozenTemplate) throw new Error('無凍結骨架，改用伺服端')
-      await printHtmlPdf(frozenTemplate, payload, `租賃合約_${form.value.tenant}_${getTodayString()}`)
+      await printHtmlPdf(contractTemplate, payload, `租賃合約_${form.value.tenant}_${getTodayString()}`)
       usedPrint = true
     } catch (e) {
       console.warn('本地 PDF 組裝失敗，改用伺服端 generatePdf:', e)
+      const token = await auth.currentUser?.getIdToken()
       await serverGeneratePdfDownload(payload, token, `租賃合約_${form.value.tenant}_${Date.now()}.pdf`)
     }
 
@@ -286,8 +278,8 @@ const submitContract = async () => {
       ...form.value,
       rentfee: Number(form.value.rentfee) || 0,
       deposit: Number(form.value.deposit) || 0,
-      templateHtml: frozenTemplate || null,
-      templateVersion: frozenVersion,
+      templateHtml: contractTemplate,
+      templateVersion: CONTRACT_TEMPLATE_VERSION,
       signedAt: serverTimestamp(),
     })
 

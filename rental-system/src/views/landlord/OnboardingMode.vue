@@ -1,8 +1,8 @@
 <template>
   <div class="fixed inset-0 z-[100] bg-surface-light dark:bg-background-dark flex">
 
-    <!-- ── Sidebar：步驟導覽 ── -->
-    <aside class="w-60 shrink-0 bg-white dark:bg-card-dark border-r border-gray-100 dark:border-gray-800 flex flex-col">
+    <!-- ── Sidebar：步驟導覽（桌機） ── -->
+    <aside class="w-60 shrink-0 bg-white dark:bg-card-dark border-r border-gray-100 dark:border-gray-800 hidden md:flex flex-col">
       <div class="px-5 py-5 border-b border-gray-100 dark:border-gray-800">
         <p class="text-xs text-text-secondary-light tracking-wide">租客上線</p>
         <h1 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">簽約流程</h1>
@@ -57,6 +57,24 @@
           <span class="material-symbols-outlined text-gray-500">close</span>
         </button>
       </header>
+
+      <!-- Mobile 步驟列 -->
+      <div class="md:hidden shrink-0 px-4 py-2 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-card-dark flex items-center gap-1.5 overflow-x-auto">
+        <template v-for="(s, i) in steps" :key="s.key">
+          <button @click="goToStep(i + 1)" :disabled="i + 1 > maxReached" class="flex items-center gap-1 shrink-0 disabled:opacity-40">
+            <span class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold"
+              :class="stepDone(s.key) ? 'bg-green-500 text-white'
+                : isSkipped(s.key) ? 'bg-gray-300 text-white dark:bg-gray-600'
+                : step === i + 1 ? 'bg-gold-500 text-white'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-400'">
+              <span v-if="stepDone(s.key)" class="material-symbols-outlined text-[13px]">check</span>
+              <span v-else>{{ i + 1 }}</span>
+            </span>
+            <span class="text-[11px]" :class="step === i + 1 ? 'text-gold-600 dark:text-gold-400 font-bold' : 'text-text-secondary-light'">{{ s.label }}</span>
+          </button>
+          <span v-if="i < steps.length - 1" class="text-gray-300 dark:text-gray-600 text-[11px] shrink-0">›</span>
+        </template>
+      </div>
 
       <!-- Body -->
       <main class="flex-1 overflow-y-auto p-6 md:p-10">
@@ -190,16 +208,16 @@
       </main>
 
       <!-- Footer -->
-      <footer class="shrink-0 px-6 py-4 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-card-dark flex items-center justify-between gap-3">
+      <footer class="shrink-0 px-4 md:px-6 py-4 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-card-dark flex items-center justify-between gap-2">
         <button v-if="step > 1" @click="prev" :disabled="saving"
-          class="px-5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50">
+          class="px-4 md:px-5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50">
           ← 上一步
         </button>
         <span v-else></span>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2">
           <button v-if="!currentStep.required" @click="skip" :disabled="saving"
-            class="px-5 py-2.5 rounded-xl text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50">
-            略過此步
+            class="px-3 md:px-5 py-2.5 rounded-xl text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50">
+            略過
           </button>
           <button v-if="currentStep.key !== 'contract' || completedKeys.contract" @click="next" :disabled="saving"
             class="px-6 py-2.5 rounded-xl bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 transition-colors disabled:opacity-50 shadow-md flex items-center gap-2">
