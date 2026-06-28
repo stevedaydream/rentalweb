@@ -19,6 +19,41 @@
       </div>
     </div>
 
+    <!-- 開始簽約 / 邀請租客填資料：新租客上線入口 -->
+    <div class="rounded-2xl bg-gradient-to-r from-gold-500 to-gold-600 text-white p-5 md:p-6 shadow-lg shadow-gold-500/20">
+      <div class="flex items-center justify-between gap-4 flex-wrap">
+        <div class="flex items-center gap-4">
+          <span class="material-symbols-outlined text-[34px]" aria-hidden="true">draw</span>
+          <div>
+            <h2 class="text-lg font-bold">開始簽約</h2>
+            <p class="text-sm text-white/85">建檔 → 簽約 → 收押金 → 入住點交，引導新租客一條龍上線</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button
+            @click="showInvite = true"
+            class="px-4 py-2 bg-white/15 hover:bg-white/25 rounded-xl text-sm font-bold flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+          >
+            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">mail</span>邀請填資料
+          </button>
+          <RouterLink
+            :to="{ name: 'OnboardingMode' }"
+            class="px-4 py-2 bg-white text-gold-600 rounded-xl text-sm font-bold flex items-center gap-1.5 hover:bg-gold-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            開始<span class="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_forward</span>
+          </RouterLink>
+        </div>
+      </div>
+    </div>
+
+    <InviteTenantModal
+      v-if="showInvite"
+      :landlord-id="authStore.effectiveUid"
+      :landlord-code="authStore.userProfile?.landlordCode || ''"
+      :landlord-name="authStore.userProfile?.name || '房東'"
+      @close="showInvite = false"
+    />
+
     <div v-if="isLoading" role="status" aria-label="載入中" class="flex justify-center py-12">
       <span class="material-symbols-outlined animate-spin motion-reduce:animate-none text-4xl text-ink-200">progress_activity</span>
     </div>
@@ -70,10 +105,12 @@ import FinancialOverviewCard from '../../components/dashboard/FinancialOverviewC
 import MeterQuickEntry, { type MeterRoom } from '../../components/dashboard/MeterQuickEntry.vue';
 import RepairTicketCard, { type RepairTicket } from '../../components/dashboard/RepairTicketCard.vue';
 import MonthlyTaskCard from '../../components/dashboard/MonthlyTaskCard.vue';
+import InviteTenantModal from '../../components/InviteTenantModal.vue';
 
 const authStore = useAuthStore();
 const toast = useToastStore();
 const isLoading = ref(true);
+const showInvite = ref(false);
 
 const greeting = computed(() => {
   const h = new Date().getHours();

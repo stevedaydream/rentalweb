@@ -23,6 +23,38 @@
       </div>
     </div>
 
+    <!-- 待確認：線上填表 -->
+    <div v-if="pendingInvites.length" class="bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 md:p-5">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="material-symbols-outlined text-amber-500">how_to_reg</span>
+        <h2 class="font-bold text-amber-800 dark:text-amber-300">待確認的線上填表（{{ pendingInvites.length }}）</h2>
+      </div>
+      <div class="space-y-2">
+        <div v-for="inv in pendingInvites" :key="inv.id"
+          class="flex flex-col sm:flex-row sm:items-center gap-3 bg-white dark:bg-card-dark rounded-xl px-4 py-3 border border-amber-100 dark:border-amber-900/40">
+          <div class="flex-1 min-w-0">
+            <p class="font-bold text-text-primary-light dark:text-text-primary-dark">
+              {{ inv.submission?.name || '—' }}
+              <span class="font-normal text-text-secondary-light text-sm">· {{ inv.submission?.phone || '' }}</span>
+            </p>
+            <p class="text-xs text-text-secondary-light mt-0.5 truncate">
+              證件 {{ inv.submission?.idNumber || '—' }} ・ {{ inv.submission?.email || '無 Email' }}
+            </p>
+          </div>
+          <div class="flex gap-2 shrink-0">
+            <button @click="dismissInvite(inv)"
+              class="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-sm text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+              忽略
+            </button>
+            <button @click="approveInvite(inv)"
+              class="px-4 py-1.5 rounded-lg bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 transition-colors flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[16px]">check</span>核可建檔
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Stats -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div class="p-4 bg-white dark:bg-card-dark rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
@@ -111,8 +143,8 @@
                   <div>
                     <div class="flex items-center gap-2">
                       <p class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ tenant.name }}</p>
-                      <span v-if="tenant.isHistorical" class="bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 text-[10px] px-1.5 py-0.5 rounded-full font-medium">已退租</span>
-                      <span v-else-if="tenant.isOnlineUser" class="bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5 rounded-full font-medium">已綁定帳號</span>
+                      <span v-if="tenant.isOnlineUser && !tenant.isHistorical" class="bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5 rounded-full font-medium">已綁定帳號</span>
+                      <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium" :class="LIFECYCLE_BADGE[tenantLifecycle(tenant).key]">{{ tenantLifecycle(tenant).label }}</span>
                     </div>
                     <p class="text-xs text-text-secondary-light mt-0.5">{{ tenant.phone }}</p>
                   </div>
@@ -597,6 +629,14 @@
                 <!-- ── 歷史租客操作 ── -->
                 <template v-if="drawerTenant?.isHistorical">
                   <button
+                    @click="printMoveOutSummary(drawerTenant!)"
+                    :disabled="isPrintingSettlement"
+                    class="w-full py-2.5 rounded-xl text-sm font-bold bg-gold-500 text-white hover:bg-gold-600 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                  >
+                    <span class="material-symbols-outlined text-[18px]" :class="{ 'animate-spin': isPrintingSettlement }">{{ isPrintingSettlement ? 'sync' : 'print' }}</span>
+                    {{ isPrintingSettlement ? '產生中…' : '列印退租結清單' }}
+                  </button>
+                  <button
                     @click="downloadTenantArchive(drawerTenant!)"
                     :disabled="isDownloading"
                     class="w-full py-2.5 border border-blue-200 dark:border-blue-700 rounded-xl text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
@@ -617,10 +657,24 @@
                 <!-- ── 在租租客操作 ── -->
                 <template v-else>
                   <button
+                    v-if="drawerTenant?.onboarding?.status === 'in_progress'"
+                    @click="continueOnboarding(drawerTenant!)"
+                    class="w-full py-2.5 rounded-xl bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <span class="material-symbols-outlined text-[18px]">play_arrow</span>繼續上線（第 {{ drawerTenant.onboarding.step }} 步）
+                  </button>
+                  <button
                     @click="enterDrawerEdit"
                     class="w-full py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center gap-2 transition-colors"
                   >
                     <span class="material-symbols-outlined text-[18px]">edit</span>編輯租客資料與合約
+                  </button>
+                  <button
+                    @click="openMoveInInspection"
+                    class="w-full py-2.5 border border-gold-200 dark:border-gold-700 rounded-xl text-sm font-medium text-gold-700 dark:text-gold-300 hover:bg-gold-50 dark:hover:bg-gold-900/20 flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <span class="material-symbols-outlined text-[18px]">checklist</span>
+                    {{ drawerTenant?.moveInInspection ? '查看 / 編輯入住點交' : '建立入住點交清單' }}
                   </button>
                   <button
                     v-if="drawerTenant?.room"
@@ -852,6 +906,14 @@
     </Transition>
 
     <!-- Move-out Wizard -->
+    <MoveInInspectionModal
+      v-if="showMoveInInspection && drawerTenant"
+      :tenant="drawerTenant"
+      :landlord-id="authStore.effectiveUid"
+      @close="showMoveInInspection = false"
+      @saved="onMoveInInspectionSaved"
+    />
+
     <MoveOutWizard
       v-if="showMoveOutWizard && drawerTenant"
       :tenant="drawerTenant"
@@ -963,7 +1025,13 @@ import { httpsCallable } from 'firebase/functions';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
 import MoveOutWizard from '../../components/MoveOutWizard.vue';
+import MoveInInspectionModal from '../../components/MoveInInspectionModal.vue';
+import type { InspectionItem } from '../../utils/inventory';
+import { tenantLifecycle, LIFECYCLE_BADGE, type OnboardingState } from '../../utils/onboarding';
 import TenantImportModal from '../../components/TenantImportModal.vue';
+import { printHtmlPdf } from '../../utils/contractRender';
+import { amountToChineseCapital } from '../../utils/chineseAmount';
+import moveoutSummaryTemplate from '../../templates/moveoutSummary.html?raw';
 import {
   collection,
   query,
@@ -1015,6 +1083,8 @@ interface Tenant {
   pendingRenewal?: { startDate: string; endDate: string; rent: number } | null;
   landlordRenewalDecision?: 'not_renewing' | null;
   moveOutSummary?: any;
+  moveInInspection?: { inspectedAt?: any; items?: InspectionItem[] };
+  onboarding?: OnboardingState;
   createdAt?: any;
 }
 
@@ -1051,6 +1121,10 @@ const sendingReminderId = ref<string | null>(null);
 // --- Subscription Handlers ---
 let unsubscribeTenants: any = null;
 let unsubscribeUsers: any = null;
+let unsubscribeInvites: any = null;
+
+// 待確認：租客已透過邀請連結填表（status='submitted'）
+const pendingInvites = ref<any[]>([]);
 
 // --- Date Helpers ---
 const todayStr = () => new Date().toISOString().split('T')[0] as string;
@@ -1183,15 +1257,20 @@ const startListeners = () => {
     const manualTenants = await Promise.all(snapshot.docs.map(async (d) => {
       const tenantData = { id: d.id, ...d.data() } as Tenant;
       if (tenantData.contractId) {
-        const contractSnap = await getDoc(doc(db, 'contracts', tenantData.contractId));
-        if (contractSnap.exists()) {
-          const cd = contractSnap.data();
-          tenantData.deposits = cd.deposits || [];
-          tenantData.renewalStatus = cd.renewalStatus || null;
-          tenantData.pendingRenewal = cd.pendingRenewal || null;
-          tenantData.landlordRenewalDecision = cd.landlordRenewalDecision || null;
-          // 到期惰性接續：目前租期已走完且有排程的下一期 → 升為正式租期
-          await maybePromotePendingRenewal(tenantData);
+        try {
+          const contractSnap = await getDoc(doc(db, 'contracts', tenantData.contractId));
+          if (contractSnap.exists()) {
+            const cd = contractSnap.data();
+            tenantData.deposits = cd.deposits || [];
+            tenantData.renewalStatus = cd.renewalStatus || null;
+            tenantData.pendingRenewal = cd.pendingRenewal || null;
+            tenantData.landlordRenewalDecision = cd.landlordRenewalDecision || null;
+            // 到期惰性接續：目前租期已走完且有排程的下一期 → 升為正式租期
+            await maybePromotePendingRenewal(tenantData);
+          }
+        } catch (e) {
+          // 合約不存在或無權讀取時略過，避免單筆讀取錯誤中斷整個監聽
+          console.warn('讀取合約失敗（略過）:', tenantData.contractId, e);
         }
       }
       return tenantData;
@@ -1220,6 +1299,16 @@ const startListeners = () => {
       onlineUsers.value = users;
     });
   }
+
+  // 待確認的線上填表
+  const qInvites = query(
+    collection(db, 'onboarding_invites'),
+    where('landlordId', '==', uid),
+    where('status', '==', 'submitted'),
+  );
+  unsubscribeInvites = onSnapshot(qInvites, (snapshot) => {
+    pendingInvites.value = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  }, (e) => console.warn('讀取待確認填表失敗:', e));
 };
 
 onMounted(() => {
@@ -1256,6 +1345,7 @@ watch([manualTenantsList, onlineUsers], ([newManual, newOnline]) => {
 onUnmounted(() => {
   if (unsubscribeTenants) unsubscribeTenants();
   if (unsubscribeUsers) unsubscribeUsers();
+  if (unsubscribeInvites) unsubscribeInvites();
 });
 
 // --- Save Tenant (handles both new & edit) ---
@@ -1435,7 +1525,7 @@ const tenantsWithStatus = computed(() => {
 const stats = computed(() => {
   const today = new Date();
   const sixtyDaysLater = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000);
-  const activeTenants = tenantsWithStatus.value.filter(t => t.paymentStatus !== 'pending');
+  const activeTenants = tenantsWithStatus.value.filter(t => !t.isHistorical && t.paymentStatus !== 'pending');
   return {
     total: activeTenants.length,
     expiring: activeTenants.filter(t => {
@@ -1880,6 +1970,75 @@ const callGeneratePdf = async (payload: Record<string, any>, filename: string) =
   URL.revokeObjectURL(url);
 };
 
+// 蒐集退租結清單資料（合約/收據共用的本地組裝資料來源；伺服端 fallback 也共用）
+const buildMoveOutSummaryData = async (tenant: Tenant) => {
+  const summary: any = tenant.moveOutSummary || {};
+  const reasonLabel: Record<string, string> = { expired: '到期退租', early: '提前退租', other: '其他' };
+  // moveOutRecords 為完整結算來源；讀取失敗（規則未載入/索引）時退回 moveOutSummary，結清單仍可印
+  let m: any = null;
+  try {
+    const snap = await getDocs(query(
+      collection(db, 'moveOutRecords'),
+      where('tenantDocId', '==', tenant.id),
+      orderBy('createdAt', 'desc'),
+      limit(1),
+    ));
+    if (!snap.empty) m = snap.docs[0]!.data();
+  } catch (e) {
+    console.warn('讀取 moveOutRecords 失敗，改用 moveOutSummary：', e);
+  }
+  const fmtAmt = (v: any) => (v != null && v !== '') ? `NT$ ${Number(v).toLocaleString()}` : '—';
+  const refundRaw = Number(m?.depositRefund ?? summary.depositRefund ?? 0) || 0;
+  const deductionsHtml = (Array.isArray(m?.deductions) && m.deductions.length > 0)
+    ? m.deductions.map((d: any) =>
+        `<tr><td class="k neg">扣款：${d.label}</td><td class="v neg">－ ${fmtAmt(d.amount)}</td></tr>`,
+      ).join('')
+    : '';
+  const today = new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return {
+    tenantName: tenant.name,
+    phone: tenant.phone || '',
+    room: summary.room || tenant.room || '',
+    leaseStart: summary.leaseStart || '',
+    leaseEnd: summary.leaseEnd || '',
+    moveOutDate: summary.moveOutDate || '',
+    moveOutReason: reasonLabel[summary.moveOutReason] || summary.moveOutReason || '',
+    depositPaid: fmtAmt(m?.depositPaid ?? summary.depositPaid),
+    electricitySettlement: fmtAmt(m?.electricitySettlement),
+    waterSettlement: fmtAmt(m?.waterSettlement),
+    deductionsHtml,
+    depositRefund: fmtAmt(m?.depositRefund ?? summary.depositRefund),
+    refundWords: refundRaw > 0 ? amountToChineseCapital(refundRaw) : '',
+    notes: m?.notes || '',
+    today,
+    settlementNo: `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`,
+  };
+};
+
+const isPrintingSettlement = ref(false);
+// 單張退租結清單：本地組裝列印另存 PDF；失敗退回伺服端 generatePdf
+const printMoveOutSummary = async (tenant: Tenant) => {
+  isPrintingSettlement.value = true;
+  try {
+    const data = await buildMoveOutSummaryData(tenant);
+    try {
+      await printHtmlPdf(moveoutSummaryTemplate, data, `退租結清單_${tenant.name}`);
+      toast.success('已開啟列印視窗，請選「另存為 PDF」');
+    } catch (e) {
+      console.warn('本地結清單組裝失敗，改用伺服端 generatePdf:', e);
+      await callGeneratePdf({ templateType: 'MoveOutSummary', ...data }, `${tenant.name}_退租結清單.pdf`);
+      toast.success('退租結清單 PDF 已下載');
+    }
+  } catch (e) {
+    console.error('printMoveOutSummary error:', e);
+    toast.error('產生退租結清單失敗，請稍後再試');
+  } finally {
+    isPrintingSettlement.value = false;
+  }
+};
+
 const downloadTenantArchive = async (tenant: Tenant) => {
   isDownloading.value = true;
   try {
@@ -2091,6 +2250,44 @@ const clearMeterReadings = async () => {
 // --- Move-out Wizard ---
 const showMoveOutWizard = ref(false);
 const openMoveOutWizard = () => { showMoveOutWizard.value = true; };
+
+const showMoveInInspection = ref(false);
+const openMoveInInspection = () => { showMoveInInspection.value = true; };
+const continueOnboarding = (t: Tenant) => { router.push({ name: 'OnboardingMode', params: { tenantId: t.id } }); };
+
+// 待確認：核可線上填表 → 建立租客（onboarding step1，待補房源/簽約）；或忽略
+const approveInvite = async (inv: any) => {
+  const s = inv.submission || {};
+  try {
+    const docRef = await addDoc(collection(db, 'tenants'), {
+      name: s.name || '', phone: s.phone || '', idNumber: s.idNumber || '',
+      email: s.email || '', emergencyContact: s.emergencyContact || '',
+      landlordId: authStore.effectiveUid, paymentStatus: 'normal',
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      onboarding: { status: 'in_progress', step: 1, skipped: [], draft: {}, updatedAt: serverTimestamp() },
+    });
+    await updateDoc(doc(db, 'onboarding_invites', inv.id), {
+      status: 'confirmed', tenantDocId: docRef.id, confirmedAt: serverTimestamp(),
+    });
+    toast.success(`已建立租客「${s.name || ''}」，可從「繼續上線」補房源並簽約`);
+  } catch (e) {
+    console.error('核可建檔失敗:', e);
+    toast.error('核可失敗，請稍後再試');
+  }
+};
+const dismissInvite = async (inv: any) => {
+  try {
+    await updateDoc(doc(db, 'onboarding_invites', inv.id), { status: 'dismissed' });
+  } catch (e) {
+    console.error('忽略失敗:', e);
+  }
+};
+// 儲存後就地更新抽屜租客，使同場退租流程立即帶入點交清單
+const onMoveInInspectionSaved = (items: InspectionItem[]) => {
+  if (drawerTenant.value) {
+    drawerTenant.value.moveInInspection = { inspectedAt: new Date(), items };
+  }
+};
 const onMoveOutCompleted = () => {
   showMoveOutWizard.value = false;
   closeDrawer();

@@ -447,6 +447,97 @@
       </div>
     </section>
 
+    <!-- ===== 點交物品主檔 ===== -->
+    <section class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gold-200 dark:border-gold-800/40">
+      <h2 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center mb-1">
+        <span class="material-symbols-outlined text-[20px] text-gold-500 mr-2">checklist</span>
+        點交物品主檔
+      </h2>
+      <p class="text-sm text-text-secondary-light mb-4">設定常見配備與賠償基準單價；新增租客入住點交時會自動帶入此清單，可再逐筆調整。</p>
+
+      <div class="space-y-2">
+        <div v-for="(item, i) in catalog" :key="i" class="flex gap-2 items-center">
+          <input v-model="item.name" type="text" placeholder="品項名稱"
+            class="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-sm outline-none focus:ring-2 focus:ring-gold-500" />
+          <div class="relative w-36 shrink-0">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">NT$</span>
+            <input v-model.number="item.unitPrice" type="number" min="0" placeholder="單價"
+              class="w-full pl-10 pr-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-sm outline-none focus:ring-2 focus:ring-gold-500" />
+          </div>
+          <button @click="catalog.splice(i, 1)" class="text-red-400 hover:text-red-600 shrink-0 p-1" aria-label="移除品項">
+            <span class="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-2 mt-3">
+        <button @click="addCatalogItem"
+          class="px-3 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-sm text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-1.5 transition-colors">
+          <span class="material-symbols-outlined text-[16px]">add</span>新增品項
+        </button>
+        <button @click="resetCatalogDefault"
+          class="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+          套用預設清單
+        </button>
+      </div>
+
+      <button
+        @click="saveCatalog"
+        :disabled="isSavingCatalog"
+        class="w-full mt-4 py-2.5 bg-gold-500 hover:bg-gold-600 text-white font-bold rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+      >
+        <span v-if="isSavingCatalog" class="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+        <span v-else class="material-symbols-outlined text-[18px]">save</span>
+        {{ isSavingCatalog ? '儲存中...' : '儲存物品主檔' }}
+      </button>
+    </section>
+
+    <!-- ===== 我的簽名 / 印章 ===== -->
+    <section class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gold-200 dark:border-gold-800/40">
+      <h2 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center mb-1">
+        <span class="material-symbols-outlined text-[20px] text-gold-500 mr-2">draw</span>
+        我的簽名 / 印章
+      </h2>
+      <p class="text-sm text-text-secondary-light mb-4">存一次後，退租點交清單、退租結清單、收據等單據的「出租人」欄會自動帶入此簽名 / 印章，不必每次重簽。</p>
+
+      <div class="flex flex-col sm:flex-row gap-5 items-start">
+        <div class="shrink-0">
+          <div class="w-56 h-28 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/40 flex items-center justify-center overflow-hidden">
+            <img v-if="signatureImage" :src="signatureImage" alt="目前簽名" class="max-w-full max-h-full object-contain" />
+            <span v-else class="text-xs text-text-secondary-light">尚未設定簽名 / 印章</span>
+          </div>
+        </div>
+        <div class="flex-1 space-y-2 w-full">
+          <div class="flex flex-wrap gap-2">
+            <button @click="showSignPad = true"
+              class="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-1.5 transition-colors">
+              <span class="material-symbols-outlined text-[16px]">draw</span>手寫簽名
+            </button>
+            <label class="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-1.5 transition-colors cursor-pointer">
+              <span class="material-symbols-outlined text-[16px]">upload</span>上傳印章圖
+              <input type="file" accept="image/*" class="hidden" @change="onSealUpload" />
+            </label>
+            <button v-if="signatureImage" @click="signatureImage = ''"
+              class="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-1.5 transition-colors">
+              <span class="material-symbols-outlined text-[16px]">close</span>清除
+            </button>
+          </div>
+          <p class="text-xs text-text-secondary-light">手寫適合簽名；上傳適合既有印章圖（會自動縮圖）。此為擷取圖檔之簽名，非《電子簽章法》之數位簽章。</p>
+          <button
+            @click="saveSignature"
+            :disabled="isSavingSignature"
+            class="w-full mt-1 py-2.5 bg-gold-500 hover:bg-gold-600 text-white font-bold rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+          >
+            <span v-if="isSavingSignature" class="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+            <span v-else class="material-symbols-outlined text-[18px]">save</span>
+            {{ isSavingSignature ? '儲存中...' : '儲存簽名 / 印章' }}
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <Signature v-model:visible="showSignPad" @confirm="onSignConfirm" />
+
   </div>
 </template>
 
@@ -456,10 +547,67 @@ import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
+import { DEFAULT_CATALOG, type CatalogItem } from '../../utils/inventory';
+import { fileToResizedDataUrl } from '../../utils/signature';
+import Signature from '../../components/Signature.vue';
 
 const authStore = useAuthStore();
 const toast = useToastStore();
 const isSaving = ref(false);
+
+// ── 我的簽名 / 印章（settings/{landlordId}.signatureImage） ──
+const signatureImage = ref('');
+const showSignPad = ref(false);
+const isSavingSignature = ref(false);
+const onSignConfirm = (img: string) => { signatureImage.value = img; };
+const onSealUpload = async (e: Event) => {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  try {
+    signatureImage.value = await fileToResizedDataUrl(file);
+  } catch (err) {
+    console.error('Seal upload error:', err);
+    toast.error('印章圖讀取失敗，請換一張');
+  } finally {
+    (e.target as HTMLInputElement).value = '';
+  }
+};
+const saveSignature = async () => {
+  if (!authStore.user) return;
+  isSavingSignature.value = true;
+  try {
+    await setDoc(doc(db, 'settings', authStore.effectiveUid), { signatureImage: signatureImage.value || '' }, { merge: true });
+    toast.success(signatureImage.value ? '簽名 / 印章已儲存' : '已清除簽名 / 印章');
+  } catch (e) {
+    console.error('Signature save error:', e);
+    toast.error('儲存失敗，請稍後再試');
+  } finally {
+    isSavingSignature.value = false;
+  }
+};
+
+// ── 點交物品主檔（settings/{landlordId}.inventoryCatalog） ──
+const catalog = ref<CatalogItem[]>(DEFAULT_CATALOG.map(c => ({ ...c })));
+const isSavingCatalog = ref(false);
+const addCatalogItem = () => catalog.value.push({ name: '', unitPrice: 0 });
+const resetCatalogDefault = () => { catalog.value = DEFAULT_CATALOG.map(c => ({ ...c })); };
+const saveCatalog = async () => {
+  if (!authStore.user) return;
+  const cleaned = catalog.value
+    .map(c => ({ name: (c.name || '').trim(), unitPrice: Number(c.unitPrice) || 0 }))
+    .filter(c => c.name);
+  isSavingCatalog.value = true;
+  try {
+    await setDoc(doc(db, 'settings', authStore.effectiveUid), { inventoryCatalog: cleaned }, { merge: true });
+    catalog.value = cleaned;
+    toast.success('物品主檔已儲存');
+  } catch (e) {
+    console.error('Catalog save error:', e);
+    toast.error('儲存失敗，請稍後再試');
+  } finally {
+    isSavingCatalog.value = false;
+  }
+};
 
 // 表單資料介面
 interface SettingsForm {
@@ -654,10 +802,16 @@ const webhookUrl = computed(() =>
 
 onMounted(async () => {
   try {
-    const [lineSnap, userSnap] = await Promise.all([
+    const [lineSnap, userSnap, settingsSnap] = await Promise.all([
       getDoc(doc(db, 'line_configs', authStore.effectiveUid)),
       getDoc(doc(db, 'users', authStore.effectiveUid)),
+      getDoc(doc(db, 'settings', authStore.effectiveUid)),
     ]);
+    const savedCatalog = settingsSnap.exists() ? (settingsSnap.data().inventoryCatalog as CatalogItem[]) : null;
+    catalog.value = Array.isArray(savedCatalog) && savedCatalog.length > 0
+      ? savedCatalog.map(c => ({ name: c.name, unitPrice: Number(c.unitPrice) || 0 }))
+      : DEFAULT_CATALOG.map(c => ({ ...c }));
+    signatureImage.value = settingsSnap.exists() ? (settingsSnap.data().signatureImage || '') : '';
     if (lineSnap.exists()) {
       const data = lineSnap.data();
       lineConfig.value.isEnabled = !!(data.channelSecret && data.channelAccessToken);

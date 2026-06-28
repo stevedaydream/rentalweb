@@ -85,8 +85,65 @@
             </div>
           </template>
 
-          <!-- ── STEP 2: 費用結清 ── -->
+          <!-- ── STEP 2: 物品點交 ── -->
           <template v-if="step === 2">
+            <div v-if="moveOutItems.length === 0"
+              class="p-4 bg-surface-light dark:bg-surface-dark rounded-xl text-sm text-text-secondary-light text-center space-y-1">
+              <p>此租客無入住點交清單，可略過本步驟。</p>
+              <p class="text-xs">提示：日後可於租客抽屜先建立「入住點交」，退租時即自動帶入逐項點交。</p>
+            </div>
+            <template v-else>
+              <p class="text-xs text-text-secondary-light">依入住清單逐項點交，標記退租狀況；賠償＝單價 × 數量 × 比例，將自動併入押金扣款。</p>
+
+              <div v-for="(item, i) in moveOutItems" :key="i"
+                class="p-3 rounded-xl border transition-colors"
+                :class="item.moveOutCondition === 'normal'
+                  ? 'border-gray-100 dark:border-gray-800'
+                  : item.moveOutCondition === 'minor'
+                    ? 'border-gold-200 dark:border-gold-800 bg-gold-50/40 dark:bg-gold-900/10'
+                    : 'border-red-200 dark:border-red-800 bg-red-50/40 dark:bg-red-900/10'">
+                <div class="flex justify-between items-center">
+                  <span class="font-medium text-sm">{{ item.name }}
+                    <span class="text-text-secondary-light text-xs">×{{ item.quantity }}</span>
+                  </span>
+                  <span class="text-xs text-text-secondary-light">單價 NT$ {{ (item.unitPrice || 0).toLocaleString() }}</span>
+                </div>
+                <p v-if="item.moveInCondition !== 'normal'" class="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
+                  入住既有狀況：{{ CONDITION_LABELS[item.moveInCondition] }}<span v-if="item.moveInNote">（{{ item.moveInNote }}）</span>
+                </p>
+                <div class="grid grid-cols-2 gap-2 mt-2">
+                  <div>
+                    <label class="block text-[10px] text-text-secondary-light mb-0.5">退租狀況</label>
+                    <select v-model="item.moveOutCondition" @change="onConditionChange(item)" class="form-input text-sm">
+                      <option value="normal">正常</option>
+                      <option value="minor">輕微毀損</option>
+                      <option value="total">完全毀損</option>
+                    </select>
+                  </div>
+                  <div v-if="item.moveOutCondition !== 'normal'">
+                    <label class="block text-[10px] text-text-secondary-light mb-0.5">賠償比例 %</label>
+                    <input type="number" min="0" max="100"
+                      :value="Math.round(item.ratio * 100)"
+                      @input="item.ratio = (Number(($event.target as HTMLInputElement).value) || 0) / 100"
+                      class="form-input text-sm" />
+                  </div>
+                </div>
+                <div v-if="item.moveOutCondition !== 'normal'" class="flex justify-between mt-1.5 text-sm">
+                  <span class="text-text-secondary-light">賠償金額</span>
+                  <span class="font-semibold text-red-600 dark:text-red-400">NT$ {{ rowComp(item).toLocaleString() }}</span>
+                </div>
+              </div>
+
+              <div class="flex justify-between items-center p-3 bg-gold-50 dark:bg-gold-900/20 border border-gold-200 dark:border-gold-700 rounded-xl text-sm font-bold">
+                <span class="text-gold-700 dark:text-gold-300">物品賠償合計（{{ damagedCount }} 項毀損）</span>
+                <span class="text-red-600 dark:text-red-400">NT$ {{ damageTotal.toLocaleString() }}</span>
+              </div>
+              <p class="text-[11px] text-text-secondary-light text-center">完成點交與費用結清後，可於最後一步「確認執行」簽名並下載含簽名的點交清單。</p>
+            </template>
+          </template>
+
+          <!-- ── STEP 3: 費用結清 ── -->
+          <template v-if="step === 3">
 
             <!-- Paid deposits -->
             <div class="space-y-2">
@@ -194,7 +251,7 @@
                 <span>－ 水費</span>
                 <span>NT$ {{ (waterAmount || 0).toLocaleString() }}</span>
               </div>
-              <div v-for="d in deductions.filter(x => (x.amount || 0) > 0)" :key="d.label"
+              <div v-for="(d, di) in effectiveDeductions" :key="di"
                 class="flex justify-between text-red-600 dark:text-red-400">
                 <span>－ {{ d.label || '扣款' }}</span>
                 <span>NT$ {{ d.amount.toLocaleString() }}</span>
@@ -211,8 +268,8 @@
             </div>
           </template>
 
-          <!-- ── STEP 3: 確認執行 ── -->
-          <template v-if="step === 3">
+          <!-- ── STEP 4: 確認執行 ── -->
+          <template v-if="step === 4">
             <div class="space-y-4 text-sm">
               <p class="text-xs font-bold text-text-secondary-light uppercase tracking-wide">退租摘要</p>
               <div class="p-4 bg-surface-light dark:bg-surface-dark rounded-xl space-y-2.5">
@@ -244,7 +301,7 @@
                     <span>NT$ {{ (waterAmount || 0).toLocaleString() }}</span>
                   </div>
                 </template>
-                <div v-for="d in deductions.filter(x => (x.amount || 0) > 0)" :key="d.label"
+                <div v-for="(d, di) in effectiveDeductions" :key="di"
                   class="flex justify-between text-red-600 dark:text-red-400">
                   <span>{{ d.label }}</span>
                   <span>NT$ {{ d.amount.toLocaleString() }}</span>
@@ -290,9 +347,50 @@
                 <textarea id="moveout-notes" v-model="notes" class="form-input min-h-[60px]"
                   placeholder="點交說明、特殊事項等..."></textarea>
               </div>
+
+              <!-- 雙方簽名 -->
+              <div class="space-y-2">
+                <p class="text-xs font-bold text-text-secondary-light uppercase tracking-wide">雙方簽名</p>
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="p-3 rounded-xl border border-gray-100 dark:border-gray-800">
+                    <p class="text-[11px] text-text-secondary-light mb-1">出租人（房東）</p>
+                    <div class="h-14 flex items-end">
+                      <img v-if="landlordSignature" :src="landlordSignature" alt="房東簽名" class="max-h-14 max-w-full object-contain" />
+                      <span v-else class="text-[11px] text-text-secondary-light">未設定，將留白<br>（可至設定 → 我的簽名）</span>
+                    </div>
+                  </div>
+                  <div class="p-3 rounded-xl border border-gray-100 dark:border-gray-800">
+                    <p class="text-[11px] text-text-secondary-light mb-1">承租人（租客）</p>
+                    <div class="h-14 flex items-end justify-between gap-2">
+                      <img v-if="tenantSignature" :src="tenantSignature" alt="租客簽名" class="max-h-14 max-w-[60%] object-contain" />
+                      <span v-else class="text-[11px] text-text-secondary-light">尚未簽名</span>
+                      <button @click="showSignPad = true"
+                        class="shrink-0 px-2.5 py-1.5 rounded-lg bg-gold-500 text-white text-xs font-bold hover:bg-gold-600 transition-colors">
+                        {{ tenantSignature ? '重簽' : '請租客簽名' }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <button @click="previewHandover" :disabled="isPreviewingHandover"
+                class="w-full py-2.5 rounded-xl border border-gold-300 dark:border-gold-700 text-gold-700 dark:text-gold-300 text-sm font-bold hover:bg-gold-50 dark:hover:bg-gold-900/20 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                <span class="material-symbols-outlined text-[18px]" :class="{ 'animate-spin': isPreviewingHandover }">{{ isPreviewingHandover ? 'sync' : 'print' }}</span>
+                下載退租點交清單（含簽名）
+              </button>
             </div>
           </template>
 
+        </div>
+
+        <!-- 結清單預覽 / 下載（確認退租前） -->
+        <div v-if="step === lastStep" class="px-6 pt-1 shrink-0">
+          <button @click="previewSettlement" :disabled="isPreviewingSettlement"
+            class="w-full py-2.5 rounded-xl border border-gold-300 dark:border-gold-700 text-gold-700 dark:text-gold-300 text-sm font-bold hover:bg-gold-50 dark:hover:bg-gold-900/20 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+            <span class="material-symbols-outlined text-[18px]" :class="{ 'animate-spin': isPreviewingSettlement }">{{ isPreviewingSettlement ? 'sync' : 'preview' }}</span>
+            預覽 / 下載退租結清單
+          </button>
+          <p class="mt-1.5 text-[11px] text-text-secondary-light text-center">確認退租前可先預覽，於列印視窗選「另存為 PDF」下載交付租客</p>
         </div>
 
         <!-- Footer actions -->
@@ -301,11 +399,11 @@
             class="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50">
             ← 上一步
           </button>
-          <button v-if="step < 3" @click="nextStep" :disabled="loadingData"
+          <button v-if="step < lastStep" @click="nextStep" :disabled="loadingData"
             class="flex-1 py-2.5 rounded-xl bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 transition-colors disabled:opacity-50 shadow-md">
             下一步 →
           </button>
-          <button v-if="step === 3" @click="execute" :disabled="isExecuting"
+          <button v-if="step === lastStep" @click="execute" :disabled="isExecuting"
             class="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors disabled:opacity-50 shadow-md flex items-center justify-center gap-2">
             <span v-if="isExecuting" class="material-symbols-outlined animate-spin text-[16px]">sync</span>
             {{ isExecuting ? '處理中...' : '確認退租' }}
@@ -314,6 +412,8 @@
 
       </div>
     </div>
+
+    <Signature v-model:visible="showSignPad" @confirm="onTenantSignConfirm" />
   </Teleport>
 </template>
 
@@ -325,16 +425,28 @@ import {
   collection, query, where, getDocs, getDoc, addDoc, updateDoc,
   doc, serverTimestamp, orderBy, limit,
 } from 'firebase/firestore';
+import { printHtmlPdf } from '../utils/contractRender';
+import { amountToChineseCapital } from '../utils/chineseAmount';
+import moveoutSummaryTemplate from '../templates/moveoutSummary.html?raw';
+import handoverChecklistTemplate from '../templates/handoverChecklist.html?raw';
+import {
+  CONDITION_LABELS, defaultRatioFor, calcCompensation,
+  type Condition, type InspectionItem,
+} from '../utils/inventory';
+import Signature from './Signature.vue';
+import { loadLandlordSignature, BLANK_PIXEL } from '../utils/signature';
 
 interface Tenant {
   id: string;
   name: string;
   room: string;
+  phone?: string;
   leaseStart?: string;
   leaseEnd?: string;
   rent?: number;
   contractId?: string;
   uid?: string;
+  moveInInspection?: { inspectedAt?: any; items?: InspectionItem[] };
 }
 
 interface DepositItem {
@@ -350,10 +462,12 @@ const toast = useToastStore();
 // ── Steps ──
 const steps = [
   { id: 1, label: '退租資訊' },
-  { id: 2, label: '費用結清' },
-  { id: 3, label: '確認執行' },
+  { id: 2, label: '物品點交' },
+  { id: 3, label: '費用結清' },
+  { id: 4, label: '確認執行' },
 ];
 const step = ref(1);
+const lastStep = steps.length;
 
 // ── Step 1 ──
 const moveOutDate = ref(new Date().toISOString().split('T')[0] as string);
@@ -393,11 +507,46 @@ const effectiveElecAmount = computed(() => {
   return electricityAmount.value || 0;
 });
 
-// ── Step 2: Water & Deductions ──
+// ── Step 2: 物品點交 ──
+interface MoveOutItem {
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  moveInCondition: Condition;
+  moveInNote: string;
+  moveOutCondition: Condition;
+  ratio: number;
+}
+const moveOutItems = ref<MoveOutItem[]>([]);
+const loadInspection = () => {
+  const src = props.tenant.moveInInspection?.items || [];
+  moveOutItems.value = src
+    .filter(it => it.present)
+    .map(it => ({
+      name: it.name,
+      quantity: Number(it.quantity) || 1,
+      unitPrice: Number(it.unitPrice) || 0,
+      moveInCondition: it.condition || 'normal',
+      moveInNote: it.note || '',
+      moveOutCondition: 'normal' as Condition,
+      ratio: 0,
+    }));
+};
+const onConditionChange = (item: MoveOutItem) => { item.ratio = defaultRatioFor(item.moveOutCondition); };
+const rowComp = (item: MoveOutItem) => calcCompensation(item.unitPrice, item.quantity, item.ratio);
+const damageTotal = computed(() => moveOutItems.value.reduce((s, it) => s + rowComp(it), 0));
+const damagedCount = computed(() => moveOutItems.value.filter(it => it.moveOutCondition !== 'normal').length);
+
+// ── Step 3: Water & Deductions ──
 const waterAmount = ref(0);
 const deductions = ref<{ label: string; amount: number }[]>([]);
 const addDeduction = () => deductions.value.push({ label: '', amount: 0 });
-const totalDeductions = computed(() => deductions.value.reduce((s, d) => s + (d.amount || 0), 0));
+// 手動扣款 + 物品賠償（自動一筆），供結算、結清單、存檔共用
+const effectiveDeductions = computed(() => {
+  const base = deductions.value.filter(d => (d.amount || 0) > 0);
+  return damageTotal.value > 0 ? [...base, { label: '物品賠償', amount: damageTotal.value }] : base;
+});
+const totalDeductions = computed(() => effectiveDeductions.value.reduce((s, d) => s + (d.amount || 0), 0));
 
 // ── Step 2: Refund ──
 const computedRefund = computed(() =>
@@ -409,14 +558,24 @@ const finalRefundAmount = computed(() =>
   overrideRefund.value ? (depositRefundOverride.value || 0) : computedRefund.value
 );
 
-// ── Step 3 ──
+// ── Step 4 ──
 const notes = ref('');
 const isExecuting = ref(false);
+
+// ── 雙方簽名（房東自設定帶入、租客當場簽） ──
+const landlordSignature = ref('');
+const tenantSignature = ref('');
+const showSignPad = ref(false);
+const onTenantSignConfirm = (img: string) => { tenantSignature.value = img; };
 
 // ── Data loading ──
 onMounted(async () => {
   try {
-    await Promise.all([loadSettings(), loadUnpaidBills(), loadDeposits(), loadLastMeterReading()]);
+    loadInspection();
+    await Promise.all([
+      loadSettings(), loadUnpaidBills(), loadDeposits(), loadLastMeterReading(),
+      loadLandlordSignature(props.landlordId).then(img => { landlordSignature.value = img; }),
+    ]);
   } catch (e) {
     console.warn('MoveOutWizard load error:', e);
   } finally {
@@ -491,6 +650,99 @@ const nextStep = () => {
   step.value++;
 };
 
+// ── 退租結清單預覽 / 下載 ──
+const fmtAmt = (v: any) => (v != null && v !== '') ? `NT$ ${Number(v).toLocaleString()}` : '—';
+const buildSettlementData = () => {
+  const deductionsHtml = effectiveDeductions.value
+    .map(d => `<tr><td class="k neg">扣款：${d.label || '其他'}</td><td class="v neg">－ ${fmtAmt(d.amount)}</td></tr>`)
+    .join('');
+  const refund = Number(finalRefundAmount.value) || 0;
+  const now = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return {
+    tenantName: props.tenant.name,
+    phone: props.tenant.phone || '',
+    room: props.tenant.room || '',
+    leaseStart: props.tenant.leaseStart || '',
+    leaseEnd: props.tenant.leaseEnd || '',
+    moveOutDate: moveOutDate.value || '',
+    moveOutReason: moveOutReasonLabel.value || '',
+    depositPaid: fmtAmt(totalDepositPaid.value),
+    electricitySettlement: fmtAmt(effectiveElecAmount.value),
+    waterSettlement: fmtAmt(waterAmount.value),
+    deductionsHtml,
+    depositRefund: fmtAmt(finalRefundAmount.value),
+    refundWords: refund > 0 ? amountToChineseCapital(refund) : '',
+    notes: notes.value || '',
+    today: now.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' }),
+    settlementNo: `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}`,
+    landlordSignature: landlordSignature.value || BLANK_PIXEL,
+    tenantSignature: tenantSignature.value || BLANK_PIXEL,
+  };
+};
+
+const isPreviewingSettlement = ref(false);
+const previewSettlement = async () => {
+  isPreviewingSettlement.value = true;
+  try {
+    await printHtmlPdf(moveoutSummaryTemplate, buildSettlementData(), `退租結清單_${props.tenant.name}`);
+  } catch (e) {
+    console.error('預覽退租結清單失敗:', e);
+    toast.error('預覽結清單失敗，請稍後再試');
+  } finally {
+    isPreviewingSettlement.value = false;
+  }
+};
+
+// ── 退租點交清單 PDF（本地組裝） ──
+const condTag = (c: Condition) => {
+  const cls = c === 'normal' ? 'ok' : c === 'minor' ? 'minor' : 'total';
+  return `<span class="tag ${cls}">${CONDITION_LABELS[c]}</span>`;
+};
+const buildHandoverData = () => {
+  const itemRows = moveOutItems.value.map(it => {
+    const comp = rowComp(it);
+    return `<tr>
+      <td>${it.name}</td>
+      <td class="num">${it.quantity}</td>
+      <td class="ctr">${condTag(it.moveInCondition)}</td>
+      <td class="ctr">${condTag(it.moveOutCondition)}</td>
+      <td class="num">NT$ ${(Number(it.unitPrice) || 0).toLocaleString()}</td>
+      <td class="num comp ${comp > 0 ? '' : 'zero'}">${comp > 0 ? `NT$ ${comp.toLocaleString()}` : '—'}</td>
+    </tr>`;
+  }).join('');
+  const now = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return {
+    tenantName: props.tenant.name,
+    room: props.tenant.room || '',
+    leaseStart: props.tenant.leaseStart || '',
+    leaseEnd: props.tenant.leaseEnd || '',
+    moveOutDate: moveOutDate.value || '',
+    itemRows: itemRows || '<tr><td colspan="6" style="text-align:center;color:#6F6049;padding:14px">無入住點交清單，本次無物品點交</td></tr>',
+    compensationTotal: `NT$ ${damageTotal.value.toLocaleString()}`,
+    totalZeroClass: damageTotal.value > 0 ? '' : 'zero',
+    notes: notes.value || '',
+    today: now.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' }),
+    handoverNo: `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}`,
+    landlordSignature: landlordSignature.value || BLANK_PIXEL,
+    tenantSignature: tenantSignature.value || BLANK_PIXEL,
+  };
+};
+
+const isPreviewingHandover = ref(false);
+const previewHandover = async () => {
+  isPreviewingHandover.value = true;
+  try {
+    await printHtmlPdf(handoverChecklistTemplate, buildHandoverData(), `退租點交清單_${props.tenant.name}`);
+  } catch (e) {
+    console.error('預覽退租點交清單失敗:', e);
+    toast.error('預覽點交清單失敗，請稍後再試');
+  } finally {
+    isPreviewingHandover.value = false;
+  }
+};
+
 // ── Execute ──
 const execute = async () => {
   isExecuting.value = true;
@@ -503,10 +755,27 @@ const execute = async () => {
       finalMeterReading: finalMeterReading.value,
       electricitySettlement: effectiveElecAmount.value,
       waterSettlement: waterAmount.value || 0,
-      deductions: deductions.value.filter(d => (d.amount || 0) > 0),
+      deductions: effectiveDeductions.value,
       depositPaid: totalDepositPaid.value,
       depositRefund: finalRefundAmount.value,
       notes: notes.value,
+      moveOutInspection: {
+        total: damageTotal.value,
+        items: moveOutItems.value.map(it => ({
+          name: it.name,
+          quantity: it.quantity,
+          unitPrice: it.unitPrice,
+          moveInCondition: it.moveInCondition,
+          moveOutCondition: it.moveOutCondition,
+          ratio: it.ratio,
+          compensation: rowComp(it),
+        })),
+      },
+      signatures: {
+        landlord: landlordSignature.value || '',
+        tenant: tenantSignature.value || '',
+        signedAt: today,
+      },
     };
 
     // 1. Terminate contract

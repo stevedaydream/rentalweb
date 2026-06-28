@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>退租點交清單</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #2A2218;
+      --ink-soft: #6F6049;
+      --gold: #A8792E;
+      --gold-soft: #C9A24B;
+      --paper: #FBF6EA;
+      --line: #DCCDA9;
+      --neg: #9B2D20;
+      --ok: #3F7A4F;
+    }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: 'Noto Sans TC', sans-serif; color: var(--ink); background: var(--paper);
+      background-image:
+        radial-gradient(circle at 16% 10%, rgba(255,255,255,.55), transparent 42%),
+        radial-gradient(circle at 86% 92%, rgba(201,162,75,.07), transparent 46%);
+    }
+
+    /* 具名 @page：只對本清單設每頁邊距（具名選擇器特異度高於 injectStyles 注入的 @page{margin:0}，
+       故能覆寫且不影響收據/合約等共用範本）。內容因此每頁都內縮，不會跑到框外。 */
+    @page invsheet { size: A4; margin: 10mm; }
+    body { page: invsheet; }
+
+    /* 跨頁外框：position:fixed 於列印時每頁重繪，inset:0 對齊「頁面邊距內緣」，
+       故每頁都有完整金框與四角，且內容（在邊距內）永遠落在框內。 */
+    .page-frame {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      border: 2px solid var(--gold);
+      box-shadow: inset 0 0 0 5px var(--paper), inset 0 0 0 6px var(--gold-soft);
+      pointer-events: none; z-index: 0;
+    }
+    .page-frame .corner { position: absolute; width: 16px; height: 16px; border: 2px solid var(--gold); }
+    .page-frame .corner.tl { top: -2px; left: -2px; border-right: 0; border-bottom: 0; }
+    .page-frame .corner.tr { top: -2px; right: -2px; border-left: 0; border-bottom: 0; }
+    .page-frame .corner.bl { bottom: -2px; left: -2px; border-right: 0; border-top: 0; }
+    .page-frame .corner.br { bottom: -2px; right: -2px; border-left: 0; border-top: 0; }
+
+    /* 內容流動於頁面邊距內，再以 padding 與固定框留些內距 */
+    .sheet { position: relative; z-index: 1; padding: 6mm 7mm; margin: 0; }
+
+    header { text-align: center; }
+    .issuer { font-size: 10px; letter-spacing: .42em; color: var(--ink-soft); text-transform: uppercase; }
+    h1 { font-family: 'Noto Serif TC', serif; font-weight: 900; font-size: 28px; letter-spacing: .5em; text-indent: .5em; margin: 8px 0 3px; }
+    .title-en { font-family: 'Noto Serif TC', serif; font-size: 10px; letter-spacing: .44em; color: var(--gold); text-transform: uppercase; }
+    .rule { height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent); margin: 9px 0 6px; }
+    .meta { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--ink-soft); letter-spacing: .12em; }
+
+    .sec-label { font-size: 11px; letter-spacing: .26em; color: var(--gold); font-weight: 700; text-transform: uppercase; margin: 6mm 0 2.5mm; padding-left: 8px; border-left: 2px solid var(--gold-soft); }
+
+    table.info { width: 100%; border-collapse: collapse; }
+    table.info th { width: 22%; text-align: left; vertical-align: top; font-weight: 500; font-size: 11px; letter-spacing: .12em; color: var(--ink-soft); padding: 6px 0; border-bottom: 1px solid var(--line); }
+    table.info td { font-size: 13px; font-weight: 500; color: var(--ink); padding: 6px 0 6px 12px; border-bottom: 1px solid var(--line); }
+
+    table.items { width: 100%; border-collapse: collapse; }
+    table.items thead th { font-size: 10.5px; letter-spacing: .1em; color: var(--ink-soft); font-weight: 700; text-transform: uppercase; padding: 7px 6px; border-bottom: 1.5px solid var(--gold); text-align: left; background: var(--paper); }
+    table.items thead th.num { text-align: right; }
+    table.items thead th.ctr { text-align: center; }
+    table.items tbody td { font-size: 12.5px; padding: 7px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    table.items tbody td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'Noto Serif TC', serif; }
+    table.items tbody td.ctr { text-align: center; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1.5px 9px; border-radius: 999px; }
+    .tag.ok { color: var(--ok); border: 1px solid var(--ok); }
+    .tag.minor { color: var(--gold); border: 1px solid var(--gold-soft); }
+    .tag.total { color: var(--neg); border: 1px solid var(--neg); }
+    td.comp { color: var(--neg); font-weight: 700; }
+    td.comp.zero { color: var(--ink-soft); font-weight: 500; }
+
+    .total-row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 5mm; padding-top: 4mm; border-top: 2px solid var(--gold); }
+    .total-row .k { font-size: 14px; font-weight: 700; letter-spacing: .1em; }
+    .total-row .v { font-family: 'Noto Serif TC', serif; font-weight: 900; font-size: 23px; color: var(--neg); font-variant-numeric: tabular-nums; }
+    .total-row .v.zero { color: var(--ok); }
+
+    .note { font-size: 11.5px; line-height: 1.85; color: var(--ink-soft); border-left: 2px solid var(--gold-soft); padding: 1mm 0 1mm 5mm; margin-top: 3mm; min-height: 9mm; }
+    .legend { font-size: 10px; color: var(--ink-soft); letter-spacing: .04em; margin-top: 3mm; }
+
+    .signs { display: flex; justify-content: space-between; gap: 12mm; margin-top: 10mm; }
+    .sign { width: 46%; }
+    .sign .who { font-size: 11px; letter-spacing: .22em; color: var(--ink-soft); margin-bottom: 6px; }
+    .sign .slot { height: 50px; display: flex; align-items: flex-end; }
+    .sign .slot img { max-height: 50px; max-width: 100%; object-fit: contain; }
+    .sign .name { border-top: 1px solid var(--ink); padding-top: 6px; font-size: 13px; }
+
+    .foot { text-align: center; margin-top: 6mm; font-size: 9.5px; letter-spacing: .3em; color: #B9A977; text-transform: uppercase; }
+
+    /* 結算 session：合計＋比例＋簽章整塊保留，底部空間不夠時整塊移到下一頁 */
+    .summary-session { break-inside: avoid; page-break-inside: avoid; margin-top: 5mm; }
+
+    /* 跨頁不切半：列保留、表頭每頁重印；備註可自然流動 */
+    table.items thead { display: table-header-group; }
+    table.items tbody tr { break-inside: avoid; page-break-inside: avoid; }
+    header, .sec-label { break-inside: avoid; break-after: avoid; }
+    .total-row, .signs, .sign, .foot { break-inside: avoid; page-break-inside: avoid; }
+  </style>
+</head>
+<body>
+  <div class="page-frame" aria-hidden="true">
+    <span class="corner tl"></span><span class="corner tr"></span>
+    <span class="corner bl"></span><span class="corner br"></span>
+  </div>
+
+  <div class="sheet">
+    <header>
+      <div class="issuer">Move-out Handover</div>
+      <h1>退租點交清單</h1>
+      <div class="title-en">Property Handover Inspection</div>
+      <div class="rule"></div>
+      <div class="meta"><span>編號 NO. {{handoverNo}}</span><span>製單日 {{today}}</span></div>
+    </header>
+
+    <div class="sec-label">租客資料 Tenant</div>
+    <table class="info">
+      <tr><th>姓名 NAME</th><td>{{tenantName}}</td><th>承租房間 UNIT</th><td>{{room}}</td></tr>
+      <tr><th>租賃期間 TERM</th><td>{{leaseStart}} ～ {{leaseEnd}}</td><th>實際退租 MOVE-OUT</th><td>{{moveOutDate}}</td></tr>
+    </table>
+
+    <div class="sec-label">物品點交明細 Inventory</div>
+    <table class="items">
+      <thead>
+        <tr>
+          <th>品項 ITEM</th>
+          <th class="num">數量 QTY</th>
+          <th class="ctr">入住狀況 IN</th>
+          <th class="ctr">退租狀況 OUT</th>
+          <th class="num">單價 UNIT</th>
+          <th class="num">賠償 COMP.</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{itemRows}}
+      </tbody>
+    </table>
+
+    <div class="sec-label">點交備註 Remarks</div>
+    <div class="note">{{notes}}</div>
+
+    <!-- 結算 session：合計＋比例＋簽章一起；底部不夠則整塊移到下一頁 -->
+    <div class="summary-session">
+      <div class="total-row">
+        <span class="k">物品賠償合計 Total Compensation</span>
+        <span class="v {{totalZeroClass}}">{{compensationTotal}}</span>
+      </div>
+      <div class="legend">比例說明：正常 0%・輕微毀損 30%・完全毀損 100%（賠償＝單價 × 數量 × 比例，房東得個案調整）</div>
+
+      <div class="signs">
+        <div class="sign">
+          <div class="who">出租人簽章 LANDLORD</div>
+          <div class="slot"><img src="{{landlordSignature}}" alt=""></div>
+          <div class="name">（簽章）</div>
+        </div>
+        <div class="sign">
+          <div class="who">承租人簽名 TENANT</div>
+          <div class="slot"><img src="{{tenantSignature}}" alt=""></div>
+          <div class="name">{{tenantName}}</div>
+        </div>
+      </div>
+
+      <div class="foot">System Generated · 退租點交清單正本一份・雙方各執乙份</div>
+    </div>
+  </div>
+</body>
+</html>

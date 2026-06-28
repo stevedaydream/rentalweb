@@ -102,6 +102,66 @@ exports.getContractTemplate = onRequest({ region: "asia-east1" }, async (req, re
   res.json({ html, version: TEMPLATE_VERSIONS[templateType] || 1 });
 });
 
+// 租客上線：公開填表（免登入）。以 admin 權限驗證邀請碼並寫入提交，
+// 避免開放未登入直接寫 Firestore（與本專案「不開放未登入寫入」一致）。
+exports.onboardingInvite = onRequest({ region: "asia-east1" }, async (req, res) => {
+  const origin = req.headers.origin;
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  res.set('Access-Control-Allow-Origin', allowedOrigin);
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  res.set('Vary', 'Origin');
+  if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+  if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
+
+  try {
+    const db = getFirestore();
+    const { code, action, submission } = req.body || {};
+    if (!code || typeof code !== 'string') { res.status(400).json({ error: '缺少邀請碼' }); return; }
+
+    const ref = db.collection('onboarding_invites').doc(code);
+    const snap = await ref.get();
+    if (!snap.exists) { res.status(404).json({ error: '邀請連結無效' }); return; }
+    const inv = snap.data();
+    const expired = inv.expireAt && Date.now() > inv.expireAt;
+
+    if (action === 'info') {
+      res.json({
+        ok: true,
+        status: inv.status,
+        expired: !!expired,
+        landlordName: inv.landlordName || '房東',
+        landlordCode: inv.landlordCode || '',
+        submitted: inv.status === 'submitted' || inv.status === 'confirmed',
+      });
+      return;
+    }
+
+    if (action === 'submit') {
+      if (expired) { res.status(410).json({ error: '邀請連結已過期' }); return; }
+      if (inv.status === 'confirmed') { res.status(409).json({ error: '此邀請已完成建檔' }); return; }
+      const s = submission || {};
+      const name = String(s.name || '').trim().slice(0, 50);
+      const phone = String(s.phone || '').trim().slice(0, 30);
+      if (!name || !phone) { res.status(400).json({ error: '請填寫姓名與電話' }); return; }
+      const clean = {
+        name, phone,
+        idNumber: String(s.idNumber || '').trim().slice(0, 30),
+        email: String(s.email || '').trim().slice(0, 100),
+        emergencyContact: String(s.emergencyContact || '').trim().slice(0, 50),
+      };
+      await ref.update({ submission: clean, status: 'submitted', submittedAt: FieldValue.serverTimestamp() });
+      res.json({ ok: true });
+      return;
+    }
+
+    res.status(400).json({ error: '未知的操作' });
+  } catch (e) {
+    logger.error('onboardingInvite error', e);
+    res.status(500).json({ error: '伺服器錯誤' });
+  }
+});
+
 exports.generatePdf = onRequest({ memory: "1GiB", timeoutSeconds: 60, region: "asia-east1" }, async (req, res) => {
 
   // 1. CORS 設定：限制為允許的來源

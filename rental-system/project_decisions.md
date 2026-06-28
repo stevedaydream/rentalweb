@@ -49,6 +49,21 @@
 
 ---
 
+## ADR-006：租客上線流程（全螢幕模式 + 兩條建檔路徑 + 生命週期燈號）
+
+- **背景**：簽約相關動作（建檔 / 簽約 / 收押金 / 入住點交）原本散落在 `tenants`、`contract`、`receipts` 等獨立分頁，彼此不串接、需各自重選租客，房東沒有「現在開始簽約」的明確入口與進度追蹤。
+- **決策**：
+  - 新增**全螢幕獨立模式** `OnboardingMode`（路由 `/landlord/onboarding/:tenantId?`，換掉後台 chrome：左側步驟導覽 / 頂欄進度 / 底部操作），裝整條上線：①建檔(必) → ②簽約 → ③收押金 → ④入住點交（後三步可略過）。
+  - **建檔兩條路徑**：房東現場建（模式內①），或遠端**邀請連結 + 房東綁定碼**讓租客自填（待確認後核可，可選註冊並走 LINE 綁定）。
+  - **可退出 / 暫存**：完成的步驟本身已落地為真資料（tenants / signed_contracts / receipts / moveInInspection）；進行中存 `tenants/{id}.onboarding = { status, step, skipped[], draft, updatedAt }`，「繼續上線」跳回原步帶回草稿。
+  - **生命週期燈號** `tenantLifecycle()`（`utils/onboarding.ts`）：由現有欄位衍生 `上線中 / 待簽約 / 待點交 / 入住中 / 已退租`，顯示於 TenantList、Dashboard。入口為 Dashboard 顯眼處的「開始簽約」。
+  - **②簽約**採「抽出共用 `ContractForm.vue` 真內嵌」（Contract 頁與精靈共用），非深連結。
+- **理由**：多步驟流程用獨立全螢幕模式比 modal 清楚；URL/狀態對應步驟天生支援分次辦理與續做；建檔與在場動作本質不同（可遠端非同步 vs 雙方在場），拆開才符合實務。
+- **否決方案**：① modal 精靈（多步驟空間不足、無 URL 續做）；② 只加 Dashboard 待辦深連結（仍跳頁、未解決重選租客）；③ 簽約步用深連結到現有 Contract 頁（非真一條龍，狀態不連續）。
+- **落地分期**：Phase 1 資料模型 + 燈號 + Dashboard 入口 + 全螢幕骨架 + ①建檔 + 退出/暫存/繼續（已完成）；Phase 2 抽 `ContractForm` 接②、③、④；Phase 3 邀請連結 + 公開填寫頁 + 可選註冊/LINE 綁定。
+
+---
+
 ## ADR 範本
 
 ### ADR-XXX：標題
