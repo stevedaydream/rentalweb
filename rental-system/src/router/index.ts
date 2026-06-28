@@ -9,6 +9,7 @@ const Identity = () => import('../views/auth/Identity.vue');
 const Login = () => import('../views/auth/Login.vue');
 const Register = () => import('../views/auth/Register.vue');
 const Onboarding = () => import('../views/auth/Onboarding.vue');
+const TenantOnboardForm = () => import('../views/auth/TenantOnboardForm.vue');
 
 const LandlordLayout = () => import('../layouts/LandlordLayout.vue');
 const TenantLayout = () => import('../layouts/TenantLayout.vue');
@@ -53,6 +54,7 @@ const routes = [
   { path: '/login', name: 'Login', component: Login },
   { path: '/register', name: 'Register', component: Register },
   { path: '/onboarding', name: 'Onboarding', component: Onboarding, meta: { requiresAuth: true } },
+  { path: '/onboard/:code', name: 'TenantOnboard', component: TenantOnboardForm }, // 公開填表（免登入）
   { path: '/explore', name: 'RoomExplore', component: RoomExplore },
   { path: '/explore/landlord/:landlordId', name: 'LandlordProfile', component: LandlordProfile },
   { path: '/admin/login', name: 'AdminLogin', component: AdminLogin },

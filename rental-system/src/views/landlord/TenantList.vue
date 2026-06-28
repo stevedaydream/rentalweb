@@ -23,6 +23,38 @@
       </div>
     </div>
 
+    <!-- 待確認：線上填表 -->
+    <div v-if="pendingInvites.length" class="bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 md:p-5">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="material-symbols-outlined text-amber-500">how_to_reg</span>
+        <h2 class="font-bold text-amber-800 dark:text-amber-300">待確認的線上填表（{{ pendingInvites.length }}）</h2>
+      </div>
+      <div class="space-y-2">
+        <div v-for="inv in pendingInvites" :key="inv.id"
+          class="flex flex-col sm:flex-row sm:items-center gap-3 bg-white dark:bg-card-dark rounded-xl px-4 py-3 border border-amber-100 dark:border-amber-900/40">
+          <div class="flex-1 min-w-0">
+            <p class="font-bold text-text-primary-light dark:text-text-primary-dark">
+              {{ inv.submission?.name || '—' }}
+              <span class="font-normal text-text-secondary-light text-sm">· {{ inv.submission?.phone || '' }}</span>
+            </p>
+            <p class="text-xs text-text-secondary-light mt-0.5 truncate">
+              證件 {{ inv.submission?.idNumber || '—' }} ・ {{ inv.submission?.email || '無 Email' }}
+            </p>
+          </div>
+          <div class="flex gap-2 shrink-0">
+            <button @click="dismissInvite(inv)"
+              class="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-sm text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+              忽略
+            </button>
+            <button @click="approveInvite(inv)"
+              class="px-4 py-1.5 rounded-lg bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 transition-colors flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[16px]">check</span>核可建檔
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Stats -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div class="p-4 bg-white dark:bg-card-dark rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
@@ -1089,6 +1121,10 @@ const sendingReminderId = ref<string | null>(null);
 // --- Subscription Handlers ---
 let unsubscribeTenants: any = null;
 let unsubscribeUsers: any = null;
+let unsubscribeInvites: any = null;
+
+// 待確認：租客已透過邀請連結填表（status='submitted'）
+const pendingInvites = ref<any[]>([]);
 
 // --- Date Helpers ---
 const todayStr = () => new Date().toISOString().split('T')[0] as string;
@@ -1263,6 +1299,16 @@ const startListeners = () => {
       onlineUsers.value = users;
     });
   }
+
+  // 待確認的線上填表
+  const qInvites = query(
+    collection(db, 'onboarding_invites'),
+    where('landlordId', '==', uid),
+    where('status', '==', 'submitted'),
+  );
+  unsubscribeInvites = onSnapshot(qInvites, (snapshot) => {
+    pendingInvites.value = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  }, (e) => console.warn('讀取待確認填表失敗:', e));
 };
 
 onMounted(() => {
@@ -1299,6 +1345,7 @@ watch([manualTenantsList, onlineUsers], ([newManual, newOnline]) => {
 onUnmounted(() => {
   if (unsubscribeTenants) unsubscribeTenants();
   if (unsubscribeUsers) unsubscribeUsers();
+  if (unsubscribeInvites) unsubscribeInvites();
 });
 
 // --- Save Tenant (handles both new & edit) ---
@@ -2207,6 +2254,34 @@ const openMoveOutWizard = () => { showMoveOutWizard.value = true; };
 const showMoveInInspection = ref(false);
 const openMoveInInspection = () => { showMoveInInspection.value = true; };
 const continueOnboarding = (t: Tenant) => { router.push({ name: 'OnboardingMode', params: { tenantId: t.id } }); };
+
+// 待確認：核可線上填表 → 建立租客（onboarding step1，待補房源/簽約）；或忽略
+const approveInvite = async (inv: any) => {
+  const s = inv.submission || {};
+  try {
+    const docRef = await addDoc(collection(db, 'tenants'), {
+      name: s.name || '', phone: s.phone || '', idNumber: s.idNumber || '',
+      email: s.email || '', emergencyContact: s.emergencyContact || '',
+      landlordId: authStore.effectiveUid, paymentStatus: 'normal',
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      onboarding: { status: 'in_progress', step: 1, skipped: [], draft: {}, updatedAt: serverTimestamp() },
+    });
+    await updateDoc(doc(db, 'onboarding_invites', inv.id), {
+      status: 'confirmed', tenantDocId: docRef.id, confirmedAt: serverTimestamp(),
+    });
+    toast.success(`已建立租客「${s.name || ''}」，可從「繼續上線」補房源並簽約`);
+  } catch (e) {
+    console.error('核可建檔失敗:', e);
+    toast.error('核可失敗，請稍後再試');
+  }
+};
+const dismissInvite = async (inv: any) => {
+  try {
+    await updateDoc(doc(db, 'onboarding_invites', inv.id), { status: 'dismissed' });
+  } catch (e) {
+    console.error('忽略失敗:', e);
+  }
+};
 // 儲存後就地更新抽屜租客，使同場退租流程立即帶入點交清單
 const onMoveInInspectionSaved = (items: InspectionItem[]) => {
   if (drawerTenant.value) {

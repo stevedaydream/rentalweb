@@ -157,6 +157,14 @@
         { "fieldPath": "month", "order": "ASCENDING" },
         { "fieldPath": "generatedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "onboarding_invites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "landlordId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

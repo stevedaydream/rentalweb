@@ -209,6 +209,14 @@ service cloud.firestore {
       allow update, delete: if isLandlordData() || isAdmin();
     }
 
+    // 租客上線邀請 (onboarding_invites) — 房東建立/檢視；租客公開填表經 Cloud
+    // Function（admin）寫入，未登入者不直接讀寫此集合
+    match /onboarding_invites/{code} {
+      allow read: if isLandlordData() || isAdmin();
+      allow create: if isCreatingAsLandlord() || isAdmin();
+      allow update, delete: if isLandlordData() || isAdmin();
+    }
+
     // 合約範本 (contract_templates) — 每位房東一份，doc ID = landlordId
     match /contract_templates/{uid} {
       allow read, write: if isAdmin() || request.auth.uid == uid;
