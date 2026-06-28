@@ -149,7 +149,18 @@
             <p class="text-xs text-text-secondary-light">＊為必填。儲存後即建立租客檔案，可隨時退出、稍後從「繼續上線」接續。</p>
           </section>
 
-          <!-- ②③④ Phase 2/3 佔位 -->
+          <!-- ② 簽約 -->
+          <section v-else-if="currentStep.key === 'contract'">
+            <ContractForm
+              v-if="tenantId"
+              :prefill="contractPrefill"
+              :landlord-id="authStore.effectiveUid"
+              @saved="onContractSaved"
+            />
+            <div v-else class="text-center py-16 text-text-secondary-light">請先於 ①建檔 建立租客，再進行簽約。</div>
+          </section>
+
+          <!-- ③④ Phase 3 佔位 -->
           <section v-else class="flex flex-col items-center justify-center text-center py-16 gap-4">
             <span class="material-symbols-outlined text-[56px] text-gold-300">{{ currentStep.icon }}</span>
             <div>
@@ -174,7 +185,7 @@
             class="px-5 py-2.5 rounded-xl text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50">
             略過此步
           </button>
-          <button @click="next" :disabled="saving"
+          <button v-if="currentStep.key !== 'contract' || completedKeys.contract" @click="next" :disabled="saving"
             class="px-6 py-2.5 rounded-xl bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 transition-colors disabled:opacity-50 shadow-md flex items-center gap-2">
             <span v-if="saving" class="material-symbols-outlined animate-spin text-[16px]">sync</span>
             {{ step === steps.length ? '完成上線' : '下一步 →' }}
@@ -195,6 +206,7 @@ import {
   collection, query, where, getDocs, getDoc, addDoc, updateDoc, doc, serverTimestamp,
 } from 'firebase/firestore';
 import { ONBOARDING_STEPS, type OnboardingStepKey, type OnboardingState } from '../../utils/onboarding';
+import ContractForm from '../../components/ContractForm.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -254,6 +266,24 @@ const stepHint = computed(() =>
 
 const isSkipped = (k: OnboardingStepKey) => skipped.value.includes(k);
 const stepDone = (k: OnboardingStepKey) => !!completedKeys.value[k];
+
+// ②簽約：帶入①建檔資料；簽署完成 → 設 contractId、標記完成、進下一步
+const contractPrefill = computed(() => ({
+  tenant: form.value.name,
+  tenantId: form.value.idNumber,
+  tenantPhone: form.value.phone,
+  roomNo: form.value.room,
+  rentfee: form.value.rent,
+  startDate: form.value.leaseStart,
+  duration: form.value.duration,
+}));
+const onContractSaved = async (contractId: string) => {
+  if (tenantId.value) {
+    try { await updateDoc(doc(db, 'tenants', tenantId.value), { contractId }); } catch (e) { console.warn('set contractId failed', e); }
+  }
+  completedKeys.value.contract = true;
+  await next();
+};
 
 onMounted(async () => {
   await loadRooms();
