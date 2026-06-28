@@ -71,3 +71,6 @@ node_modules/
 
 # Large binary files
 *.exe
+
+# 測試時瀏覽器另存的 PDF（合約/收據/點交清單等）
+*.pdf
