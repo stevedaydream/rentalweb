@@ -73,13 +73,20 @@
         :stats="stats"
       />
 
-      <FinancialOverviewCard :financial="financial" />
+      <FinancialOverviewCard :financial="financial" @select="billFilter = $event" />
 
       <MeterQuickEntry :rooms="meterRooms" @save="saveMeterReading" />
 
       <RepairTicketCard :tickets="repairTickets" />
 
     </div>
+
+    <BillStatusModal
+      v-if="billFilter"
+      :category="billFilter"
+      :bills="billDetails[billFilter]"
+      @close="billFilter = null"
+    />
   </div>
 </template>
 
@@ -105,6 +112,7 @@ import FinancialOverviewCard from '../../components/dashboard/FinancialOverviewC
 import MeterQuickEntry, { type MeterRoom } from '../../components/dashboard/MeterQuickEntry.vue';
 import RepairTicketCard, { type RepairTicket } from '../../components/dashboard/RepairTicketCard.vue';
 import MonthlyTaskCard from '../../components/dashboard/MonthlyTaskCard.vue';
+import BillStatusModal, { type BillCategory, type BillLite } from '../../components/dashboard/BillStatusModal.vue';
 import InviteTenantModal from '../../components/InviteTenantModal.vue';
 
 const authStore = useAuthStore();
@@ -140,6 +148,13 @@ const financial = reactive({
 
 const meterRooms = ref<MeterRoom[]>([]);
 const repairTickets = ref<RepairTicket[]>([]);
+
+const billFilter = ref<BillCategory | null>(null);
+const billDetails = reactive<Record<BillCategory, BillLite[]>>({
+  unpaid: [],
+  paid: [],
+  overdue: []
+});
 
 const fetchDashboardData = async () => {
   if (!authStore.user) return;
@@ -207,22 +222,37 @@ const fetchDashboardData = async () => {
     financial.paidAmount = 0;
     financial.overdueCount = 0;
     financial.overdueAmount = 0;
+    billDetails.unpaid = [];
+    billDetails.paid = [];
+    billDetails.overdue = [];
     const todayStr = new Date().toISOString().split('T')[0] || '';
     const unpaidTenantIds = new Set<string>();
     billsSnap.forEach(d => {
       const data = d.data();
       const amount = Number(data.amount) || 0;
+      const billLite: BillLite = {
+        id: d.id,
+        tenantId: data.tenantId || '',
+        tenantName: data.tenantName || '未知租客',
+        roomName: data.roomName || '',
+        amount,
+        month: data.month || '',
+        dueDate: data.dueDate || ''
+      };
       if (data.status === 'completed' || data.status === 'paid') {
         financial.paidCount++;
         financial.paidAmount += amount;
+        billDetails.paid.push(billLite);
       } else if (data.dueDate && data.dueDate < todayStr) {
         financial.overdueCount++;
         financial.overdueAmount += amount;
         if (data.tenantId) unpaidTenantIds.add(data.tenantId);
+        billDetails.overdue.push(billLite);
       } else {
         financial.unpaidCount++;
         financial.unpaidAmount += amount;
         if (data.tenantId) unpaidTenantIds.add(data.tenantId);
+        billDetails.unpaid.push(billLite);
       }
     });
     financial.unpaidTenantCount = unpaidTenantIds.size;

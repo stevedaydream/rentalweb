@@ -57,7 +57,12 @@
 
     <!-- Stats -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="p-4 bg-white dark:bg-card-dark rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+      <button
+        type="button"
+        @click="statModal = 'total'"
+        aria-label="查看在租租客名單"
+        class="p-4 bg-white dark:bg-card-dark rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between text-left cursor-pointer hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+      >
         <div>
           <p class="text-sm text-text-secondary-light">在租人數</p>
           <p class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark mt-1">{{ stats.total }} 人</p>
@@ -65,8 +70,13 @@
         <div class="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600">
           <span class="material-symbols-outlined">group</span>
         </div>
-      </div>
-      <div class="p-4 bg-white dark:bg-card-dark rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+      </button>
+      <button
+        type="button"
+        @click="statModal = 'expiring'"
+        aria-label="查看即將到期租客名單"
+        class="p-4 bg-white dark:bg-card-dark rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between text-left cursor-pointer hover:bg-orange-50/50 dark:hover:bg-orange-900/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+      >
         <div>
           <p class="text-sm text-text-secondary-light">即將到期 (60天內)</p>
           <p class="text-2xl font-bold text-orange-600 mt-1">{{ stats.expiring }} 人</p>
@@ -74,8 +84,13 @@
         <div class="w-10 h-10 rounded-full bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center text-orange-600">
           <span class="material-symbols-outlined">alarm</span>
         </div>
-      </div>
-      <div class="p-4 bg-white dark:bg-card-dark rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between">
+      </button>
+      <button
+        type="button"
+        @click="statModal = 'overdue'"
+        aria-label="查看逾期欠費租客名單"
+        class="p-4 bg-white dark:bg-card-dark rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between text-left cursor-pointer hover:bg-red-50/50 dark:hover:bg-red-900/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+      >
         <div>
           <p class="text-sm text-text-secondary-light">逾期欠費</p>
           <p class="text-2xl font-bold text-red-600 mt-1">{{ stats.overdue }} 人</p>
@@ -83,8 +98,16 @@
         <div class="w-10 h-10 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-600">
           <span class="material-symbols-outlined">gpp_bad</span>
         </div>
-      </div>
+      </button>
     </div>
+
+    <TenantStatModal
+      v-if="statModal"
+      :category="statModal"
+      :tenants="statTenants[statModal]"
+      @close="statModal = null"
+      @select="onStatSelect"
+    />
 
     <!-- Filter bar -->
     <div class="bg-white dark:bg-card-dark rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col md:flex-row gap-4 items-center justify-between">
@@ -169,9 +192,16 @@
                   <div v-if="tenant.leaseStart && tenant.leaseEnd" class="text-xs space-y-1">
                     <p><span class="text-text-secondary-light w-6 inline-block">起:</span> {{ tenant.leaseStart }}</p>
                     <p><span class="text-text-secondary-light w-6 inline-block">迄:</span> {{ tenant.leaseEnd }}</p>
+                    <p v-if="tenant.pendingRenewal" class="text-green-600 dark:text-green-400">
+                      <span class="w-6 inline-block">續:</span>{{ tenant.pendingRenewal.startDate }} ~ {{ tenant.pendingRenewal.endDate }}
+                    </p>
                   </div>
                   <div v-else class="text-xs text-gray-400 italic">租約未設定</div>
-                  <span v-if="isExpiringSoon(tenant.leaseEnd)" class="mt-1 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700">即將到期</span>
+                  <span
+                    v-if="isExpiringSoon(tenant.leaseEnd)"
+                    class="mt-1 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium"
+                    :class="tenant.pendingRenewal ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'"
+                  >即將到期：剩餘{{ remainingDays(tenant.leaseEnd) }}日{{ tenant.pendingRenewal ? '（已續約）' : '' }}</span>
                 </template>
               </td>
               <td class="px-6 py-4">
@@ -562,8 +592,13 @@
                       <span class="font-medium">每月 {{ authStore.userProfile?.settings?.paymentDay ?? 5 }} 號</span>
                     </div>
                   </div>
-                  <span v-if="isExpiringSoon(drawerTenant?.leaseEnd || '')" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-orange-100 text-orange-700 text-xs font-medium">
-                    <span class="material-symbols-outlined text-[14px]">alarm</span>租約即將到期（60天內）
+                  <span
+                    v-if="isExpiringSoon(drawerTenant?.leaseEnd || '')"
+                    class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium"
+                    :class="drawerTenant?.pendingRenewal ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'"
+                  >
+                    <span class="material-symbols-outlined text-[14px]">alarm</span>
+                    租約即將到期：剩餘 {{ remainingDays(drawerTenant?.leaseEnd || '') }} 天{{ drawerTenant?.pendingRenewal ? '（已續約）' : '' }}
                   </span>
 
                   <!-- 續約回覆狀態 -->
@@ -1029,6 +1064,7 @@ import MoveInInspectionModal from '../../components/MoveInInspectionModal.vue';
 import type { InspectionItem } from '../../utils/inventory';
 import { tenantLifecycle, LIFECYCLE_BADGE, type OnboardingState } from '../../utils/onboarding';
 import TenantImportModal from '../../components/TenantImportModal.vue';
+import TenantStatModal, { type TenantStatCategory } from '../../components/tenants/TenantStatModal.vue';
 import { printHtmlPdf } from '../../utils/contractRender';
 import { amountToChineseCapital } from '../../utils/chineseAmount';
 import moveoutSummaryTemplate from '../../templates/moveoutSummary.html?raw';
@@ -1522,20 +1558,28 @@ const tenantsWithStatus = computed(() => {
   });
 });
 
-const stats = computed(() => {
-  const today = new Date();
-  const sixtyDaysLater = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000);
+const statTenants = computed<Record<TenantStatCategory, Tenant[]>>(() => {
   const activeTenants = tenantsWithStatus.value.filter(t => !t.isHistorical && t.paymentStatus !== 'pending');
   return {
-    total: activeTenants.length,
-    expiring: activeTenants.filter(t => {
-      if (!t.leaseEnd) return false;
-      const endDate = new Date(t.leaseEnd);
-      return endDate >= today && endDate <= sixtyDaysLater;
-    }).length,
-    overdue: activeTenants.filter(t => t.paymentStatus === 'overdue').length
+    total: activeTenants,
+    expiring: activeTenants.filter(t => isExpiringSoon(t.leaseEnd)),
+    overdue: activeTenants.filter(t => t.paymentStatus === 'overdue')
   };
 });
+
+const stats = computed(() => ({
+  total: statTenants.value.total.length,
+  expiring: statTenants.value.expiring.length,
+  overdue: statTenants.value.overdue.length
+}));
+
+const statModal = ref<TenantStatCategory | null>(null);
+
+const onStatSelect = (id: string) => {
+  const tenant = tenantsWithStatus.value.find(t => t.id === id);
+  statModal.value = null;
+  if (tenant) openDrawer(tenant);
+};
 
 const filteredTenants = computed(() => {
   return tenantsWithStatus.value.filter(t => {
@@ -1566,10 +1610,15 @@ const pagedTenants = computed(() => {
 
 const isExpiringSoon = (dateStr: string) => {
   if (!dateStr) return false;
+  const diffDays = remainingDays(dateStr);
+  return diffDays > 0 && diffDays <= 60;
+};
+
+const remainingDays = (dateStr: string) => {
+  if (!dateStr) return 0;
   const today = new Date();
   const targetDate = new Date(dateStr);
-  const diffDays = Math.ceil((targetDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  return diffDays > 0 && diffDays <= 60;
+  return Math.ceil((targetDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 };
 
 // --- New Tenant Modal ---
