@@ -7,12 +7,17 @@
     >
       <div class="h-full flex flex-col">
 
-        <!-- Logo -->
+        <!-- Logo（點擊回儀表板） -->
         <div class="h-20 flex items-center px-6 border-b border-ink-700 shrink-0">
-          <div class="flex flex-col gap-1">
-            <img :src="logoSrc" alt="Logo" class="h-10 w-auto brightness-0 invert" />
+          <router-link
+            :to="{ name: 'LandlordDashboard' }"
+            @click="isSidebarOpen = false"
+            aria-label="回到儀表板"
+            class="flex flex-col gap-1 group rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400"
+          >
+            <img :src="logoSrc" alt="Logo" class="h-10 w-auto brightness-0 invert transition-opacity group-hover:opacity-80" />
             <span class="text-[10px] w-fit px-2 py-0.5 bg-gold-500/20 text-gold-300 rounded-full font-bold ml-1">房東管理版</span>
-          </div>
+          </router-link>
         </div>
 
         <nav class="flex-1 overflow-y-auto p-4 space-y-1">
