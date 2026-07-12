@@ -48,6 +48,11 @@
               class="w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-surface-light dark:hover:bg-surface-dark transition-colors text-ink-600 dark:text-ink-200">
               <span class="material-symbols-outlined text-[18px] text-yellow-500">electric_bolt</span>台電帳單
             </button>
+            <div class="border-t border-ink-100 dark:border-ink-700"></div>
+            <button @click="showPrintBillsModal = true; showMoreMenu = false"
+              class="w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-surface-light dark:hover:bg-surface-dark transition-colors text-ink-600 dark:text-ink-200">
+              <span class="material-symbols-outlined text-[18px] text-blue-500">print</span>列印帳單
+            </button>
           </div>
         </div>
         <button @click="openModal()"
@@ -220,6 +225,9 @@
         </button>
       </div>
 
+      <!-- 電費盈虧分析（當月＋前月，錨定台電帳單） -->
+      <ElectricityStatsCard :stats="electricityStats" @open-taipower="openTaipowerModal" />
+
       <!-- Transaction Table -->
       <div class="bg-white dark:bg-card-dark rounded-2xl border border-ink-100 dark:border-ink-800 shadow-sm overflow-visible">
 
@@ -350,6 +358,7 @@
 
     <BillTransactionModal v-model:show="showModal" v-model="form" :is-editing="isEditing" :tenants="tenantsList" @save="saveTransaction" />
     <TaipowerModal v-model:show="showTaipowerModal" v-model="taipowerForm" @save="saveTaipowerBill" />
+    <PrintBillsModal v-model:show="showPrintBillsModal" :month="currentMonth" />
     <BillHistoryModal v-model:show="showHistoryModal" :history="selectedHistory" />
 
     <!-- 一鍵生成帳單確認 Modal -->
@@ -522,10 +531,13 @@ import {
 import MonthPicker from '../../components/financials/MonthPicker.vue'
 import BillTransactionModal from '../../components/financials/BillTransactionModal.vue'
 import TaipowerModal from '../../components/financials/TaipowerModal.vue'
+import PrintBillsModal from '../../components/financials/PrintBillsModal.vue'
 import BillHistoryModal from '../../components/financials/BillHistoryModal.vue'
+import ElectricityStatsCard from '../../components/financials/ElectricityStatsCard.vue'
 import {
   statusLabels, statusStyles, statusIcons,
   type TransactionHistory, type TransactionForm, type TaipowerForm, type TaipowerBill,
+  type ElectricityStats,
 } from '../../components/financials/types'
 import { getPublicMeters } from '../../services/publicMeterService'
 
@@ -564,6 +576,7 @@ const currentMonth = ref(new Date().toISOString().slice(0, 7))
 const currentTab = ref('all')
 const showModal = ref(false)
 const showTaipowerModal = ref(false)
+const showPrintBillsModal = ref(false)
 const showHistoryModal = ref(false)
 const showGenerateConfirm = ref(false)
 const showMoreMenu = ref(false)
@@ -762,6 +775,34 @@ const categoryStats = computed(() => {
 })
 
 const pendingCount = computed(() => monthlyTransactions.value.filter(t => !isCollected(t) && t.type === 'income').length)
+
+// 電費盈虧分析：期間 = 當月＋前一月，錨定該月登錄的台電帳單；收入含電費與公共電費
+const electricityStats = computed<ElectricityStats>(() => {
+  const currentStr = currentMonth.value
+  const [y, m] = currentStr.split('-').map(Number) as [number, number]
+  const prevDate = new Date(y, m - 2, 1)
+  const prevStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`
+
+  const elecTrans = transactions.value.filter(t =>
+    t.type === 'income' &&
+    (t.category === '電費' || t.category === '公共電費') &&
+    (t.date?.startsWith(currentStr) || t.date?.startsWith(prevStr))
+  )
+  const estimated = elecTrans.reduce((s, t) => s + t.amount, 0)
+  const collected = elecTrans.filter(isCollected).reduce((s, t) => s + t.amount, 0)
+  const bill = taipowerBills.value.find(b => b.month === currentStr)
+
+  return {
+    periodStr: `${prevStr} ~ ${currentStr}`,
+    estimated,
+    collected,
+    collectionRate: estimated > 0 ? Math.round((collected / estimated) * 100) : 0,
+    taipowerBill: bill,
+    profit: bill ? collected - bill.amount : 0,
+    billCount: elecTrans.length,
+    statusLabel: bill ? '已結算' : '等待帳單',
+  }
+})
 
 const tabs = computed(() => [
   { label: '全部', value: 'all', count: 0 },

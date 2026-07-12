@@ -87,7 +87,9 @@
 ### 帳單
 - ✅ 生成帳單時每房多一張獨立 `category: '公共電費'` bill（新類別含 filter/顏色），描述寫「總額 ÷ 房數」明細
 - ✅ 防重複鍵 = 公共表抄表 id + roomId；每份四捨五入、尾差房東吸收；公共表當月缺抄表 → 跳過並在帳務頁顯示警告 Banner
-- ✅ 帳務統計「公共電費」獨立類別卡片＋篩選 tab（註：ElectricityStatsCard 為未掛載的 dead code，實際統計走 categoryStats）
+- ✅ 帳務統計「公共電費」獨立類別卡片＋篩選 tab
+- ✅ **盈虧卡接回（2026-07-13）**：ElectricityStatsCard 重新掛載於 Financials（Ver1.4 重構時意外斷線）；每月顯示、期間 = 當月＋前月、收入含電費＋公共電費、錨定台電帳單（無帳單顯示「等待帳單」，不再依偶數月判斷）
+- ✅ **繳費通知單列印（2026-07-13）**：未綁 LINE 租客的紙本過渡方案。Financials「更多」→ PrintBillsModal（月份＋房間勾選）→ 每房一頁 A4（本期項目／前期未繳／尚需繳納總額／電費計算標準含 calcLog／bankInfo 繳費資訊）；複用 printHtmlPdf 本地列印＋generatePdf fallback，新範本 type `BillStatement`
 
 ### UI 與輸入
 - ✅ 抄表頁依子群組分區塊，公共表帶「公共」badge 排該樓末尾，樓層標題列含用量/電費小計與公共分攤預覽

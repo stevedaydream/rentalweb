@@ -40,13 +40,19 @@
 
       <div
         class="bg-white dark:bg-ink-800 p-4 rounded-xl shadow-sm border-l-4"
-        :class="stats.profit >= 0 ? 'border-gold-500' : 'border-red-500'"
+        :class="!stats.taipowerBill ? 'border-ink-200' : stats.profit >= 0 ? 'border-gold-500' : 'border-red-500'"
       >
         <p class="text-xs text-ink-400 font-bold uppercase mb-1">本期電費盈虧</p>
-        <p class="text-2xl font-bold" :class="stats.profit >= 0 ? 'text-gold-600' : 'text-red-500'">
-          {{ stats.profit >= 0 ? '+' : '' }}NT$ {{ stats.profit.toLocaleString() }}
-        </p>
-        <p class="text-xs text-ink-300 mt-1">實收 - 台電支出</p>
+        <template v-if="stats.taipowerBill">
+          <p class="text-2xl font-bold" :class="stats.profit >= 0 ? 'text-gold-600' : 'text-red-500'">
+            {{ stats.profit >= 0 ? '+' : '' }}NT$ {{ stats.profit.toLocaleString() }}
+          </p>
+          <p class="text-xs text-ink-300 mt-1">實收 - 台電支出</p>
+        </template>
+        <template v-else>
+          <p class="text-sm text-ink-300 italic mt-2">等待帳單</p>
+          <p class="text-xs text-ink-300 mt-1">登錄本期台電帳單後結算</p>
+        </template>
       </div>
     </div>
   </div>

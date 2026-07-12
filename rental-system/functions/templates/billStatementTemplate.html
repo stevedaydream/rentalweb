@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>繳費通知單</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #2A2218;
+      --ink-soft: #6F6049;
+      --gold: #A8792E;
+      --gold-soft: #C9A24B;
+      --paper: #FBF6EA;
+      --line: #DCCDA9;
+      --neg: #9B2D20;
+      --ok: #3D6B35;
+    }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: 'Noto Sans TC', sans-serif; color: var(--ink); background: var(--paper);
+    }
+    .sheet { width: 210mm; min-height: 297mm; padding: 12mm 14mm; margin: 0 auto; page-break-after: always; }
+    .sheet:last-child { page-break-after: auto; }
+    .frame {
+      position: relative;
+      border: 2px solid var(--gold); outline: 1px solid var(--gold-soft); outline-offset: 5px;
+      padding: 10mm 12mm 8mm;
+      background: linear-gradient(180deg, #FFFDF7 0%, var(--paper) 100%);
+    }
+    header { text-align: center; }
+    .issuer { font-size: 10px; letter-spacing: .42em; color: var(--ink-soft); text-transform: uppercase; }
+    h1 { font-family: 'Noto Serif TC', serif; font-weight: 900; font-size: 26px; letter-spacing: .5em; text-indent: .5em; margin: 6px 0 3px; }
+    .title-en { font-family: 'Noto Serif TC', serif; font-size: 10px; letter-spacing: .44em; color: var(--gold); text-transform: uppercase; }
+    .rule { height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent); margin: 8px 0 5px; }
+    .meta { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-soft); letter-spacing: .1em; }
+    .meta b { color: var(--ink); font-size: 12.5px; }
+
+    .sec-label { font-size: 11px; letter-spacing: .26em; color: var(--gold); font-weight: 700; text-transform: uppercase; margin: 6mm 0 2.5mm; padding-left: 8px; border-left: 2px solid var(--gold-soft); }
+
+    table.items { width: 100%; border-collapse: collapse; }
+    table.items th { font-size: 10.5px; letter-spacing: .14em; color: var(--ink-soft); font-weight: 500; text-align: left; padding: 5px 4px; border-bottom: 1.5px solid var(--gold-soft); }
+    table.items td { font-size: 12.5px; padding: 7px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    table.items td.amt, table.items th.amt { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    table.items td.amt { font-weight: 700; font-family: 'Noto Serif TC', serif; }
+    table.items td.st, table.items th.st { text-align: center; white-space: nowrap; width: 14mm; }
+    table.items td.st .paid { color: var(--ok); font-weight: 700; }
+    table.items td.st .unpaid { color: var(--neg); font-weight: 700; }
+    table.items td.desc { color: var(--ink-soft); font-size: 11.5px; line-height: 1.55; }
+    table.items tr.overdue td { color: var(--neg); }
+    table.items tr.overdue td.desc { color: var(--neg); opacity: .85; }
+
+    table.fee { width: 100%; border-collapse: collapse; margin-top: 2mm; }
+    table.fee td { font-size: 13px; padding: 6px 2px; }
+    table.fee td.k { color: var(--ink-soft); letter-spacing: .06em; }
+    table.fee td.v { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; font-family: 'Noto Serif TC', serif; }
+    table.fee td.neg { color: var(--neg); }
+    table.fee tr.total td { border-top: 2px solid var(--gold); padding-top: 9px; }
+    table.fee tr.total td.k { font-size: 14px; font-weight: 700; color: var(--ink); letter-spacing: .1em; }
+    table.fee tr.total td.v { font-weight: 900; font-size: 22px; color: var(--gold); }
+    table.fee tr.total td.v.neg { color: var(--neg); }
+
+    .calc { border: 1px solid var(--line); background: #FFFDF7; padding: 4mm 5mm; font-size: 11px; }
+    .calc .calc-meta { display: flex; gap: 8mm; flex-wrap: wrap; margin-bottom: 2.5mm; }
+    .calc .calc-meta span { color: var(--ink-soft); }
+    .calc .calc-meta b { color: var(--ink); font-size: 12.5px; }
+    .calc .calc-log { font-family: 'Noto Sans TC', monospace, sans-serif; color: var(--ink-soft); line-height: 1.7; font-size: 10px; border-top: 1px dashed var(--line); padding-top: 2mm; }
+
+    .pay { display: flex; gap: 8mm; align-items: flex-start; }
+    .pay table.info { border-collapse: collapse; flex: 1; }
+    .pay table.info th { width: 30%; text-align: left; font-weight: 500; font-size: 11px; letter-spacing: .1em; color: var(--ink-soft); padding: 6px 0; border-bottom: 1px solid var(--line); }
+    .pay table.info td { font-size: 13.5px; font-weight: 700; padding: 6px 0 6px 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+    .pay .hint { flex: 1; font-size: 11px; line-height: 1.9; color: var(--ink-soft); border-left: 2px solid var(--gold-soft); padding-left: 5mm; }
+
+    .foot { display: flex; justify-content: space-between; margin-top: 6mm; font-size: 10.5px; letter-spacing: .12em; color: var(--ink-soft); border-top: 1px solid var(--line); padding-top: 3mm; }
+  </style>
+</head>
+<body>
+{{pagesHtml}}
+<!--PAGE_START
+<div class="sheet">
+  <div class="frame">
+    <header>
+      <div class="issuer">Billing Statement</div>
+      <h1>繳費通知單</h1>
+      <div class="title-en">Monthly Rent &amp; Utilities Notice</div>
+      <div class="rule"></div>
+      <div class="meta">
+        <span>期別 <b>{{monthLabel}}</b></span>
+        <span>房號 <b>{{roomName}}</b>　租客 <b>{{tenantName}}</b></span>
+        <span>繳費期限 <b>{{dueDate}}</b></span>
+      </div>
+    </header>
+
+    <div class="sec-label">本期應繳項目 Current Charges</div>
+    <table class="items">
+      <thead>
+        <tr><th style="width:22mm">項目</th><th>說明</th><th class="amt" style="width:26mm">金額</th><th class="st">狀態</th></tr>
+      </thead>
+      <tbody>
+        {{itemRowsHtml}}
+      </tbody>
+    </table>
+
+    {{overdueBlockHtml}}
+
+    <table class="fee">
+      <tbody>
+        <tr><td class="k">本期應繳合計 Current Total</td><td class="v">NT$ {{monthTotal}}</td></tr>
+        <tr><td class="k">本期已繳 Paid</td><td class="v">－ NT$ {{paidTotal}}</td></tr>
+        {{prevTotalRowHtml}}
+        <tr class="total"><td class="k">尚需繳納總額 Balance Due</td><td class="v{{dueTotalClass}}">NT$ {{dueTotal}}</td></tr>
+      </tbody>
+    </table>
+
+    {{elecBlockHtml}}
+
+    <div class="sec-label">繳費資訊 Payment</div>
+    <div class="pay">
+      {{paymentInfoHtml}}
+      <div class="hint">
+        繳費後請保留匯款收據或轉帳紀錄，並告知房東以利對帳。<br>
+        金額如有疑問，請於繳費期限前與房東聯繫確認。
+      </div>
+    </div>
+
+    <div class="foot">
+      <span>房東 {{landlordName}}　{{landlordPhone}}</span>
+      <span>列印日 {{today}}</span>
+    </div>
+  </div>
+</div>
+PAGE_END-->
+</body>
+</html>

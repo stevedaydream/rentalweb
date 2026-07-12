@@ -56,7 +56,7 @@ function injectStyles(html) {
 
 // --- 主程式 ---
 // 範本版本：骨架改版時遞增。舊合約已凍存當時骨架（signed_contracts.templateHtml），不受影響。
-const TEMPLATE_VERSIONS = { Contract: 1, Guarantee: 1, Deposit: 1, MoveOutSummary: 1 };
+const TEMPLATE_VERSIONS = { Contract: 1, Guarantee: 1, Deposit: 1, MoveOutSummary: 1, BillStatement: 1 };
 
 const templateFileFor = (templateType) => {
   switch (templateType) {
@@ -64,6 +64,7 @@ const templateFileFor = (templateType) => {
     case 'Deposit': return 'depositTemplate.html';
     case 'Contract': return 'contractTemplate.html';
     case 'MoveOutSummary': return 'moveoutSummaryTemplate.html';
+    case 'BillStatement': return 'billStatementTemplate.html';
     default: return null;
   }
 };
