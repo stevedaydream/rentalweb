@@ -21,6 +21,37 @@ export interface MeterEntry {
   isLocked: boolean;
   roomLastMeterDate: string;
   electricitySettings?: Settings; // 個別電費方案，未設定時 fallback 全域
+  meterType?: 'public';           // 公共電表列（roomId = public_meters 文件 id）
+  subGroupId?: string;            // 所屬子群組（4樓、5樓等）
+  landlordPays?: boolean;         // 公共表：電費由房東負擔
+}
+
+// --- 電表群組 ---
+export interface SubGroup {
+  id: string;
+  name: string; // 4樓、5樓等
+}
+
+// meter_groups collection：最上層 = 台電計費電表
+export interface MeterGroupDoc {
+  id: string;
+  landlordId: string;
+  name: string; // 台電表名稱（如「基隆復興路總表」）
+  subGroups: SubGroup[];
+  createdAt?: any;
+}
+
+// public_meters collection：公共電表，綁定子群組
+export interface PublicMeterDoc {
+  id: string;
+  landlordId: string;
+  groupId: string;      // 所屬 meter_groups 文件 id
+  subGroupId: string;   // 所屬子群組
+  name: string;         // 如「4樓走廊」
+  landlordPays: boolean; // 勾選 = 房東負擔，不分攤給租客
+  lastMeterReading: number; // 建立時填起始度數，抄表後更新
+  lastMeterDate: string;
+  createdAt?: any;
 }
 
 export interface TierConfig {

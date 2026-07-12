@@ -104,6 +104,21 @@
       </div>
 
       <!-- Generated Bills Summary -->
+      <!-- 生成警告（公共電表缺抄表等） -->
+      <div v-if="generatedWarnings.length > 0"
+        class="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-2xl px-5 py-3.5">
+        <div class="flex items-start gap-2">
+          <span class="material-symbols-outlined text-[20px] text-amber-500 shrink-0" aria-hidden="true">warning</span>
+          <div class="text-sm text-amber-800 dark:text-amber-300 space-y-0.5">
+            <p v-for="(w, idx) in generatedWarnings" :key="idx">{{ w }}</p>
+          </div>
+          <button @click="generatedWarnings = []" aria-label="關閉警告"
+            class="ml-auto text-amber-500 hover:text-amber-700 p-1 rounded-full hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors">
+            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">close</span>
+          </button>
+        </div>
+      </div>
+
       <Transition
         enter-active-class="transition-all duration-300 ease-out"
         enter-from-class="opacity-0 -translate-y-2"
@@ -512,6 +527,7 @@ import {
   statusLabels, statusStyles, statusIcons,
   type TransactionHistory, type TransactionForm, type TaipowerForm, type TaipowerBill,
 } from '../../components/financials/types'
+import { getPublicMeters } from '../../services/publicMeterService'
 
 interface Transaction {
   id: string
@@ -576,6 +592,7 @@ interface GenerateLog {
 
 const generatedSummary = ref<GeneratedBillItem[]>([])
 const showGeneratedSummary = ref(false)
+const generatedWarnings = ref<string[]>([])
 const generateLogs = ref<GenerateLog[]>([])
 const showLogsModal = ref(false)
 let unsubscribeLogs: Unsubscribe | null = null
@@ -675,6 +692,7 @@ watch(() => authStore.user, (u) => {
 watch(currentMonth, (month) => {
   if (authStore.user) initLogsListener(authStore.effectiveUid, month)
   showGeneratedSummary.value = false
+  generatedWarnings.value = []
 })
 onUnmounted(() => { unsubscribeBills?.(); unsubscribeTaipower?.(); unsubscribeLogs?.() })
 
@@ -706,6 +724,7 @@ const categoryStats = computed(() => {
   const rent = sum('租金收入')
   const deposit = sum('入住款項')
   const elec = sum('電費')
+  const publicElec = sum('公共電費')
   const taipower = sum('台電帳單')
 
   return [
@@ -728,6 +747,12 @@ const categoryStats = computed(() => {
       badgeClass: 'bg-yellow-100 text-yellow-700', activeBg: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200',
     },
     {
+      key: '公共電費', label: '公共電費（分攤）', icon: 'electrical_services',
+      count: publicElec.length, amount: publicElec.reduce((s, t) => s + t.amount, 0),
+      iconColor: 'text-indigo-500', amountColor: 'text-indigo-700 dark:text-indigo-300',
+      badgeClass: 'bg-indigo-100 text-indigo-700', activeBg: 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200',
+    },
+    {
       key: '台電帳單', label: '台電帳單（支出）', icon: 'electric_bolt',
       count: taipower.length, amount: taipower.reduce((s, t) => s + t.amount, 0),
       iconColor: 'text-red-400', amountColor: 'text-red-600 dark:text-red-400',
@@ -743,6 +768,7 @@ const tabs = computed(() => [
   { label: '租金收入', value: '租金收入', count: 0 },
   { label: '入住款項', value: '入住款項', count: 0 },
   { label: '電費', value: '電費', count: 0 },
+  { label: '公共電費', value: '公共電費', count: 0 },
   { label: '支出', value: 'expense', count: 0 },
   { label: '待收', value: 'pending', count: pendingCount.value },
 ])
@@ -762,6 +788,7 @@ const categoryBadge = (cat: string) => {
     '租金收入': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
     '入住款項': 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
     '電費': 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+    '公共電費': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
     '台電帳單': 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300',
   }
   return map[cat] || 'bg-surface-light dark:bg-surface-dark text-ink-500 dark:text-ink-300'
@@ -849,12 +876,14 @@ const generateMonthlyBills = async () => {
     const uid = authStore.effectiveUid
     const payDay = String(authStore.userProfile?.settings?.paymentDay ?? 5).padStart(2, '0')
     const dueDate = `${currentMonth.value}-${payDay}`
-    const [tenantsSnap, readingsSnap] = await Promise.all([
+    const [tenantsSnap, readingsSnap, roomsSnap, pubMeters] = await Promise.all([
       getDocs(query(collection(db, 'tenants'), where('landlordId', '==', uid))),
       getDocs(query(collection(db, 'meter_readings'),
         where('landlordId', '==', uid),
         where('periodEnd', '>=', `${currentMonth.value}-01`),
         where('periodEnd', '<=', `${currentMonth.value}-31`))),
+      getDocs(query(collection(db, 'rooms'), where('landlordId', '==', uid))),
+      getPublicMeters(uid),
     ])
     // 只對還在租的房客生成帳單（leaseEnd 為空或 >= 本月）
     const allTenants = tenantsSnap.docs.map(d => ({ id: d.id, ...d.data() as any }))
@@ -888,6 +917,7 @@ const generateMonthlyBills = async () => {
     })
 
     readings.forEach((reading: any) => {
+      if (reading.meterType === 'public') return // 公共表抄表走下方分攤邏輯
       const exists = transactions.value.some(t => t.relatedUsageId === reading.id)
       const matched: any = tenants.find((t: any) => t.room === reading.roomName)
       if (!exists && reading.cost > 0 && matched) {
@@ -906,6 +936,45 @@ const generateMonthlyBills = async () => {
         }))
       }
     })
+
+    // 公共電費分攤：每顆公共表費用 ÷ 子群組全部房間數（含空房，空房份額房東吸收）
+    const roomDocs = roomsSnap.docs.map(d => ({ id: d.id, ...d.data() as any }))
+    const warnings: string[] = []
+    pubMeters.forEach(pm => {
+      if (pm.landlordPays) return // 房東負擔，不出帳
+      const reading: any = readings.find((r: any) => r.meterType === 'public' && r.roomId === pm.id)
+      if (!reading) {
+        warnings.push(`公共電表「${pm.name}」本月無抄表紀錄，未生成分攤帳單`)
+        return
+      }
+      if (!(reading.cost > 0)) return
+      const sgRooms = roomDocs.filter(r => (r.subGroupId || '') === pm.subGroupId)
+      if (sgRooms.length === 0) {
+        warnings.push(`公共電表「${pm.name}」的子群組內沒有綁定房間，未生成分攤帳單`)
+        return
+      }
+      const share = Math.round(reading.cost / sgRooms.length)
+      if (share <= 0) return
+      sgRooms.forEach(room => {
+        const matched: any = tenants.find((t: any) => t.room === room.name)
+        if (!matched) return // 空房份額房東吸收
+        const dedupKey = `${reading.id}_${room.id}`
+        if (transactions.value.some(t => t.relatedUsageId === dedupKey)) return
+        const desc = `${currentMonth.value} 公共電費分攤（${pm.name} $${reading.cost} ÷ ${sgRooms.length} 房）`
+        count++
+        newItems.push({ target: `${matched.name} ${room.name}`, category: '公共電費', description: desc, amount: share })
+        batch.push(addDoc(collection(db, 'bills'), {
+          tenantId: matched.uid || null, relatedTenantDocId: matched.id,
+          relatedUsageId: dedupKey, landlordId: uid,
+          date: reading.periodEnd, type: 'income', category: '公共電費',
+          target: `${matched.name} ${room.name}`,
+          description: desc,
+          amount: share,
+          status: 'pending', dueDate, history: [], createdAt: serverTimestamp(),
+        }))
+      })
+    })
+    generatedWarnings.value = warnings
 
     await Promise.all(batch)
     if (count > 0) {

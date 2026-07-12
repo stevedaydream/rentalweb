@@ -376,7 +376,20 @@
               </select>
             </div>
           </div>
-          
+
+          <!-- 所屬電表群組（樓層） -->
+          <div v-if="subGroupOptions.length > 0">
+            <label class="block text-sm font-medium text-text-secondary-light mb-1">所屬電表群組</label>
+            <select
+              v-model="form.subGroupId"
+              class="form-input disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed dark:disabled:bg-gray-800"
+              :disabled="isViewMode"
+            >
+              <option value="">未分組</option>
+              <option v-for="sg in subGroupOptions" :key="sg.id" :value="sg.id">{{ sg.name }}</option>
+            </select>
+          </div>
+
           <!-- 公開找房頁 toggle（僅空置時可用） -->
           <div
             v-if="!isViewMode"
@@ -636,6 +649,7 @@ import { db, storage } from '../../firebase/config';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
 import { useRoute } from 'vue-router';
+import { getMeterGroups } from '../../services/meterGroupService';
 import { 
   collection, 
   onSnapshot, 
@@ -669,6 +683,7 @@ interface Room {
   landlordPhone?: string;
   isPublic?: boolean;
   purchaseCost?: number;
+  subGroupId?: string;
 }
 
 // --- State ---
@@ -824,7 +839,19 @@ const confirmDeleteRoom = ref(false);
 
 const form = ref<Partial<Room>>({
   name: '', price: 0, size: 0, address: '', layout: '獨立套房', status: 'vacant',
-  tenantName: '', leaseEnd: '', images: [], coverImage: '', isPublic: false, purchaseCost: undefined
+  tenantName: '', leaseEnd: '', images: [], coverImage: '', isPublic: false, purchaseCost: undefined,
+  subGroupId: ''
+});
+
+// 電表子群組選項（僅供顯示所屬群組下拉；CRUD 在抄表頁「計算參數設定」）
+const subGroupOptions = ref<{ id: string; name: string }[]>([]);
+onMounted(async () => {
+  try {
+    const groups = await getMeterGroups(authStore.effectiveUid);
+    subGroupOptions.value = groups[0]?.subGroups ?? [];
+  } catch (e) {
+    console.error('load meter groups error:', e);
+  }
 });
 
 // 非空置時自動取消公開
@@ -942,10 +969,12 @@ const openModal = (room?: Room, mode: 'create' | 'edit' | 'view' = 'create') => 
   if (room) {
     form.value = JSON.parse(JSON.stringify(room));
     if (!form.value.images) form.value.images = [];
+    if (form.value.subGroupId === undefined) form.value.subGroupId = '';
   } else {
     form.value = {
       name: '', price: 0, size: 0, address: '', layout: '獨立套房', status: 'vacant',
-      type: '公寓', tenantName: '', leaseEnd: '', images: [], coverImage: '', isPublic: false, purchaseCost: undefined
+      type: '公寓', tenantName: '', leaseEnd: '', images: [], coverImage: '', isPublic: false, purchaseCost: undefined,
+      subGroupId: ''
     };
   }
   isEditing.value = !!room;

@@ -67,12 +67,14 @@ rental-system/
 | Collection | 主要欄位 |
 |------------|---------|
 | `users` | uid, role('landlord'\|'tenant'\|'admin'), landlordId? |
-| `rooms` | id, name, status('occupied'\|'vacant'\|'maintenance'), landlordId, floor, rent, deposit, tenantId, tenantName, isPublic? |
+| `rooms` | id, name, status('occupied'\|'vacant'\|'maintenance'), landlordId, floor, rent, deposit, tenantId, tenantName, isPublic?, subGroupId?(電表子群組) |
 | `tenants` | id, uid, name, email, phone, landlordId, roomId, roomName, boundLandlordCode, status('active'\|'inactive'), moveInDate, paymentFrequency('monthly'\|'quarterly'\|'semiannual'\|'yearly') |
 | `bills` | id, tenantId, tenantName, landlordId, roomId, roomName, amount, status('pending'\|'waiting_confirmation'\|'completed'\|'overdue'), month, dueDate, paidAt, electricityFee, waterFee, managementFee, paymentProofUrl?, ecpayOrderId?, paymentMethod?, paymentGateway? |
 | `payment_proofs` | id, billId, tenantId, landlordId, imageUrl, uploadedAt, ocrRaw?(預留), matchResult?(預留), status('pending'\|'approved'\|'rejected') |
 | `repair_requests` | id, tenantId, tenantName, landlordId, roomId, type, description, status('pending'\|'processing'\|'resolved'), priority('low'\|'medium'\|'high'), imageUrl |
-| `meter_readings` | id, landlordId, roomId, roomName, reading, previousReading, usage, readingDate |
+| `meter_readings` | id, landlordId, roomId, roomName, reading, previousReading, usage, readingDate, meterType?('public'=公共表, roomId=public_meters id), subGroupId? |
+| `meter_groups` | id, landlordId, name(台電總表), subGroups[{id, name(4樓/5樓)}] |
+| `public_meters` | id, landlordId, groupId, subGroupId, name, landlordPays, lastMeterReading, lastMeterDate |
 | `announcements` | id, landlordId, title, content, pinned |
 | `messages` | landlordId, tenantId, content, source('line'\|'web'), ... |
 | `contracts` | id, landlordId, tenantId, ... |
@@ -104,6 +106,7 @@ rental-system/
 - 租客清單（新增/管理租客，綁定房間，解除房間綁定，刪除租客）
 - 財務管理（帳單建立、收款記錄、台電帳單、統計圖表）
 - 抄表記錄（手動輸入 + Excel 批次匯入）+ 抄表歷史
+- 電表群組計費（2026-07-12）：台電總表 → 樓層子群組 → 房間/公共電表三層結構；級距額度以群組內電表總數均分；公共電表電費 ÷ 子群組房數分攤（空房份額房東吸收、每表可設「房東負擔」）；生成帳單時自動產生獨立「公共電費」bill（防重複鍵 = 抄表id_roomId，缺抄表顯示警告）；抄表頁依樓層分區塊＋樓層小計；度數欄 Tab/Enter 直接跳下一欄、聚焦全選；未設群組自動 fallback 舊行為
 - 報修管理（查看/處理租客報修申請）
 - 公告發布
 - 合約管理（自訂範本、PDF 匯出、電子簽名、排程續約：續約後目前租期維持到期滿、新租期存 pendingRenewal 到期自動接續+通知租客+導向重簽；房東「標記不續約」註記）

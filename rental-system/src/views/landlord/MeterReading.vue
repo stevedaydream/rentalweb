@@ -34,6 +34,7 @@
         <MeterReadingImport />
 
         <button
+          ref="saveBtnRef"
           @click="saveAllReadings"
           :disabled="saving || !hasValidChanges"
           class="px-4 py-2 bg-gold-500 text-white rounded-lg shadow-sm hover:bg-gold-600 transition-colors text-sm font-medium flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
@@ -103,13 +104,13 @@
           <p class="text-base font-bold">{{ seasonLabel }}</p>
         </div>
         <p class="text-xs font-bold mt-2"
-          :class="occupiedRooms.length > 0 && filledCount === occupiedRooms.length ? 'text-green-600' : 'text-orange-500'">
-          已填寫 {{ filledCount }} / {{ occupiedRooms.length }} 間
+          :class="billableEntries.length > 0 && filledCount === billableEntries.length ? 'text-green-600' : 'text-orange-500'">
+          已填寫 {{ filledCount }} / {{ billableEntries.length }} 表
         </p>
       </div>
       <div v-else class="p-4 bg-white dark:bg-card-dark border border-gray-100 dark:border-gray-800 rounded-xl shadow-sm">
         <p class="text-xs text-gray-500 uppercase font-bold">已填寫</p>
-        <p class="text-base font-bold text-green-600 mt-1">{{ filledCount }} / {{ occupiedRooms.length }} 間</p>
+        <p class="text-base font-bold text-green-600 mt-1">{{ filledCount }} / {{ billableEntries.length }} 表</p>
       </div>
       <div class="p-4 bg-white dark:bg-card-dark border border-gray-100 dark:border-gray-800 rounded-xl shadow-sm">
         <p class="text-xs text-gray-500 uppercase font-bold">{{ isBackfillMode ? '本期電費合計' : '本月電費合計' }}</p>
@@ -145,21 +146,44 @@
           </thead>
           <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
 
-            <!-- 有租客的房間 -->
-            <template v-if="occupiedRooms.length > 0">
-              <tr v-for="room in occupiedRooms" :key="room.roomId"
+            <!-- 依子群組分區塊（含公共電表） -->
+            <template v-for="section in sections" :key="section.id">
+              <tr v-if="section.name">
+                <td colspan="7" class="px-6 py-2 bg-blue-50/60 dark:bg-blue-900/10">
+                  <div class="flex items-center justify-between gap-4 flex-wrap">
+                    <span class="text-xs font-bold text-blue-700 dark:text-blue-300 uppercase flex items-center gap-1">
+                      <span class="material-symbols-outlined text-[14px]" aria-hidden="true">layers</span>{{ section.name }}
+                    </span>
+                    <span class="text-[11px] text-blue-600/80 dark:text-blue-300/80 flex items-center gap-3">
+                      <span>用量 {{ section.totalUsage }} 度</span>
+                      <span>電費 NT$ {{ section.totalCost.toLocaleString() }}</span>
+                      <span v-if="section.publicShare > 0" class="font-bold">公共分攤預覽 NT$ {{ section.publicShare.toLocaleString() }}/房</span>
+                    </span>
+                  </div>
+                </td>
+              </tr>
+              <tr v-for="room in section.entries" :key="room.roomId"
                 class="transition-colors"
-                :class="room.isLocked ? 'bg-green-50/50 dark:bg-green-900/5' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'">
+                :class="room.isLocked ? 'bg-green-50/50 dark:bg-green-900/5'
+                  : room.meterType === 'public' ? 'bg-purple-50/40 dark:bg-purple-900/5 hover:bg-purple-50/70 dark:hover:bg-purple-900/10'
+                  : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'">
 
                 <td class="px-6 py-4">
                   <div class="flex items-center gap-1.5">
                     <p class="font-bold text-base">{{ room.name }}</p>
+                    <span v-if="room.meterType === 'public'"
+                      class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 whitespace-nowrap"
+                    >公共</span>
+                    <span v-if="room.meterType === 'public' && room.landlordPays"
+                      class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 whitespace-nowrap"
+                      title="此表電費由房東負擔，不分攤給租客"
+                    >房東負擔</span>
                     <span v-if="room.electricitySettings"
                       class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-gold-100 text-gold-700 dark:bg-gold-900/30 dark:text-gold-300 whitespace-nowrap"
                       :title="`個別電費方案：${room.electricitySettings.mode}`"
                     >個別方案</span>
                   </div>
-                  <p class="text-xs text-text-secondary-light">{{ room.tenantName }}</p>
+                  <p class="text-xs text-text-secondary-light">{{ room.meterType === 'public' ? '公共電表' : room.tenantName }}</p>
                 </td>
 
                 <td class="px-6 py-4">
@@ -194,6 +218,9 @@
                       v-model.number="room.currentReading"
                       :disabled="room.isLocked"
                       :aria-label="`${room.name} 本期度數`"
+                      data-reading-input
+                      @keydown="onReadingKeydown"
+                      @focus="onReadingFocus"
                       class="flex-1 px-3 py-2 text-center font-bold border rounded-lg outline-none transition-colors"
                       :class="room.isLocked
                         ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 cursor-default'
@@ -235,6 +262,7 @@
                       <span class="material-symbols-outlined text-[18px]" aria-hidden="true">calculate</span>
                     </button>
                     <button
+                      v-if="room.meterType !== 'public'"
                       @click="openRoomSettings(room)"
                       class="p-1.5 rounded-lg transition-colors"
                       :class="room.electricitySettings
@@ -266,6 +294,10 @@
                 <td class="px-6 py-3 text-right font-mono text-xs text-gray-400">{{ room.lastReading }}</td>
                 <td class="px-6 py-3">
                   <input type="number" v-model.number="room.currentReading"
+                    :aria-label="`${room.name} 本期度數`"
+                    data-reading-input
+                    @keydown="onReadingKeydown"
+                    @focus="onReadingFocus"
                     class="w-full px-2 py-1.5 text-center text-sm border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-1 focus:ring-primary outline-none bg-white dark:bg-gray-800"
                     placeholder="可選填">
                 </td>
@@ -318,6 +350,7 @@
       v-model:show="showSettingsModal"
       v-model="settings"
       :landlord-id="authStore.effectiveUid"
+      @groups-updated="reloadData"
     />
 
     <!-- 逐房間電費方案 Modal -->
@@ -364,7 +397,9 @@ import {
 
 import MeterSettingsModal from '../../components/meter/MeterSettingsModal.vue';
 import MeterReadingImport from '../../components/meter/MeterReadingImport.vue';
-import { defaultSettings, type Settings, type MeterGroup, type MeterEntry } from '../../components/meter/types';
+import { defaultSettings, type Settings, type MeterGroup, type MeterEntry, type MeterGroupDoc, type PublicMeterDoc } from '../../components/meter/types';
+import { getMeterGroups } from '../../services/meterGroupService';
+import { getPublicMeters, updatePublicMeter } from '../../services/publicMeterService';
 
 const toast = useToastStore();
 const authStore = useAuthStore();
@@ -373,6 +408,9 @@ const saving = ref(false);
 const settings = ref<Settings>(JSON.parse(JSON.stringify(defaultSettings)));
 const meterGroups = ref<MeterGroup[]>([]);
 const meterData = ref<MeterEntry[]>([]);
+const meterGroup = ref<MeterGroupDoc | null>(null);
+const publicMeterDocs = ref<PublicMeterDoc[]>([]);
+const saveBtnRef = ref<HTMLButtonElement | null>(null);
 
 const showSettingsModal = ref(false);
 const showDetailModal = ref(false);
@@ -453,7 +491,7 @@ const loadData = async () => {
   const defaultStartDate = isBackfillMode.value ? `${targetMonth}-01` : today;
   const defaultEndDate = isBackfillMode.value ? getMonthEndDate(targetMonth) : today;
 
-  const [roomsSnap, readingsSnap, prevReadingsSnap] = await Promise.all([
+  const [roomsSnap, readingsSnap, prevReadingsSnap, groups, pubMeters] = await Promise.all([
     getDocs(query(
       collection(db, 'rooms'),
       where('landlordId', '==', uid),
@@ -471,7 +509,12 @@ const loadData = async () => {
       where('periodEnd', '>=', `${prevMonth}-01`),
       where('periodEnd', '<=', `${prevMonth}-31`)
     )),
+    getMeterGroups(uid),
+    getPublicMeters(uid),
   ]);
+
+  meterGroup.value = groups[0] ?? null;
+  publicMeterDocs.value = pubMeters;
 
   // 本月最新抄表紀錄 (by roomId)
   const thisMonthMap = new Map<string, any>();
@@ -493,7 +536,7 @@ const loadData = async () => {
     }
   });
 
-  meterData.value = roomsSnap.docs.map(d => {
+  const roomEntries: MeterEntry[] = roomsSnap.docs.map(d => {
     const data = d.data();
     const existing = thisMonthMap.get(d.id);
     const prev = prevMonthMap.get(d.id);
@@ -510,18 +553,53 @@ const loadData = async () => {
       isLocked: !!existing,
       roomLastMeterDate: data.lastMeterDate || '',
       electricitySettings: data.electricitySettings || undefined,
+      subGroupId: data.subGroupId || '',
     };
   });
 
+  // 公共電表列：讀數歷史與房間共用 meter_readings（roomId = 公共表文件 id）
+  const publicEntries: MeterEntry[] = pubMeters.map(pm => {
+    const existing = thisMonthMap.get(pm.id);
+    const prev = prevMonthMap.get(pm.id);
+    return {
+      roomId: pm.id,
+      name: pm.name,
+      tenantName: '',
+      status: 'public',
+      lastReading: existing ? existing.lastReading : (prev ? prev.currentReading : (pm.lastMeterReading || 0)),
+      lastReadingDate: existing ? existing.periodStart : (prev ? prev.periodEnd : (pm.lastMeterDate || defaultStartDate)),
+      currentReading: existing ? existing.currentReading : undefined,
+      currentReadingDate: existing ? existing.periodEnd : defaultEndDate,
+      existingReadingId: existing ? existing.id : null,
+      isLocked: !!existing,
+      roomLastMeterDate: pm.lastMeterDate || '',
+      meterType: 'public',
+      subGroupId: pm.subGroupId,
+      landlordPays: pm.landlordPays,
+    };
+  });
+
+  meterData.value = [...roomEntries, ...publicEntries];
+
+  // 級距分母 = 群組內電表總數（房間 + 公共表，含空房）
   meterGroups.value = [{
-    id: 'default_group',
-    name: '本棟總表',
+    id: meterGroup.value?.id || 'default_group',
+    name: meterGroup.value?.name || '本棟總表',
     officialMetersCount: 1,
     roomCount: meterData.value.length,
     masterLastReading: 0,
     masterCurrentReading: undefined,
     masterBillAmount: undefined,
   }];
+};
+
+const reloadData = async () => {
+  loading.value = true;
+  try {
+    await loadData();
+  } finally {
+    loading.value = false;
+  }
 };
 
 watch(selectedMonth, async () => {
@@ -597,7 +675,7 @@ const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup
   let scaleFactor = days / 30;
   if (activeSettings.tieredConfig.strategy === 'split') {
     scaleFactor *= (group.officialMetersCount / group.roomCount);
-    log += `級距策略: 資本拆分 (總表${group.officialMetersCount} / 房數${group.roomCount})\n`;
+    log += `級距策略: 資本拆分 (總表${group.officialMetersCount} / 電表數${group.roomCount})\n`;
   } else {
     scaleFactor *= group.officialMetersCount;
     log += `級距策略: 標準台電 (總表${group.officialMetersCount})\n`;
@@ -665,9 +743,54 @@ const seasonLabel = computed(() => {
   const map: Record<string, string> = { auto: '自動判斷', average: '平均費率', summer: '強制夏月', 'non-summer': '強制非夏月' };
   return map[settings.value.tieredConfig.season];
 });
-const occupiedRooms = computed(() => meterData.value.filter(r => r.tenantName || r.status === 'occupied'));
-const vacantRooms = computed(() => meterData.value.filter(r => !r.tenantName && r.status !== 'occupied'));
-const filledCount = computed(() => occupiedRooms.value.filter(r => r.currentReading !== undefined).length);
+const occupiedRooms = computed(() => meterData.value.filter(r => r.meterType !== 'public' && (r.tenantName || r.status === 'occupied')));
+const vacantRooms = computed(() => meterData.value.filter(r => r.meterType !== 'public' && !r.tenantName && r.status !== 'occupied'));
+const publicEntries = computed(() => meterData.value.filter(r => r.meterType === 'public'));
+const billableEntries = computed(() => [...occupiedRooms.value, ...publicEntries.value]);
+const filledCount = computed(() => billableEntries.value.filter(r => r.currentReading !== undefined).length);
+
+// 依子群組分區塊：房間在前、公共表在後；未分組房間歸入最後一個 section
+interface DisplaySection {
+  id: string;
+  name: string;
+  entries: MeterEntry[];
+  totalUsage: number;
+  totalCost: number;
+  publicShare: number; // 公共電費 ÷ 群組房數（不含房東負擔的表）
+}
+const sections = computed<DisplaySection[]>(() => {
+  const sgs = meterGroup.value?.subGroups ?? [];
+  const result: DisplaySection[] = [];
+  const usedIds = new Set<string>();
+
+  const buildSection = (id: string, name: string, rooms: MeterEntry[], pubs: MeterEntry[], allRoomCount: number): DisplaySection => {
+    const entries = [...rooms, ...pubs];
+    entries.forEach(e => usedIds.add(e.roomId));
+    const totalUsage = entries.reduce((sum, r) => sum + (r.currentReading ? calculateUsage(r) : 0), 0);
+    const totalCost = entries.reduce((sum, r) => sum + (r.currentReading ? calculateResult(r).cost : 0), 0);
+    const publicCost = pubs.filter(p => !p.landlordPays)
+      .reduce((sum, p) => sum + (p.currentReading ? calculateResult(p).cost : 0), 0);
+    const publicShare = allRoomCount > 0 ? Math.round(publicCost / allRoomCount) : 0;
+    return { id, name, entries, totalUsage: Math.round(totalUsage), totalCost, publicShare };
+  };
+
+  for (const sg of sgs) {
+    const rooms = occupiedRooms.value.filter(r => r.subGroupId === sg.id);
+    const pubs = publicEntries.value.filter(r => r.subGroupId === sg.id);
+    // 分攤基數 = 群組內全部房間數（含空房），空房份額房東吸收
+    const allRoomCount = meterData.value.filter(r => r.meterType !== 'public' && r.subGroupId === sg.id).length;
+    if (rooms.length || pubs.length) result.push(buildSection(sg.id, sg.name, rooms, pubs, allRoomCount));
+  }
+
+  const sgIds = new Set(sgs.map(sg => sg.id));
+  const restRooms = occupiedRooms.value.filter(r => !usedIds.has(r.roomId));
+  const restPubs = publicEntries.value.filter(r => !usedIds.has(r.roomId));
+  if (restRooms.length || restPubs.length) {
+    const ungroupedRoomCount = meterData.value.filter(r => r.meterType !== 'public' && !sgIds.has(r.subGroupId || '')).length;
+    result.push(buildSection('ungrouped', result.length > 0 ? '未分組' : '', restRooms, restPubs, ungroupedRoomCount));
+  }
+  return result;
+});
 const pendingSaveRooms = computed(() => meterData.value.filter(r => !r.isLocked && r.currentReading !== undefined && r.currentReading >= r.lastReading));
 const pendingSaveCount = computed(() => pendingSaveRooms.value.length);
 
@@ -683,6 +806,26 @@ const applyUnifiedDate = () => {
 };
 const unlockRoom = (room: MeterEntry) => {
   room.isLocked = false;
+};
+
+// --- 鍵盤動線：度數欄 Tab/Enter 跳下一個度數欄、Shift 跳回、最後一欄跳儲存按鈕 ---
+const onReadingFocus = (e: FocusEvent) => (e.target as HTMLInputElement).select();
+const onReadingKeydown = (e: KeyboardEvent) => {
+  if (e.key !== 'Tab' && e.key !== 'Enter') return;
+  const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('input[data-reading-input]'))
+    .filter(el => !el.disabled);
+  const idx = inputs.indexOf(e.target as HTMLInputElement);
+  if (idx === -1) return;
+  e.preventDefault();
+  const next = e.shiftKey ? idx - 1 : idx + 1;
+  if (next < 0) return;
+  if (next >= inputs.length) {
+    saveBtnRef.value?.focus();
+    return;
+  }
+  const el = inputs[next]!;
+  el.focus();
+  el.select();
 };
 const calculateUsage = (room: MeterEntry) => Math.max(0, (room.currentReading || 0) - room.lastReading);
 const calculateResult = (room: MeterEntry) => calculateElectricity(room);
@@ -723,6 +866,7 @@ const saveAllReadings = async () => {
         periodEnd: entry.currentReadingDate,
         calcLog: log,
         mode: settings.value.mode,
+        ...(entry.meterType === 'public' ? { meterType: 'public', subGroupId: entry.subGroupId || '' } : {}),
         createdAt: serverTimestamp(),
       };
 
@@ -734,10 +878,17 @@ const saveAllReadings = async () => {
         promises.push(addDoc(collection(db, 'meter_readings'), readingData));
       }
       if (!entry.roomLastMeterDate || entry.currentReadingDate >= entry.roomLastMeterDate) {
-        promises.push(updateDoc(doc(db, 'rooms', entry.roomId), {
-          lastMeterReading: entry.currentReading,
-          lastMeterDate: entry.currentReadingDate,
-        }));
+        if (entry.meterType === 'public') {
+          promises.push(updatePublicMeter(entry.roomId, {
+            lastMeterReading: Number(entry.currentReading) || 0,
+            lastMeterDate: entry.currentReadingDate,
+          }));
+        } else {
+          promises.push(updateDoc(doc(db, 'rooms', entry.roomId), {
+            lastMeterReading: entry.currentReading,
+            lastMeterDate: entry.currentReadingDate,
+          }));
+        }
       }
     }
 

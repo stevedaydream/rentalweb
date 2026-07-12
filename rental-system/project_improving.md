@@ -71,6 +71,39 @@
 
 ---
 
+## 電費群組計費 + 抄表輸入優化（2026-07-12 設計定案，同日實作完成）
+
+> 背景：台電計費電表只有 1 顆，底下 9 顆子電表（7 房 + 2 公共表），現行程式級距拆分分母只算房間數且無公共電表概念；抄表輸入 Tab 動線被日期欄與按鈕打斷。
+
+### 計算模型
+- ✅ **級距均分制**：級距額度以「台電總表群組內電表總數」均分（案例 = 9），每表獨立累進；天數比例（×天數/30）與夏月/非夏月邏輯照舊；空房電表計入分母
+- ✅ **群組階層**：台電計費電表（最上層）→ 子群組（4樓、5樓）→ 房間/公共電表。級距分母看最上層，公共分攤看子群組
+- ✅ **公共電表計費**：同房間拿 1/9 額度獨立累進 → 金額除以所屬子群組「全部」房間數分攤；空房份額房東吸收；每顆表獨立「房東負擔」開關（勾選＝只記錄不出帳）
+
+### 資料模型
+- ✅ 新增 `meter_groups`、`public_meters` collections；`rooms` 加 `subGroupId`；補 firestore.rules（indexes 不需新增，查詢皆單欄位條件）
+- ✅ 公共表抄表寫入現有 `meter_readings`（roomId = 公共表 id，`meterType: 'public'`），沿用歷史頁管線
+
+### 帳單
+- ✅ 生成帳單時每房多一張獨立 `category: '公共電費'` bill（新類別含 filter/顏色），描述寫「總額 ÷ 房數」明細
+- ✅ 防重複鍵 = 公共表抄表 id + roomId；每份四捨五入、尾差房東吸收；公共表當月缺抄表 → 跳過並在帳務頁顯示警告 Banner
+- ✅ 帳務統計「公共電費」獨立類別卡片＋篩選 tab（註：ElectricityStatsCard 為未掛載的 dead code，實際統計走 categoryStats）
+
+### UI 與輸入
+- ✅ 抄表頁依子群組分區塊，公共表帶「公共」badge 排該樓末尾，樓層標題列含用量/電費小計與公共分攤預覽
+- ✅ 鍵盤動線：度數欄 `Tab`/`Enter` 跳下一個度數欄、`Shift+Tab` 跳回；順序 = 畫面順序（4樓→4樓公共→5樓→…→空房）；跳過已鎖定列；聚焦全選內容；最後一欄跳「儲存紀錄」按鈕
+- ✅ MeterSettingsModal 加「電表群組」區塊：子群組 CRUD、房間綁定下拉、公共表管理（名稱＋房東負擔開關＋起始度數/日期）
+- ✅ RoomManagement 房間編輯表單加「所屬電表群組」下拉（寫 `rooms.subGroupId`）
+- ✅ 租客帳單頁免改：查詢無類別過濾，公共電費帳單自動顯示
+
+### 相容性（純增量，可回退）
+- ✅ 未設群組的房東自動 fallback 現行單群組行為（零設定、行為不變）
+- ✅ 歷史 `meter_readings` 不重算；公共表歷史不匯入（需要時用補登模式逐月補）
+
+**牽動檔案**：`meter/types.ts`、`MeterReading.vue`、`MeterSettingsModal.vue`、`RoomManagement.vue`、`Financials.vue`、`ElectricityStatsCard.vue`、tenant `Bills.vue`、新 service（meterGroupService / publicMeterService）、`firestore.rules`、`firestore.indexes.json`
+
+---
+
 ## 設計原則（本次審查結論）
 
 1. **主色統一**：所有主要 CTA 按鈕使用 gold 色系，次要操作使用 outline 或 ghost 樣式

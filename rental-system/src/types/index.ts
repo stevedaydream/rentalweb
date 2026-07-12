@@ -38,6 +38,7 @@ export interface Room {
   tenantId?: string;
   tenantName?: string;
   note?: string;
+  subGroupId?: string;
   createdAt?: any;
 }
 
