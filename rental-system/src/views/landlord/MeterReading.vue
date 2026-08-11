@@ -47,7 +47,7 @@
     </div>
 
     <!-- 帳單分攤：步驟引導 + 主建物總表輸入 -->
-    <div v-if="settings.mode === 'bill_share'" class="space-y-3">
+    <div v-if="activeSettings.mode === 'bill_share'" class="space-y-3">
       <div class="flex items-center gap-3 text-sm text-gray-500">
         <span class="w-6 h-6 rounded-full bg-blue-500 text-white text-xs flex items-center justify-center font-bold shrink-0">1</span>
         <span>輸入本棟總表本期讀數與台電總帳單金額</span>
@@ -59,7 +59,7 @@
         <span class="w-6 h-6 rounded-full bg-gray-200 text-gray-400 text-xs flex items-center justify-center font-bold shrink-0">3</span>
         <span class="text-gray-400">儲存紀錄</span>
       </div>
-      <div v-for="group in meterGroups" :key="group.id" class="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800 rounded-xl p-5 shadow-sm">
+      <div v-for="group in (activeGroup ? [activeGroup] : [])" :key="group.id" class="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800 rounded-xl p-5 shadow-sm">
         <div class="flex flex-col md:flex-row justify-between items-center gap-4">
           <div>
             <h3 class="font-bold text-lg text-blue-900 dark:text-blue-100">{{ group.name || '主建物總表' }}</h3>
@@ -85,22 +85,43 @@
       </div>
     </div>
 
+    <!-- 台電總表頁籤（多顆總表時才顯示） -->
+    <div v-if="!loading && meterGroups.length > 1" class="flex gap-1 flex-wrap border-b border-gray-200 dark:border-gray-700">
+      <button v-for="g in meterGroups" :key="g.id" @click="activeGroupId = g.id"
+        class="px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 -mb-px transition-colors flex items-center gap-2"
+        :class="activeGroupId === g.id
+          ? 'border-primary text-primary bg-blue-50/60 dark:bg-blue-900/10'
+          : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'">
+        {{ g.name }}
+        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+          :class="groupPending(g.id).filled >= groupPending(g.id).total
+            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+            : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300'">
+          {{ groupPending(g.id).filled }}/{{ groupPending(g.id).total }}
+        </span>
+      </button>
+    </div>
+
     <!-- 統計資訊列 (固定費率 / 獨立累進) -->
-    <div v-if="settings.mode !== 'bill_share'" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div v-if="activeSettings.mode !== 'bill_share'" class="grid grid-cols-2 md:grid-cols-4 gap-4">
       <div class="p-4 bg-white dark:bg-card-dark border border-gray-100 dark:border-gray-800 rounded-xl shadow-sm">
         <p class="text-xs text-gray-500 uppercase font-bold">計費模式</p>
         <p class="text-base font-bold text-primary mt-1">
-          <template v-if="settings.mode === 'fixed'">固定 {{ settings.fixedRate }} 元/度</template>
-          <template v-else>{{ settings.tieredConfig.strategy === 'split' ? '拆分制' : '標準台電' }}</template>
+          <template v-if="activeSettings.mode === 'fixed'">固定 {{ activeSettings.fixedRate }} 元/度</template>
+          <template v-else>{{ activeSettings.tieredConfig.strategy === 'split' ? '拆分制' : '標準台電' }}</template>
+        </p>
+        <p class="text-[11px] text-gray-400 mt-1">
+          電表數 {{ activeGroup?.roomCount ?? 0 }}
+          <span v-if="groupSettingsMap.has(activeGroupId)" class="text-gold-600 font-bold ml-1">· 專屬方案</span>
         </p>
       </div>
-      <div v-if="settings.mode === 'tiered'" class="p-4 bg-white dark:bg-card-dark border border-gray-100 dark:border-gray-800 rounded-xl shadow-sm">
+      <div v-if="activeSettings.mode === 'tiered'" class="p-4 bg-white dark:bg-card-dark border border-gray-100 dark:border-gray-800 rounded-xl shadow-sm">
         <p class="text-xs text-gray-500 uppercase font-bold">季節判定</p>
         <div class="flex items-center gap-1.5 mt-1">
-          <span class="material-symbols-outlined text-[18px] text-orange-500" v-if="settings.tieredConfig.season === 'summer'" aria-hidden="true">sunny</span>
-          <span class="material-symbols-outlined text-[18px] text-blue-500" v-if="settings.tieredConfig.season === 'non-summer'" aria-hidden="true">ac_unit</span>
-          <span class="material-symbols-outlined text-[18px] text-purple-500" v-if="settings.tieredConfig.season === 'average'" aria-hidden="true">balance</span>
-          <span class="material-symbols-outlined text-[18px] text-green-500" v-if="settings.tieredConfig.season === 'auto'" aria-hidden="true">event_repeat</span>
+          <span class="material-symbols-outlined text-[18px] text-orange-500" v-if="activeSettings.tieredConfig.season === 'summer'" aria-hidden="true">sunny</span>
+          <span class="material-symbols-outlined text-[18px] text-blue-500" v-if="activeSettings.tieredConfig.season === 'non-summer'" aria-hidden="true">ac_unit</span>
+          <span class="material-symbols-outlined text-[18px] text-purple-500" v-if="activeSettings.tieredConfig.season === 'average'" aria-hidden="true">balance</span>
+          <span class="material-symbols-outlined text-[18px] text-green-500" v-if="activeSettings.tieredConfig.season === 'auto'" aria-hidden="true">event_repeat</span>
           <p class="text-base font-bold">{{ seasonLabel }}</p>
         </div>
         <p class="text-xs font-bold mt-2"
@@ -132,12 +153,12 @@
       <span class="material-symbols-outlined text-red-500 text-[20px] shrink-0" aria-hidden="true">error</span>
       <div class="min-w-0">
         <p class="text-sm font-bold text-red-800 dark:text-red-200">
-          {{ ungroupedMeters.length }} 個電表未納入「{{ meterGroup?.name || '電表群組' }}」
+          {{ ungroupedMeters.length }} 個電表未納入任何台電總表
         </p>
         <p class="text-xs text-red-700 dark:text-red-300 mt-0.5">
           {{ ungroupedMeters.map(m => m.name).join('、') }}
-          —— 這些電表不計入級距分母（目前分母 {{ meterGroups[0]?.roomCount ?? 0 }}），但仍會套用此群組的累進參數計算，等同用別棟的級距出帳。
-          請到設定將其綁定子群組，或改為「固定費率」個別方案。
+          —— 它們自成一組計算級距（分母 {{ meterGroups.find(g => g.id === UNGROUPED)?.roomCount ?? 0 }}），並非依所屬棟別的級距。
+          請到設定將其綁定至某顆台電總表的子群組，或改為「固定費率」個別方案。
         </p>
       </div>
     </div>
@@ -167,11 +188,11 @@
           <thead class="text-xs text-text-secondary-light uppercase bg-gray-50 dark:bg-gray-800/50">
             <tr>
               <th class="px-6 py-4">房號 / 租客</th>
-              <th class="px-6 py-4">{{ settings.mode === 'fixed' ? '抄表日' : '計費期間' }}</th>
+              <th class="px-6 py-4">{{ activeSettings.mode === 'fixed' ? '抄表日' : '計費期間' }}</th>
               <th class="px-6 py-4 text-right">上期讀數</th>
               <th class="px-6 py-4 text-center w-40">本期讀數</th>
               <th class="px-6 py-4 text-right">用量</th>
-              <th class="px-6 py-4 text-right">{{ settings.mode === 'fixed' ? '電費金額' : '預估費用' }}</th>
+              <th class="px-6 py-4 text-right">{{ activeSettings.mode === 'fixed' ? '電費金額' : '預估費用' }}</th>
               <th class="px-6 py-4 text-center w-20">操作</th>
             </tr>
           </thead>
@@ -226,7 +247,7 @@
                 </td>
 
                 <td class="px-6 py-4">
-                  <div v-if="settings.mode === 'fixed'">
+                  <div v-if="activeSettings.mode === 'fixed'">
                     <input type="date" v-model="room.currentReadingDate" :disabled="room.isLocked"
                       class="px-2 py-1 border rounded-lg text-xs font-mono outline-none transition-colors"
                       :class="room.isLocked ? 'border-transparent bg-transparent text-gray-500 cursor-default' : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary'">
@@ -394,6 +415,19 @@
       v-model="settings"
       :landlord-id="authStore.effectiveUid"
       @groups-updated="reloadData"
+      @edit-group-settings="openGroupSettings"
+    />
+
+    <!-- 單一總表電費方案 Modal -->
+    <MeterSettingsModal
+      v-if="groupSettingsTarget"
+      v-model:show="showGroupSettingsModal"
+      :model-value="groupSettingsTarget.settings"
+      :landlord-id="authStore.effectiveUid"
+      :group-id="groupSettingsTarget.id"
+      :group-name="groupSettingsTarget.name"
+      :global-settings="settings"
+      @groups-updated="reloadData"
     />
 
     <!-- 逐房間電費方案 Modal -->
@@ -441,7 +475,7 @@ import {
 
 import MeterSettingsModal from '../../components/meter/MeterSettingsModal.vue';
 import MeterReadingImport from '../../components/meter/MeterReadingImport.vue';
-import { defaultSettings, normalizeSettings, settingsFingerprint, type Settings, type MeterGroup, type MeterEntry, type MeterGroupDoc, type PublicMeterDoc } from '../../components/meter/types';
+import { defaultSettings, normalizeSettings, settingsFingerprint, UNGROUPED_ID, type Settings, type MeterGroup, type MeterEntry, type MeterGroupDoc, type PublicMeterDoc } from '../../components/meter/types';
 import { getMeterGroups } from '../../services/meterGroupService';
 import { getPublicMeters, updatePublicMeter } from '../../services/publicMeterService';
 
@@ -452,11 +486,12 @@ const saving = ref(false);
 const settings = ref<Settings>(JSON.parse(JSON.stringify(defaultSettings)));
 const meterGroups = ref<MeterGroup[]>([]);
 const meterData = ref<MeterEntry[]>([]);
-const meterGroup = ref<MeterGroupDoc | null>(null);
+const meterGroupDocs = ref<MeterGroupDoc[]>([]);
 const publicMeterDocs = ref<PublicMeterDoc[]>([]);
 const saveBtnRef = ref<HTMLButtonElement | null>(null);
 
 const showSettingsModal = ref(false);
+const UNGROUPED = UNGROUPED_ID; // 供 template 判斷未分組頁籤
 const showDetailModal = ref(false);
 
 // 逐房間電費方案
@@ -472,6 +507,21 @@ const onRoomSettingsSaved = (newSettings: Settings) => {
   if (roomSettingsTarget.value) {
     roomSettingsTarget.value.electricitySettings = newSettings
   }
+}
+
+// 單一總表的電費方案（由全域設定 Modal 的群組卡片觸發）
+const showGroupSettingsModal = ref(false)
+const groupSettingsTarget = ref<{ id: string; name: string; settings: Settings } | null>(null)
+
+const openGroupSettings = (groupId: string, groupName: string) => {
+  const doc = meterGroupDocs.value.find(g => g.id === groupId)
+  groupSettingsTarget.value = {
+    id: groupId,
+    name: groupName,
+    // 未設過專屬方案時以全域為起點
+    settings: normalizeSettings(doc?.electricitySettings ?? settings.value, defaultSettings),
+  }
+  showGroupSettingsModal.value = true
 }
 
 const onRoomSettingsReset = () => {
@@ -563,8 +613,20 @@ const loadData = async () => {
     getPublicMeters(uid),
   ]);
 
-  meterGroup.value = groups[0] ?? null;
+  meterGroupDocs.value = groups;
   publicMeterDocs.value = pubMeters;
+
+  // subGroupId → groupId 反查表。rooms 只存 subGroupId，靠這張表回推所屬總表，
+  // 因此不需要為 rooms 新增 groupId 欄位、也不需要資料遷移。
+  // 若有重複的群組文件共用同一組子群組 id，以先出現者為準，避免歸屬跳動
+  const subGroupToGroup = new Map<string, string>();
+  groups.forEach(g => (g.subGroups ?? []).forEach(sg => {
+    if (!subGroupToGroup.has(sg.id)) subGroupToGroup.set(sg.id, g.id);
+  }));
+  const resolveGroupId = (subGroupId?: string, explicitGroupId?: string) => {
+    if (explicitGroupId && groups.some(g => g.id === explicitGroupId)) return explicitGroupId;
+    return (subGroupId && subGroupToGroup.get(subGroupId)) || UNGROUPED_ID;
+  };
 
   // 本月最新抄表紀錄 (by roomId)
   const thisMonthMap = new Map<string, any>();
@@ -608,6 +670,7 @@ const loadData = async () => {
       subGroupId: data.subGroupId || '',
       cycleFirstUsage: prev?.usage,
       cycleFirstCost: prev?.cost,
+      groupId: resolveGroupId(data.subGroupId || ''),
     };
   });
 
@@ -632,29 +695,40 @@ const loadData = async () => {
       landlordPays: pm.landlordPays,
       cycleFirstUsage: prev?.usage,
       cycleFirstCost: prev?.cost,
+      groupId: resolveGroupId(pm.subGroupId, pm.groupId),
     };
   });
 
   meterData.value = [...roomEntries, ...publicEntries];
 
-  // 級距分母 = 群組內電表總數（房間 + 公共表，含空房）
-  // 已建立子群組時，只計入有綁定子群組的電表；未分組的房源不屬於這顆台電表，不該撐大分母。
-  // 尚未建立子群組（或全部都沒綁）時 fallback 為全部電表，維持舊行為。
-  const subGroupIds = new Set((meterGroup.value?.subGroups ?? []).map(sg => sg.id));
-  const groupedMeters = subGroupIds.size > 0
-    ? meterData.value.filter(m => !!m.subGroupId && subGroupIds.has(m.subGroupId))
-    : meterData.value;
-  const meterCount = Math.max(1, groupedMeters.length || meterData.value.length);
+  // 每顆台電總表各自一組級距分母 = 該群組內電表總數（房間 + 公共表，含空房）。
+  // 未歸屬任何群組的電表自成一組，不會撐大其他棟的分母。
+  const countIn = (groupId: string) => meterData.value.filter(m => m.groupId === groupId).length;
 
-  meterGroups.value = [{
-    id: meterGroup.value?.id || 'default_group',
-    name: meterGroup.value?.name || '本棟總表',
-    officialMetersCount: 1,
-    roomCount: meterCount,
+  const built: MeterGroup[] = groups.map(g => ({
+    id: g.id,
+    name: g.name || '未命名總表',
+    officialMetersCount: g.officialMetersCount ?? 1,
+    roomCount: Math.max(1, countIn(g.id)),
     masterLastReading: 0,
     masterCurrentReading: undefined,
     masterBillAmount: undefined,
-  }];
+  }));
+
+  const ungroupedCount = countIn(UNGROUPED_ID);
+  if (ungroupedCount > 0 || built.length === 0) {
+    built.push({
+      // 尚未建立任何群組時，全部電表視為同一顆總表（維持舊行為）
+      id: UNGROUPED_ID,
+      name: built.length === 0 ? '本棟總表' : '未分組',
+      officialMetersCount: 1,
+      roomCount: Math.max(1, ungroupedCount),
+      masterLastReading: 0,
+      masterCurrentReading: undefined,
+      masterBillAmount: undefined,
+    });
+  }
+  meterGroups.value = built;
 };
 
 const reloadData = async () => {
@@ -712,18 +786,34 @@ const calculateGroupAvgRate = (group: MeterGroup) => {
   return usage === 0 ? 0 : group.masterBillAmount / usage;
 };
 
-// 取得此房間實際使用的設定（個別 > 全域）
+// 群組層設定（已補齊新欄位），未設則為 null
+const groupSettingsMap = computed(() => {
+  const map = new Map<string, Settings>();
+  meterGroupDocs.value.forEach(g => {
+    if (g.electricitySettings) map.set(g.id, normalizeSettings(g.electricitySettings, defaultSettings));
+  });
+  return map;
+});
+
+// 設定優先序：房間個別 > 所屬總表 > 全域
 const getRoomSettings = (room: MeterEntry): Settings =>
-  room.electricitySettings ?? settings.value
+  room.electricitySettings
+  ?? (room.groupId ? groupSettingsMap.value.get(room.groupId) : undefined)
+  ?? settings.value
+
+// 取得此電表所屬的總表；找不到時退回第一組，避免計算中斷
+const getRoomGroup = (room: MeterEntry): MeterGroup | undefined =>
+  meterGroups.value.find(g => g.id === room.groupId) ?? meterGroups.value[0]
 
 // 選定月份在台電雙月帳期中的序位（1 = 單月/預估，2 = 雙月/結算）
-const cycleIndex = computed<1 | 2>(() => {
-  const cfg = settings.value.tieredConfig;
+// 帳期設定可能因群組而異，故依傳入的 settings 判定
+const getCycleIndex = (s: Settings): 1 | 2 => {
+  const cfg = s.tieredConfig;
   if (cfg.cycle !== 'bimonthly') return 1;
   const month = Number(selectedMonth.value.split('-')[1]);
   const isFirst = cfg.cycleAnchor === 'even' ? month % 2 === 0 : month % 2 === 1;
   return isFirst ? 1 : 2;
-});
+};
 
 const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup, s?: Settings) => {
   const activeSettings = s ?? getRoomSettings(room)
@@ -844,7 +934,7 @@ const calculateElectricity = (room: MeterEntry) => {
     const cost = Math.round(usage * s.fixedRate);
     return { cost, log: `固定費率: ${usage}度 x $${s.fixedRate} = $${cost}` };
   }
-  const group = meterGroups.value[0];
+  const group = getRoomGroup(room);
   if (!group) return { cost: 0, log: '錯誤: 無群組設定' };
   if (s.mode === 'bill_share') {
     const rate = calculateGroupAvgRate(group);
@@ -855,7 +945,7 @@ const calculateElectricity = (room: MeterEntry) => {
   // 'tiered' 和 'tiered_avg' 皆走此路徑
   const minRate = s.tieredConfig.minRate ?? 0;
   const isCycleSecond = s.tieredConfig.cycle === 'bimonthly'
-    && cycleIndex.value === 2
+    && getCycleIndex(s) === 2
     && room.cycleFirstUsage != null
     && room.cycleFirstCost != null;
 
@@ -891,27 +981,50 @@ const calculateElectricity = (room: MeterEntry) => {
 
 // --- Computed ---
 const currentModeLabel = computed(() => {
-  const map: Record<string, string> = { fixed: '固定費率', tiered: '獨立累進費率', bill_share: '帳單分攤制' };
-  return map[settings.value.mode] || settings.value.mode;
+  const map: Record<string, string> = { fixed: '固定費率', tiered: '獨立累進費率', tiered_avg: '平均費率（累進）', bill_share: '帳單分攤制' };
+  return map[activeSettings.value.mode] || activeSettings.value.mode;
 });
 const seasonLabel = computed(() => {
   const map: Record<string, string> = { auto: '自動判斷', average: '平均費率', summer: '強制夏月', 'non-summer': '強制非夏月' };
-  return map[settings.value.tieredConfig.season];
+  return map[activeSettings.value.tieredConfig.season];
 });
-const occupiedRooms = computed(() => meterData.value.filter(r => r.meterType !== 'public' && (r.tenantName || r.status === 'occupied')));
-const vacantRooms = computed(() => meterData.value.filter(r => r.meterType !== 'public' && !r.tenantName && r.status !== 'occupied'));
-const publicEntries = computed(() => meterData.value.filter(r => r.meterType === 'public'));
+// --- 群組頁籤：以下顯示用的清單皆限縮在目前選取的總表 ---
+const activeGroupId = ref('');
+const activeGroup = computed(() => meterGroups.value.find(g => g.id === activeGroupId.value));
+const activeGroupDoc = computed(() => meterGroupDocs.value.find(g => g.id === activeGroupId.value));
+// 目前總表採用的設定（群組層 > 全域），供統計卡顯示
+const activeSettings = computed(() =>
+  groupSettingsMap.value.get(activeGroupId.value) ?? settings.value);
+
+const scopedData = computed(() => meterData.value.filter(r => r.groupId === activeGroupId.value));
+const occupiedRooms = computed(() => scopedData.value.filter(r => r.meterType !== 'public' && (r.tenantName || r.status === 'occupied')));
+const vacantRooms = computed(() => scopedData.value.filter(r => r.meterType !== 'public' && !r.tenantName && r.status !== 'occupied'));
+const publicEntries = computed(() => scopedData.value.filter(r => r.meterType === 'public'));
 const billableEntries = computed(() => [...occupiedRooms.value, ...publicEntries.value]);
 const filledCount = computed(() => billableEntries.value.filter(r => r.currentReading !== undefined).length);
+
+// 警示橫幅需跨所有總表，不受頁籤限縮
+const allBillableEntries = computed(() =>
+  meterData.value.filter(r => r.meterType === 'public' || r.tenantName || r.status === 'occupied'));
+
+// 各頁籤的未填筆數，讓使用者不必逐頁點開才知道哪裡還沒抄
+const groupPending = (groupId: string) => {
+  const list = meterData.value.filter(r =>
+    r.groupId === groupId && (r.meterType === 'public' || r.tenantName || r.status === 'occupied'));
+  return { total: list.length, filled: list.filter(r => r.currentReading !== undefined).length };
+};
+
+// 群組載入或異動後，確保選取的頁籤仍然存在
+watch(meterGroups, (gs) => {
+  if (!gs.some(g => g.id === activeGroupId.value)) activeGroupId.value = gs[0]?.id ?? '';
+}, { immediate: true });
 
 // 未綁定子群組、且實際會出帳的電表：不計入級距分母，卻仍套用此群組的累進參數計算，等同用別棟的級距。
 // 排除三種不會出錯的情況：空房（不計費）、已改固定費率（calculateElectricity 提前返回）、尚未建立子群組（走 fallback）。
 const ungroupedMeters = computed(() => {
-  const subGroupIds = new Set((meterGroup.value?.subGroups ?? []).map(sg => sg.id));
-  if (subGroupIds.size === 0) return [];
-  return billableEntries.value.filter(m =>
-    (!m.subGroupId || !subGroupIds.has(m.subGroupId)) &&
-    (m.electricitySettings ?? settings.value).mode !== 'fixed'
+  if (meterGroupDocs.value.length === 0) return [];
+  return allBillableEntries.value.filter(m =>
+    m.groupId === UNGROUPED_ID && getRoomSettings(m).mode !== 'fixed'
   );
 });
 
@@ -925,7 +1038,6 @@ interface DisplaySection {
   publicShare: number; // 公共電費 ÷ 群組房數（不含房東負擔的表）
 }
 const sections = computed<DisplaySection[]>(() => {
-  const sgs = meterGroup.value?.subGroups ?? [];
   const result: DisplaySection[] = [];
   const usedIds = new Set<string>();
 
@@ -940,20 +1052,23 @@ const sections = computed<DisplaySection[]>(() => {
     return { id, name, entries, totalUsage: Math.round(totalUsage), totalCost, publicShare };
   };
 
-  for (const sg of sgs) {
+  // 只走目前頁籤所屬總表的子群組；重複的群組文件可能共用同一組 id，故再去重一次
+  const seenSubGroups = new Set<string>();
+  for (const sg of activeGroupDoc.value?.subGroups ?? []) {
+    if (seenSubGroups.has(sg.id)) continue;
+    seenSubGroups.add(sg.id);
     const rooms = occupiedRooms.value.filter(r => r.subGroupId === sg.id);
     const pubs = publicEntries.value.filter(r => r.subGroupId === sg.id);
-    // 分攤基數 = 群組內全部房間數（含空房），空房份額房東吸收
-    const allRoomCount = meterData.value.filter(r => r.meterType !== 'public' && r.subGroupId === sg.id).length;
+    // 分攤基數 = 子群組內全部房間數（含空房），空房份額房東吸收
+    const allRoomCount = scopedData.value.filter(r => r.meterType !== 'public' && r.subGroupId === sg.id).length;
     if (rooms.length || pubs.length) result.push(buildSection(sg.id, sg.name, rooms, pubs, allRoomCount));
   }
 
-  const sgIds = new Set(sgs.map(sg => sg.id));
   const restRooms = occupiedRooms.value.filter(r => !usedIds.has(r.roomId));
   const restPubs = publicEntries.value.filter(r => !usedIds.has(r.roomId));
   if (restRooms.length || restPubs.length) {
-    const ungroupedRoomCount = meterData.value.filter(r => r.meterType !== 'public' && !sgIds.has(r.subGroupId || '')).length;
-    result.push(buildSection('ungrouped', result.length > 0 ? '未分組' : '', restRooms, restPubs, ungroupedRoomCount));
+    const restRoomCount = scopedData.value.filter(r => r.meterType !== 'public' && !usedIds.has(r.roomId)).length;
+    result.push(buildSection('rest', result.length > 0 ? '未指定樓層' : '', restRooms, restPubs, restRoomCount));
   }
   return result;
 });
@@ -996,7 +1111,7 @@ const onReadingKeydown = (e: KeyboardEvent) => {
 const calculateUsage = (room: MeterEntry) => Math.max(0, (room.currentReading || 0) - room.lastReading);
 const calculateResult = (room: MeterEntry) => calculateElectricity(room);
 const validateReading = (room: MeterEntry) => !((room.currentReading || 0) < room.lastReading && room.currentReading !== undefined);
-const totalEstimatedCost = computed(() => meterData.value.reduce((sum, r) => sum + calculateResult(r).cost, 0));
+const totalEstimatedCost = computed(() => scopedData.value.reduce((sum, r) => sum + calculateResult(r).cost, 0));
 
 const hasValidChanges = computed(() => pendingSaveCount.value > 0);
 
@@ -1021,6 +1136,8 @@ const saveAllReadings = async () => {
     for (const entry of validEntries) {
       const usage = (entry.currentReading || 0) - entry.lastReading;
       const { cost, log } = calculateElectricity(entry);
+      // 記錄「這筆實際採用的」設定，而非全域設定（房間或群組可能有各自方案）
+      const used = getRoomSettings(entry);
       const readingData = {
         landlordId: uid,
         roomId: entry.roomId,
@@ -1031,9 +1148,10 @@ const saveAllReadings = async () => {
         periodStart: entry.lastReadingDate,
         periodEnd: entry.currentReadingDate,
         calcLog: log,
-        mode: settings.value.mode,
-        cycle: settings.value.tieredConfig.cycle,
-        cycleIndex: cycleIndex.value,
+        mode: used.mode,
+        cycle: used.tieredConfig.cycle,
+        cycleIndex: getCycleIndex(used),
+        groupId: entry.groupId || UNGROUPED_ID,
         ...(entry.meterType === 'public' ? { meterType: 'public', subGroupId: entry.subGroupId || '' } : {}),
         createdAt: serverTimestamp(),
       };

@@ -120,6 +120,32 @@
 
 ---
 
+## BF-008：電表群組被存成兩筆完全相同的文件，抄表頁區塊重複出現
+
+- **問題描述**：抄表頁只有 2 個電表，卻顯示 4 個區塊（「台電總表 · 四樓」「台電總表 · 5樓」各出現兩次），每間房重複列出。但「已填寫 2/2 表」與電費合計皆正確 —— 純顯示層重複，計算沒受影響。
+- **根本原因**：`meter_groups` 存在兩筆 `name` 與 `subGroups`（連 `id`）完全相同的文件。來自舊版 `MeterSettingsModal.saveGroupData`：
+  ```js
+  let groupId = existingGroup.value?.id;
+  if (!groupId) {
+    const refDoc = await addMeterGroup(...);
+    groupId = refDoc.id;   // 只寫進區域變數，沒回寫 existingGroup.value
+  }
+  ```
+  同一次開啟中若儲存兩次，第二次 `existingGroup.value` 仍是 `null` 而再新增一筆；local state 未變，故子群組 `id` 一模一樣。多總表改版後 `sections` 走訪所有群組的子群組，重複的子群組就被渲染兩次。
+- **最終解法**（三處，缺一不可）：
+  1. `MeterReading.vue` `sections`：以 `seenSubGroups` Set 去重，同一子群組 id 只渲染一次
+  2. `MeterReading.vue` `loadData`：`subGroupToGroup` 反查表改為 first-wins（`if (!map.has(id))`），避免電表歸屬因文件順序跳動
+  3. `MeterSettingsModal.vue` `removeGroup` / `groupPublicMeters`：刪除重複總表時，子群組 id 若仍存在於其他總表就**不可**解除房間綁定或刪除公共電表；公共電表歸屬以 `groupId` 為主，僅當該 groupId 已不存在時才用 `subGroupId` 認領
+- **牽扯檔案**：`src/views/landlord/MeterReading.vue`（`sections`、`loadData`）、`src/components/meter/MeterSettingsModal.vue`（`removeGroup`、`groupPublicMeters`、`saveGroupData`）
+
+> **除錯技巧**：dev 連的是 Firestore 模擬器（`src/firebase/config.ts` 的 `connectFirestoreEmulator(db, 'localhost', 8085)`），可用 `Authorization: Bearer owner` 繞過安全規則直接查資料，不需 ADC 憑證：
+> ```
+> curl -H "Authorization: Bearer owner" \
+>   "http://localhost:8085/v1/projects/rental-system-7675e/databases/(default)/documents/meter_groups"
+> ```
+
+---
+
 ## BF 範本
 
 ### BF-XXX：標題

@@ -11,9 +11,10 @@
       <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
         <div>
           <h2 id="meter-settings-modal-title" class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">
-            {{ roomName ? `${roomName} 電費方案` : '計算參數設定（全域）' }}
+            {{ roomName ? `${roomName} 電費方案` : groupName ? `${groupName} 電費方案` : '計算參數設定（全域）' }}
           </h2>
           <p v-if="roomName" class="text-xs text-text-secondary-light mt-0.5">此設定僅套用此房間，不影響其他房間</p>
+          <p v-else-if="groupName" class="text-xs text-text-secondary-light mt-0.5">此設定套用於此總表底下所有房間（個別設定的房間仍優先）</p>
         </div>
         <button @click="close" aria-label="關閉" class="text-gray-400 hover:text-gray-600">
           <span class="material-symbols-outlined" aria-hidden="true">close</span>
@@ -23,14 +24,14 @@
       <div class="p-6 overflow-y-auto space-y-8">
 
         <!-- 房間層：與全域設定不同時提示，可一鍵帶入 -->
-        <section v-if="roomId && globalSettings" class="animation-fade-in">
+        <section v-if="isScoped && globalSettings" class="animation-fade-in">
           <div v-if="differsFromGlobal"
             class="flex items-start gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
             <span class="material-symbols-outlined text-amber-500 text-[20px] shrink-0" aria-hidden="true">info</span>
             <div class="flex-1 min-w-0">
-              <p class="text-sm font-bold text-amber-800 dark:text-amber-200">此房間使用獨立設定，內容與全域不同</p>
+              <p class="text-sm font-bold text-amber-800 dark:text-amber-200">此{{ scopeLabel }}使用獨立設定，內容與全域不同</p>
               <p class="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
-                全域設定的費率或參數更新後不會自動套用到獨立設定的房間。可帶入全域設定後再依需要微調。
+                全域設定的費率或參數更新後不會自動套用到獨立設定的{{ scopeLabel }}。可帶入全域設定後再依需要微調。
               </p>
               <button @click="applyGlobalSettings"
                 class="mt-2 px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 transition-colors">
@@ -41,7 +42,7 @@
           <div v-else
             class="flex items-center gap-2 p-3 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
             <span class="material-symbols-outlined text-green-600 text-[18px]" aria-hidden="true">check_circle</span>
-            <p class="text-xs font-medium text-green-800 dark:text-green-200">此房間設定內容與全域一致</p>
+            <p class="text-xs font-medium text-green-800 dark:text-green-200">此{{ scopeLabel }}設定內容與全域一致</p>
           </div>
         </section>
 
@@ -239,104 +240,131 @@
         </section>
 
         <!-- 電表群組管理（僅全域設定） -->
-        <section v-if="!roomId" class="space-y-4 border-t border-gray-100 dark:border-gray-700 pt-6">
+        <section v-if="!isScoped" class="space-y-4 border-t border-gray-100 dark:border-gray-700 pt-6">
           <div class="flex items-start justify-between gap-3">
             <div>
-              <h3 class="text-sm font-bold text-gray-500 uppercase">電表群組</h3>
-              <p class="text-[11px] text-gray-400 mt-0.5">台電計費電表為最上層；級距額度以群組內電表總數（房間＋公共表）均分，公共電費依子群組分攤</p>
+              <h3 class="text-sm font-bold text-gray-500 uppercase">台電總表</h3>
+              <p class="text-[11px] text-gray-400 mt-0.5">
+                每顆台電計費電表為一組；級距額度以該組內電表總數（房間＋公共表）均分，各組互不影響。公共電費依子群組分攤。
+              </p>
             </div>
-            <button v-if="!groupEnabled" @click="createGroup"
-              class="shrink-0 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors">
-              建立群組
+            <button @click="addGroup"
+              class="shrink-0 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors flex items-center gap-0.5">
+              <span class="material-symbols-outlined text-[14px]" aria-hidden="true">add</span>新增總表
             </button>
           </div>
 
           <div v-if="groupLoading" class="text-xs text-gray-400 animate-pulse">群組資料載入中…</div>
 
-          <div v-else-if="groupEnabled" class="space-y-4">
-            <!-- 台電總表名稱 -->
-            <div>
-              <label for="group-name" class="block text-xs font-bold text-gray-500 mb-1">台電總表名稱</label>
-              <input id="group-name" v-model="groupName" type="text" class="form-input text-sm" placeholder="如：基隆復興路總表">
-            </div>
+          <template v-else>
+            <div v-for="(g, gIdx) in groups" :key="g.id"
+              class="rounded-xl border-2 border-gray-200 dark:border-gray-700 p-4 space-y-4">
 
-            <!-- 子群組 -->
-            <div class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-              <div class="flex items-center justify-between mb-3">
-                <p class="text-xs font-bold text-gray-500 uppercase">子群組（樓層）</p>
-                <button @click="addSubGroup" class="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-0.5">
-                  <span class="material-symbols-outlined text-[14px]" aria-hidden="true">add</span>新增子群組
+              <!-- 總表基本資料 -->
+              <div class="flex items-end gap-2 flex-wrap">
+                <div class="flex-1 min-w-[160px]">
+                  <label :for="`grp-name-${g.id}`" class="block text-xs font-bold text-gray-500 mb-1">台電總表名稱</label>
+                  <input :id="`grp-name-${g.id}`" v-model="g.name" type="text" class="form-input text-sm" placeholder="如：基隆復興路總表">
+                </div>
+                <div class="w-28">
+                  <label :for="`grp-omc-${g.id}`" class="block text-xs font-bold text-gray-500 mb-1">台電計費表數</label>
+                  <input :id="`grp-omc-${g.id}`" v-model.number="g.officialMetersCount" type="number" min="1" class="form-input text-sm text-center">
+                </div>
+                <button @click="openGroupSettings(g)"
+                  class="px-3 py-2 rounded-lg border text-xs font-bold transition-colors"
+                  :class="g.hasSettings
+                    ? 'border-gold-400 text-gold-600 bg-gold-50 dark:bg-gold-900/20 hover:bg-gold-100'
+                    : 'border-gray-200 dark:border-gray-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800'">
+                  {{ g.hasSettings ? '專屬電費方案' : '電費方案（用全域）' }}
                 </button>
-              </div>
-              <div v-for="(sg, idx) in subGroups" :key="sg.id" class="flex items-center gap-2 mb-2">
-                <input v-model="sg.name" type="text" placeholder="如：4樓" class="form-input py-1.5 text-sm flex-1">
-                <button @click="removeSubGroup(idx)" class="p-1 text-red-400 hover:text-red-600" :aria-label="`刪除子群組 ${sg.name}`">
+                <button @click="removeGroup(gIdx)" class="p-2 text-red-400 hover:text-red-600 rounded-lg" :aria-label="`刪除總表 ${g.name}`">
                   <span class="material-symbols-outlined text-[18px]" aria-hidden="true">delete</span>
                 </button>
               </div>
-              <p v-if="subGroups.length === 0" class="text-xs text-gray-400">尚無子群組，新增後才能綁定房間與公共電表</p>
+
+              <!-- 子群組 -->
+              <div class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-3">
+                  <p class="text-xs font-bold text-gray-500 uppercase">子群組（樓層）</p>
+                  <button @click="addSubGroup(g)" class="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-0.5">
+                    <span class="material-symbols-outlined text-[14px]" aria-hidden="true">add</span>新增子群組
+                  </button>
+                </div>
+                <div v-for="(sg, idx) in g.subGroups" :key="sg.id" class="flex items-center gap-2 mb-2">
+                  <input v-model="sg.name" type="text" placeholder="如：4樓" class="form-input py-1.5 text-sm flex-1">
+                  <button @click="removeSubGroup(g, idx)" class="p-1 text-red-400 hover:text-red-600" :aria-label="`刪除子群組 ${sg.name}`">
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">delete</span>
+                  </button>
+                </div>
+                <p v-if="g.subGroups.length === 0" class="text-xs text-gray-400">尚無子群組，新增後才能綁定房間與公共電表</p>
+              </div>
+
+              <!-- 公共電表 -->
+              <div v-if="g.subGroups.length > 0" class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-3">
+                  <p class="text-xs font-bold text-gray-500 uppercase">公共電表</p>
+                  <button @click="addPublicMeterRow(g)" class="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-0.5">
+                    <span class="material-symbols-outlined text-[14px]" aria-hidden="true">add</span>新增公共電表
+                  </button>
+                </div>
+                <div v-for="pm in groupPublicMeters(g)" :key="pm.id"
+                  class="bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 p-3 mb-2 space-y-2">
+                  <div class="flex items-center gap-2">
+                    <input v-model="pm.name" type="text" placeholder="如：4樓走廊" class="form-input py-1.5 text-sm flex-1">
+                    <select v-model="pm.subGroupId" class="form-input py-1.5 text-xs w-28 shrink-0" :aria-label="`${pm.name || '公共電表'} 所屬子群組`">
+                      <option v-for="sg in g.subGroups" :key="sg.id" :value="sg.id">{{ sg.name || '(未命名)' }}</option>
+                    </select>
+                    <button @click="removePublicMeter(pm)" class="p-1 text-red-400 hover:text-red-600" :aria-label="`刪除公共電表 ${pm.name}`">
+                      <span class="material-symbols-outlined text-[18px]" aria-hidden="true">delete</span>
+                    </button>
+                  </div>
+                  <div class="flex items-center gap-3 flex-wrap">
+                    <div class="flex items-center gap-1.5">
+                      <label :for="`pm-reading-${pm.id}`" class="text-[11px] font-bold text-gray-500 whitespace-nowrap">起始度數</label>
+                      <input :id="`pm-reading-${pm.id}`" v-model.number="pm.lastMeterReading" type="number" class="form-input py-1 text-xs w-24 text-right font-mono">
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                      <label :for="`pm-date-${pm.id}`" class="text-[11px] font-bold text-gray-500 whitespace-nowrap">起始日期</label>
+                      <input :id="`pm-date-${pm.id}`" v-model="pm.lastMeterDate" type="date" class="form-input py-1 text-xs font-mono">
+                    </div>
+                    <label class="flex items-center gap-1.5 cursor-pointer select-none ml-auto">
+                      <input type="checkbox" v-model="pm.landlordPays" class="rounded text-blue-600 focus:ring-blue-500">
+                      <span class="text-xs font-medium">電費由房東負擔</span>
+                    </label>
+                  </div>
+                </div>
+                <p v-if="groupPublicMeters(g).length === 0" class="text-xs text-gray-400">尚無公共電表（走廊燈、洗衣機等共用電力）</p>
+              </div>
             </div>
 
-            <!-- 房間綁定 -->
-            <div v-if="subGroups.length > 0" class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-              <p class="text-xs font-bold text-gray-500 uppercase mb-3">房間綁定</p>
+            <!-- 房間綁定：跨總表統一設定，以總表分組顯示 -->
+            <div v-if="bindingOptions.length > 0" class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+              <p class="text-xs font-bold text-gray-500 uppercase mb-1">房間綁定</p>
+              <p class="text-[11px] text-gray-400 mb-3">未分組的房間自成一組計算級距，不會影響其他總表</p>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div v-for="room in roomsList" :key="room.id"
                   class="flex items-center justify-between gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
                   <span class="text-sm font-medium truncate">{{ room.name }}</span>
-                  <select v-model="roomBindings[room.id]" class="form-input py-1 text-xs w-28 shrink-0" :aria-label="`${room.name} 所屬群組`">
+                  <select v-model="roomBindings[room.id]" class="form-input py-1 text-xs w-36 shrink-0" :aria-label="`${room.name} 所屬群組`">
                     <option value="">未分組</option>
-                    <option v-for="sg in subGroups" :key="sg.id" :value="sg.id">{{ sg.name || '(未命名)' }}</option>
+                    <optgroup v-for="opt in bindingOptions" :key="opt.label" :label="opt.label">
+                      <option v-for="sg in opt.subGroups" :key="sg.id" :value="sg.id">{{ sg.name || '(未命名)' }}</option>
+                    </optgroup>
                   </select>
                 </div>
               </div>
             </div>
 
-            <!-- 公共電表 -->
-            <div v-if="subGroups.length > 0" class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-              <div class="flex items-center justify-between mb-3">
-                <p class="text-xs font-bold text-gray-500 uppercase">公共電表</p>
-                <button @click="addPublicMeterRow" class="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-0.5">
-                  <span class="material-symbols-outlined text-[14px]" aria-hidden="true">add</span>新增公共電表
-                </button>
-              </div>
-              <div v-for="(pm, idx) in publicMeters" :key="pm.id"
-                class="bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 p-3 mb-2 space-y-2">
-                <div class="flex items-center gap-2">
-                  <input v-model="pm.name" type="text" placeholder="如：4樓走廊" class="form-input py-1.5 text-sm flex-1">
-                  <select v-model="pm.subGroupId" class="form-input py-1.5 text-xs w-28 shrink-0" :aria-label="`${pm.name || '公共電表'} 所屬子群組`">
-                    <option v-for="sg in subGroups" :key="sg.id" :value="sg.id">{{ sg.name || '(未命名)' }}</option>
-                  </select>
-                  <button @click="removePublicMeter(idx)" class="p-1 text-red-400 hover:text-red-600" :aria-label="`刪除公共電表 ${pm.name}`">
-                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">delete</span>
-                  </button>
-                </div>
-                <div class="flex items-center gap-3 flex-wrap">
-                  <div class="flex items-center gap-1.5">
-                    <label :for="`pm-reading-${pm.id}`" class="text-[11px] font-bold text-gray-500 whitespace-nowrap">起始度數</label>
-                    <input :id="`pm-reading-${pm.id}`" v-model.number="pm.lastMeterReading" type="number" class="form-input py-1 text-xs w-24 text-right font-mono">
-                  </div>
-                  <div class="flex items-center gap-1.5">
-                    <label :for="`pm-date-${pm.id}`" class="text-[11px] font-bold text-gray-500 whitespace-nowrap">起始日期</label>
-                    <input :id="`pm-date-${pm.id}`" v-model="pm.lastMeterDate" type="date" class="form-input py-1 text-xs font-mono">
-                  </div>
-                  <label class="flex items-center gap-1.5 cursor-pointer select-none ml-auto">
-                    <input type="checkbox" v-model="pm.landlordPays" class="rounded text-blue-600 focus:ring-blue-500">
-                    <span class="text-xs font-medium">電費由房東負擔</span>
-                  </label>
-                </div>
-              </div>
-              <p v-if="publicMeters.length === 0" class="text-xs text-gray-400">尚無公共電表（走廊燈、洗衣機等共用電力）</p>
-            </div>
-          </div>
-
-          <p v-else class="text-xs text-gray-400">尚未建立群組：所有房間視為同一個台電總表下的電表（現行行為），無公共電費分攤。</p>
+            <p v-if="groups.length === 0" class="text-xs text-gray-400">
+              尚未建立任何總表：所有房間視為同一顆台電表下的電表（現行行為），無公共電費分攤。
+            </p>
+          </template>
         </section>
 
       </div>
 
       <div class="p-6 border-t border-gray-100 dark:border-gray-700 flex gap-3">
-        <button v-if="roomId"
+        <button v-if="isScoped"
           @click="handleResetRoom"
           class="px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
         >
@@ -359,8 +387,8 @@ import { db } from '../../firebase/config';
 import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import { useToastStore } from '../../stores/toast';
 import { defaultSettings, normalizeSettings, settingsFingerprint } from './types';
-import type { Settings, SubGroup, MeterGroupDoc, PublicMeterDoc } from './types';
-import { getMeterGroups, addMeterGroup, updateMeterGroup } from '../../services/meterGroupService';
+import type { Settings, SubGroup, PublicMeterDoc } from './types';
+import { getMeterGroups, addMeterGroup, updateMeterGroup, deleteMeterGroup } from '../../services/meterGroupService';
 import { getPublicMeters, addPublicMeter, updatePublicMeter, deletePublicMeter } from '../../services/publicMeterService';
 import { getRooms, updateRoom } from '../../services/roomService';
 import type { Room } from '../../types/index';
@@ -371,7 +399,9 @@ const props = defineProps<{
   landlordId: string;
   roomId?: string;    // 若有，儲存至 rooms/{roomId}.electricitySettings
   roomName?: string;  // 顯示在 title 的房間名稱
-  globalSettings?: Settings; // 房間層模式下用來比對／帶入的全域設定
+  groupId?: string;   // 若有，儲存至 meter_groups/{groupId}.electricitySettings
+  groupName?: string; // 顯示在 title 的總表名稱
+  globalSettings?: Settings; // 房間／群組層模式下用來比對／帶入的全域設定
 }>();
 
 const emit = defineEmits<{
@@ -379,7 +409,12 @@ const emit = defineEmits<{
   'update:modelValue': [value: Settings];
   'reset-room': [];   // 清除此房間的個別設定，改用全域
   'groups-updated': []; // 群組/公共電表有異動，父層需重載
+  'edit-group-settings': [groupId: string, groupName: string]; // 要求父層開啟該總表的電費方案
 }>();
+
+// 三種模式：全域（無 roomId/groupId）、群組層、房間層
+const isScoped = computed(() => !!props.roomId || !!props.groupId);
+const scopeLabel = computed(() => props.roomId ? '房間' : '總表');
 
 const toast = useToastStore();
 
@@ -393,7 +428,7 @@ const globalNormalized = computed(() => props.globalSettings
 
 const differsFromGlobal = computed(() => {
   const g = globalNormalized.value;
-  if (!props.roomId || !g) return false;
+  if (!isScoped.value || !g) return false;
   return settingsFingerprint(local.value) !== settingsFingerprint(g);
 });
 
@@ -404,13 +439,20 @@ const applyGlobalSettings = () => {
   toast.success('已帶入全域設定，確認後請按「儲存並關閉」');
 };
 
-// --- 電表群組狀態（僅全域模式） ---
+// --- 電表群組狀態（僅全域模式）：支援多顆台電總表 ---
 type EditablePublicMeter = PublicMeterDoc & { _isNew?: boolean };
+interface EditableGroup {
+  id: string;            // 既有為文件 id；新建為暫時 id，儲存後才換成真 id
+  _isNew?: boolean;
+  name: string;
+  officialMetersCount: number;
+  subGroups: SubGroup[];
+  hasSettings: boolean;  // 是否已設定此棟專屬電費方案（唯讀顯示）
+}
+
 const groupLoading = ref(false);
-const groupEnabled = ref(false);
-const existingGroup = ref<MeterGroupDoc | null>(null);
-const groupName = ref('台電總表');
-const subGroups = ref<SubGroup[]>([]);
+const groups = ref<EditableGroup[]>([]);
+const deletedGroupIds = ref<string[]>([]);
 const roomsList = ref<Room[]>([]);
 const roomBindings = ref<Record<string, string>>({});
 const originalBindings = ref<Record<string, string>>({});
@@ -422,16 +464,19 @@ const genId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toStr
 const loadGroupData = async () => {
   groupLoading.value = true;
   try {
-    const [groups, meters, rooms] = await Promise.all([
+    const [groupDocs, meters, rooms] = await Promise.all([
       getMeterGroups(props.landlordId),
       getPublicMeters(props.landlordId),
       getRooms(props.landlordId),
     ]);
-    existingGroup.value = groups[0] ?? null;
-    groupEnabled.value = !!existingGroup.value;
-    groupName.value = existingGroup.value?.name || '台電總表';
-    subGroups.value = existingGroup.value?.subGroups
-      ? JSON.parse(JSON.stringify(existingGroup.value.subGroups)) : [];
+    groups.value = groupDocs.map(g => ({
+      id: g.id,
+      name: g.name || '',
+      officialMetersCount: g.officialMetersCount ?? 1,
+      subGroups: JSON.parse(JSON.stringify(g.subGroups ?? [])),
+      hasSettings: !!g.electricitySettings,
+    }));
+    deletedGroupIds.value = [];
     roomsList.value = rooms;
     roomBindings.value = Object.fromEntries(rooms.map(r => [r.id, r.subGroupId || '']));
     originalBindings.value = { ...roomBindings.value };
@@ -445,17 +490,51 @@ const loadGroupData = async () => {
   }
 };
 
-const createGroup = () => {
-  groupEnabled.value = true;
-  if (subGroups.value.length === 0) addSubGroup();
+const addGroup = () => {
+  const g: EditableGroup = {
+    id: genId('grp'),
+    _isNew: true,
+    name: '',
+    officialMetersCount: 1,
+    subGroups: [],
+    hasSettings: false,
+  };
+  groups.value.push(g);
+  addSubGroup(g);
 };
 
-const addSubGroup = () => {
-  subGroups.value.push({ id: genId('sg'), name: '' });
+const removeGroup = (idx: number) => {
+  const g = groups.value[idx];
+  if (!g) return;
+  const sgIds = new Set(g.subGroups.map(sg => sg.id));
+  const remaining = groups.value.filter((_, i) => i !== idx);
+  const remainingGroupIds = new Set(remaining.map(x => x.id));
+  // 刪除重複的總表文件時，子群組 id 可能仍存在於其他總表，此時不可解除綁定或刪表
+  const remainingSgIds = new Set(remaining.flatMap(x => x.subGroups.map(sg => sg.id)));
+
+  publicMeters.value = publicMeters.value.filter(pm => {
+    const belongs = pm.groupId === g.id
+      || (!remainingGroupIds.has(pm.groupId) && sgIds.has(pm.subGroupId) && !remainingSgIds.has(pm.subGroupId));
+    if (!belongs) return true;
+    if (!pm._isNew) deletedPublicMeterIds.value.push(pm.id);
+    return false;
+  });
+
+  Object.keys(roomBindings.value).forEach(roomId => {
+    const sid = roomBindings.value[roomId] || '';
+    if (sgIds.has(sid) && !remainingSgIds.has(sid)) roomBindings.value[roomId] = '';
+  });
+
+  if (!g._isNew) deletedGroupIds.value.push(g.id);
+  groups.value.splice(idx, 1);
 };
 
-const removeSubGroup = (idx: number) => {
-  const sg = subGroups.value[idx];
+const addSubGroup = (g: EditableGroup) => {
+  g.subGroups.push({ id: genId('sg'), name: '' });
+};
+
+const removeSubGroup = (g: EditableGroup, idx: number) => {
+  const sg = g.subGroups[idx];
   if (!sg) return;
   if (publicMeters.value.some(pm => pm.subGroupId === sg.id)) {
     toast.error('此子群組仍有公共電表，請先移除公共電表');
@@ -464,17 +543,27 @@ const removeSubGroup = (idx: number) => {
   Object.keys(roomBindings.value).forEach(roomId => {
     if (roomBindings.value[roomId] === sg.id) roomBindings.value[roomId] = '';
   });
-  subGroups.value.splice(idx, 1);
+  g.subGroups.splice(idx, 1);
 };
 
-const addPublicMeterRow = () => {
-  const firstSg = subGroups.value[0];
+// 以 groupId 為主；僅當該 groupId 已不存在時才退回用 subGroupId 認領，
+// 避免重複的總表文件把同一顆公共電表顯示在兩張卡片上
+const groupPublicMeters = (g: EditableGroup) => {
+  const sgIds = new Set(g.subGroups.map(sg => sg.id));
+  const allGroupIds = new Set(groups.value.map(x => x.id));
+  return publicMeters.value.filter(pm =>
+    pm.groupId === g.id || (!allGroupIds.has(pm.groupId) && sgIds.has(pm.subGroupId))
+  );
+};
+
+const addPublicMeterRow = (g: EditableGroup) => {
+  const firstSg = g.subGroups[0];
   if (!firstSg) return;
   publicMeters.value.push({
     id: genId('pm'),
     _isNew: true,
     landlordId: props.landlordId,
-    groupId: existingGroup.value?.id || '',
+    groupId: g.id,
     subGroupId: firstSg.id,
     name: '',
     landlordPays: false,
@@ -483,32 +572,47 @@ const addPublicMeterRow = () => {
   });
 };
 
-const removePublicMeter = (idx: number) => {
-  const pm = publicMeters.value[idx];
-  if (!pm) return;
+const removePublicMeter = (pm: EditablePublicMeter) => {
+  const idx = publicMeters.value.findIndex(x => x.id === pm.id);
+  if (idx < 0) return;
   if (!pm._isNew) deletedPublicMeterIds.value.push(pm.id);
   publicMeters.value.splice(idx, 1);
 };
 
-const saveGroupData = async () => {
-  if (!groupEnabled.value) return;
-  if (subGroups.value.some(sg => !sg.name.trim())) {
-    throw new Error('子群組名稱不可空白');
-  }
-  if (publicMeters.value.some(pm => !pm.name.trim())) {
-    throw new Error('公共電表名稱不可空白');
-  }
+// 房間綁定下拉：以總表分組顯示，避免不同棟同名樓層混淆
+const bindingOptions = computed(() =>
+  groups.value
+    .filter(g => g.subGroups.length > 0)
+    .map(g => ({ label: g.name || '(未命名總表)', subGroups: g.subGroups }))
+);
 
-  const groupPayload = {
-    name: groupName.value.trim() || '台電總表',
-    subGroups: JSON.parse(JSON.stringify(subGroups.value)),
-  };
-  let groupId = existingGroup.value?.id;
-  if (!groupId) {
-    const refDoc = await addMeterGroup(props.landlordId, groupPayload);
-    groupId = refDoc.id;
-  } else {
-    await updateMeterGroup(groupId, groupPayload);
+const openGroupSettings = (g: EditableGroup) => {
+  if (g._isNew) {
+    toast.warning('請先儲存此總表，才能設定專屬電費方案');
+    return;
+  }
+  emit('edit-group-settings', g.id, g.name || '(未命名總表)');
+};
+
+const saveGroupData = async () => {
+  if (groups.value.some(g => !g.name.trim())) throw new Error('台電總表名稱不可空白');
+  if (groups.value.some(g => g.subGroups.some(sg => !sg.name.trim()))) throw new Error('子群組名稱不可空白');
+  if (publicMeters.value.some(pm => !pm.name.trim())) throw new Error('公共電表名稱不可空白');
+
+  // 先寫入群組，取得新建群組的真實 id，公共電表才能指向正確的 groupId
+  const idMap = new Map<string, string>(); // 暫時 id → 真實 id
+  for (const g of groups.value) {
+    const payload = {
+      name: g.name.trim(),
+      officialMetersCount: Number(g.officialMetersCount) || 1,
+      subGroups: JSON.parse(JSON.stringify(g.subGroups)),
+    };
+    if (g._isNew) {
+      const refDoc = await addMeterGroup(props.landlordId, payload);
+      idMap.set(g.id, refDoc.id);
+    } else {
+      await updateMeterGroup(g.id, payload);
+    }
   }
 
   const ops: Promise<any>[] = [];
@@ -521,7 +625,7 @@ const saveGroupData = async () => {
   // 公共電表增刪改
   publicMeters.value.forEach(pm => {
     const payload = {
-      groupId: groupId!,
+      groupId: idMap.get(pm.groupId) ?? pm.groupId,
       subGroupId: pm.subGroupId,
       name: pm.name.trim(),
       landlordPays: !!pm.landlordPays,
@@ -535,13 +639,14 @@ const saveGroupData = async () => {
     }
   });
   deletedPublicMeterIds.value.forEach(id => ops.push(deletePublicMeter(id)));
+  deletedGroupIds.value.forEach(id => ops.push(deleteMeterGroup(id)));
   await Promise.all(ops);
 };
 
 watch(() => props.show, (val) => {
   if (val) {
     local.value = normalizeSettings(JSON.parse(JSON.stringify(props.modelValue)), defaultSettings);
-    if (!props.roomId) loadGroupData();
+    if (!isScoped.value) loadGroupData();
   }
 });
 
@@ -553,21 +658,23 @@ const handleSave = async () => {
     local.value.tiers = local.value.tiers.map(t => ({ ...t, summerRate: t.nonSummerRate }))
   }
   try {
+    const payload = JSON.parse(JSON.stringify(local.value));
     if (props.roomId) {
-      await updateDoc(doc(db, 'rooms', props.roomId), {
-        electricitySettings: JSON.parse(JSON.stringify(local.value))
-      });
+      await updateDoc(doc(db, 'rooms', props.roomId), { electricitySettings: payload });
+    } else if (props.groupId) {
+      await updateMeterGroup(props.groupId, { electricitySettings: payload });
+      emit('groups-updated');
     } else {
       await setDoc(doc(db, 'settings', props.landlordId || 'electricity'), local.value);
       await saveGroupData();
       emit('groups-updated');
     }
-    emit('update:modelValue', JSON.parse(JSON.stringify(local.value)));
+    emit('update:modelValue', payload);
     close();
   } catch (e: any) {
     console.error('MeterSettings save error:', e);
-    toast.error(e?.message === '子群組名稱不可空白' || e?.message === '公共電表名稱不可空白'
-      ? e.message : '設定儲存失敗');
+    const known = ['台電總表名稱不可空白', '子群組名稱不可空白', '公共電表名稱不可空白'];
+    toast.error(known.includes(e?.message) ? e.message : '設定儲存失敗');
   }
 };
 
@@ -581,10 +688,14 @@ const switchToAvgMode = () => {
 }
 
 const handleResetRoom = async () => {
-  if (!props.roomId) return;
   try {
-    await updateDoc(doc(db, 'rooms', props.roomId), { electricitySettings: null });
-    emit('reset-room');
+    if (props.roomId) {
+      await updateDoc(doc(db, 'rooms', props.roomId), { electricitySettings: null });
+      emit('reset-room');
+    } else if (props.groupId) {
+      await updateMeterGroup(props.groupId, { electricitySettings: null as any });
+      emit('groups-updated');
+    } else return;
     close();
   } catch {
     toast.error('重設失敗');

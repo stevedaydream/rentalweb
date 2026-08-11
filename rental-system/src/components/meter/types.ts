@@ -26,6 +26,7 @@ export interface MeterEntry {
   landlordPays?: boolean;         // 公共表：電費由房東負擔
   cycleFirstUsage?: number;       // 雙月帳期：本帳期第 1 個月的度數
   cycleFirstCost?: number;        // 雙月帳期：本帳期第 1 個月的實收金額
+  groupId?: string;               // 所屬台電總表；未分組為 UNGROUPED_ID
 }
 
 // --- 電表群組 ---
@@ -34,14 +35,19 @@ export interface SubGroup {
   name: string; // 4樓、5樓等
 }
 
-// meter_groups collection：最上層 = 台電計費電表
+// meter_groups collection：最上層 = 台電計費電表。一個房東可有多顆總表（多棟物件）。
 export interface MeterGroupDoc {
   id: string;
   landlordId: string;
   name: string; // 台電表名稱（如「基隆復興路總表」）
   subGroups: SubGroup[];
+  officialMetersCount?: number;   // 此棟的台電計費表數，未設視為 1
+  electricitySettings?: Settings; // 此棟專屬計費設定；未設則沿用全域
   createdAt?: any;
 }
+
+// 不屬於任何 meter_groups 的電表歸入這個虛擬群組，級距分母自成一組
+export const UNGROUPED_ID = '__ungrouped__';
 
 // public_meters collection：公共電表，綁定子群組
 export interface PublicMeterDoc {
