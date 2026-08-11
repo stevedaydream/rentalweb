@@ -93,6 +93,14 @@ export const defaultTieredConfig: TieredConfig = {
   minRate: 5,
 };
 
+// 設定內容指紋：欄位順序固定，用來判斷房間的個別方案是否與全域一致
+export const settingsFingerprint = (s: Settings) => JSON.stringify({
+  mode: s.mode,
+  fixedRate: s.fixedRate,
+  tieredConfig: { ...defaultTieredConfig, ...s.tieredConfig },
+  tiers: s.tiers.map(t => [t.limit, t.nonSummerRate, t.summerRate]),
+});
+
 // 舊資料的 tieredConfig 只有 strategy / season，補齊新欄位
 export const normalizeSettings = (raw: Partial<Settings> | undefined, base: Settings): Settings => ({
   ...base,

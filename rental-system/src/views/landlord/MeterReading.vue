@@ -126,6 +126,21 @@
       </div>
     </div>
 
+    <!-- 個別方案與全域不一致提醒 -->
+    <div v-if="!loading && staleRooms.length > 0"
+      class="flex items-start gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+      <span class="material-symbols-outlined text-amber-500 text-[20px] shrink-0" aria-hidden="true">warning</span>
+      <div class="min-w-0">
+        <p class="text-sm font-bold text-amber-800 dark:text-amber-200">
+          {{ staleRooms.length }} 間房的個別電費方案與全域設定不同
+        </p>
+        <p class="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+          {{ staleRooms.map(r => r.name).join('、') }}
+          —— 全域費率更新後不會自動套用，請點該列的電費方案按鈕選「帶入全域設定」，或改用全域設定。
+        </p>
+      </div>
+    </div>
+
     <!-- 主抄表表格 -->
     <div class="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
       <div class="overflow-x-auto relative min-h-[300px]">
@@ -179,9 +194,17 @@
                       title="此表電費由房東負擔，不分攤給租客"
                     >房東負擔</span>
                     <span v-if="room.electricitySettings"
-                      class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-gold-100 text-gold-700 dark:bg-gold-900/30 dark:text-gold-300 whitespace-nowrap"
-                      :title="`個別電費方案：${room.electricitySettings.mode}`"
-                    >個別方案</span>
+                      class="text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap inline-flex items-center gap-0.5"
+                      :class="isRoomSettingsStale(room)
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                        : 'bg-gold-100 text-gold-700 dark:bg-gold-900/30 dark:text-gold-300'"
+                      :title="isRoomSettingsStale(room)
+                        ? '個別電費方案與全域設定不同（全域更新後未同步），可在此房間設定中按「帶入全域設定」'
+                        : `個別電費方案：${room.electricitySettings.mode}`"
+                    >
+                      <span v-if="isRoomSettingsStale(room)" class="material-symbols-outlined text-[11px]" aria-hidden="true">warning</span>
+                      個別方案
+                    </span>
                   </div>
                   <p class="text-xs text-text-secondary-light">{{ room.meterType === 'public' ? '公共電表' : room.tenantName }}</p>
                 </td>
@@ -265,10 +288,14 @@
                       v-if="room.meterType !== 'public'"
                       @click="openRoomSettings(room)"
                       class="p-1.5 rounded-lg transition-colors"
-                      :class="room.electricitySettings
-                        ? 'text-gold-600 bg-gold-50 dark:bg-gold-900/20 hover:bg-gold-100'
-                        : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'"
-                      :title="room.electricitySettings ? `個別電費方案：${room.electricitySettings.mode}` : '設定電費方案（目前使用全域）'"
+                      :class="!room.electricitySettings
+                        ? 'text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                        : isRoomSettingsStale(room)
+                          ? 'text-amber-600 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100'
+                          : 'text-gold-600 bg-gold-50 dark:bg-gold-900/20 hover:bg-gold-100'"
+                      :title="!room.electricitySettings ? '設定電費方案（目前使用全域）'
+                        : isRoomSettingsStale(room) ? '個別電費方案與全域設定不同，點此可帶入全域設定'
+                        : `個別電費方案：${room.electricitySettings.mode}`"
                       :aria-label="`${room.name} 電費方案設定`">
                       <span class="material-symbols-outlined text-[18px]" aria-hidden="true">electric_bolt</span>
                     </button>
@@ -363,6 +390,7 @@
       :landlord-id="authStore.effectiveUid"
       :room-id="roomSettingsTarget.roomId"
       :room-name="roomSettingsTarget.name"
+      :global-settings="settings"
     />
 
     <!-- 計算詳情 Modal -->
@@ -397,7 +425,7 @@ import {
 
 import MeterSettingsModal from '../../components/meter/MeterSettingsModal.vue';
 import MeterReadingImport from '../../components/meter/MeterReadingImport.vue';
-import { defaultSettings, normalizeSettings, type Settings, type MeterGroup, type MeterEntry, type MeterGroupDoc, type PublicMeterDoc } from '../../components/meter/types';
+import { defaultSettings, normalizeSettings, settingsFingerprint, type Settings, type MeterGroup, type MeterEntry, type MeterGroupDoc, type PublicMeterDoc } from '../../components/meter/types';
 import { getMeterGroups } from '../../services/meterGroupService';
 import { getPublicMeters, updatePublicMeter } from '../../services/publicMeterService';
 
@@ -435,6 +463,12 @@ const onRoomSettingsReset = () => {
     roomSettingsTarget.value.electricitySettings = undefined
   }
 }
+
+// 個別方案與全域內容不一致 → 全域更新後未同步，列表上以琥珀色標示
+const globalFingerprint = computed(() => settingsFingerprint(settings.value))
+const isRoomSettingsStale = (room: MeterEntry) =>
+  !!room.electricitySettings && settingsFingerprint(room.electricitySettings) !== globalFingerprint.value
+const staleRooms = computed(() => meterData.value.filter(isRoomSettingsStale))
 const detailLog = ref('');
 const detailTotal = ref(0);
 const unifiedDate = ref(new Date().toISOString().split('T')[0] || '');

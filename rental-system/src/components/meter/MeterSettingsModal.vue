@@ -22,6 +22,29 @@
 
       <div class="p-6 overflow-y-auto space-y-8">
 
+        <!-- 房間層：與全域設定不同時提示，可一鍵帶入 -->
+        <section v-if="roomId && globalSettings" class="animation-fade-in">
+          <div v-if="differsFromGlobal"
+            class="flex items-start gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+            <span class="material-symbols-outlined text-amber-500 text-[20px] shrink-0" aria-hidden="true">info</span>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-bold text-amber-800 dark:text-amber-200">此房間使用獨立設定，內容與全域不同</p>
+              <p class="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                全域設定的費率或參數更新後不會自動套用到獨立設定的房間。可帶入全域設定後再依需要微調。
+              </p>
+              <button @click="applyGlobalSettings"
+                class="mt-2 px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 transition-colors">
+                帶入全域設定
+              </button>
+            </div>
+          </div>
+          <div v-else
+            class="flex items-center gap-2 p-3 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+            <span class="material-symbols-outlined text-green-600 text-[18px]" aria-hidden="true">check_circle</span>
+            <p class="text-xs font-medium text-green-800 dark:text-green-200">此房間設定內容與全域一致</p>
+          </div>
+        </section>
+
         <section>
           <h3 class="text-sm font-bold text-gray-500 uppercase mb-3">步驟 1：選擇計費核心模式</h3>
           <div class="grid grid-cols-2 gap-3">
@@ -335,7 +358,7 @@ import { computed, ref, watch } from 'vue';
 import { db } from '../../firebase/config';
 import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import { useToastStore } from '../../stores/toast';
-import { defaultSettings, normalizeSettings } from './types';
+import { defaultSettings, normalizeSettings, settingsFingerprint } from './types';
 import type { Settings, SubGroup, MeterGroupDoc, PublicMeterDoc } from './types';
 import { getMeterGroups, addMeterGroup, updateMeterGroup } from '../../services/meterGroupService';
 import { getPublicMeters, addPublicMeter, updatePublicMeter, deletePublicMeter } from '../../services/publicMeterService';
@@ -348,6 +371,7 @@ const props = defineProps<{
   landlordId: string;
   roomId?: string;    // 若有，儲存至 rooms/{roomId}.electricitySettings
   roomName?: string;  // 顯示在 title 的房間名稱
+  globalSettings?: Settings; // 房間層模式下用來比對／帶入的全域設定
 }>();
 
 const emit = defineEmits<{
@@ -362,6 +386,23 @@ const toast = useToastStore();
 const local = ref<Settings>(normalizeSettings(JSON.parse(JSON.stringify(props.modelValue)), defaultSettings));
 
 const isTieredMode = computed(() => local.value.mode === 'tiered' || local.value.mode === 'tiered_avg');
+
+const globalNormalized = computed(() => props.globalSettings
+  ? normalizeSettings(JSON.parse(JSON.stringify(props.globalSettings)), defaultSettings)
+  : null);
+
+const differsFromGlobal = computed(() => {
+  const g = globalNormalized.value;
+  if (!props.roomId || !g) return false;
+  return settingsFingerprint(local.value) !== settingsFingerprint(g);
+});
+
+const applyGlobalSettings = () => {
+  const g = globalNormalized.value;
+  if (!g) return;
+  local.value = JSON.parse(JSON.stringify(g));
+  toast.success('已帶入全域設定，確認後請按「儲存並關閉」');
+};
 
 // --- 電表群組狀態（僅全域模式） ---
 type EditablePublicMeter = PublicMeterDoc & { _isNew?: boolean };
