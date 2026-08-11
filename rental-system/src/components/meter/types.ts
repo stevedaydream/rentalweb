@@ -24,6 +24,8 @@ export interface MeterEntry {
   meterType?: 'public';           // 公共電表列（roomId = public_meters 文件 id）
   subGroupId?: string;            // 所屬子群組（4樓、5樓等）
   landlordPays?: boolean;         // 公共表：電費由房東負擔
+  cycleFirstUsage?: number;       // 雙月帳期：本帳期第 1 個月的度數
+  cycleFirstCost?: number;        // 雙月帳期：本帳期第 1 個月的實收金額
 }
 
 // --- 電表群組 ---
@@ -60,30 +62,56 @@ export interface TierConfig {
   summerRate: number;
 }
 
+// 天數比例策略：級距額度是否隨抄表天數縮放
+// 'full-month' = 以「一個完整計費月」為基準，整月不縮放、半個月才按比例縮小
+// 'legacy'     = 舊行為，一律 days / 30
+// 'none'       = 不縮放，永遠用固定級距
+export type DayScaling = 'full-month' | 'legacy' | 'none';
+
+export interface TieredConfig {
+  strategy: string;
+  season: string;
+  dayScaling: DayScaling;
+  cycle: 'monthly' | 'bimonthly'; // 台電帳期：單月獨立 / 雙月累積
+  cycleAnchor: 'odd' | 'even';    // 帳期第 1 個月為奇數月或偶數月
+  minRate: number;                // 保底單價（元/度），0 = 停用
+}
+
 export interface Settings {
   mode: string;
   fixedRate: number;
-  tieredConfig: {
-    strategy: string;
-    season: string;
-  };
+  tieredConfig: TieredConfig;
   tiers: TierConfig[];
 }
+
+export const defaultTieredConfig: TieredConfig = {
+  strategy: 'split',
+  season: 'auto',
+  dayScaling: 'full-month',
+  cycle: 'monthly',
+  cycleAnchor: 'odd',
+  minRate: 5,
+};
+
+// 舊資料的 tieredConfig 只有 strategy / season，補齊新欄位
+export const normalizeSettings = (raw: Partial<Settings> | undefined, base: Settings): Settings => ({
+  ...base,
+  ...raw,
+  tieredConfig: { ...defaultTieredConfig, ...base.tieredConfig, ...(raw?.tieredConfig ?? {}) },
+  tiers: raw?.tiers ?? base.tiers,
+});
 
 export const defaultSettings: Settings = {
   mode: 'tiered',
   fixedRate: 5.0,
-  tieredConfig: {
-    strategy: 'split',
-    season: 'auto',
-  },
+  tieredConfig: { ...defaultTieredConfig },
   tiers: [
-    { limit: 120,   nonSummerRate: 1.63, summerRate: 1.63 },
-    { limit: 330,   nonSummerRate: 2.10, summerRate: 2.38 },
-    { limit: 500,   nonSummerRate: 2.89, summerRate: 3.52 },
-    { limit: 700,   nonSummerRate: 3.94, summerRate: 4.80 },
-    { limit: 1000,  nonSummerRate: 4.60, summerRate: 5.83 },
-    { limit: 99999, nonSummerRate: 5.03, summerRate: 6.41 },
+    { limit: 120,   nonSummerRate: 1.68, summerRate: 1.68 },
+    { limit: 330,   nonSummerRate: 2.16, summerRate: 2.45 },
+    { limit: 500,   nonSummerRate: 3.03, summerRate: 3.70 },
+    { limit: 700,   nonSummerRate: 4.14, summerRate: 5.04 },
+    { limit: 1000,  nonSummerRate: 5.07, summerRate: 6.24 },
+    { limit: 99999, nonSummerRate: 6.63, summerRate: 8.46 },
   ],
 };
 
@@ -92,10 +120,7 @@ export const defaultSettings: Settings = {
 export const defaultAvgSettings: Settings = {
   mode: 'tiered_avg',
   fixedRate: 5.0,
-  tieredConfig: {
-    strategy: 'split',
-    season: 'average',
-  },
+  tieredConfig: { ...defaultTieredConfig, season: 'average' },
   tiers: [
     { limit: 120,   nonSummerRate: 1.68,  summerRate: 1.68  },
     { limit: 330,   nonSummerRate: 2.305, summerRate: 2.305 },

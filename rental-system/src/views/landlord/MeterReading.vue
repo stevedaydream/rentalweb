@@ -397,7 +397,7 @@ import {
 
 import MeterSettingsModal from '../../components/meter/MeterSettingsModal.vue';
 import MeterReadingImport from '../../components/meter/MeterReadingImport.vue';
-import { defaultSettings, type Settings, type MeterGroup, type MeterEntry, type MeterGroupDoc, type PublicMeterDoc } from '../../components/meter/types';
+import { defaultSettings, normalizeSettings, type Settings, type MeterGroup, type MeterEntry, type MeterGroupDoc, type PublicMeterDoc } from '../../components/meter/types';
 import { getMeterGroups } from '../../services/meterGroupService';
 import { getPublicMeters, updatePublicMeter } from '../../services/publicMeterService';
 
@@ -477,7 +477,7 @@ const loadSettings = async () => {
   const docRef = doc(db, 'settings', uid);
   const snap = await getDoc(docRef);
   if (snap.exists()) {
-    settings.value = { ...defaultSettings, ...snap.data() } as Settings;
+    settings.value = normalizeSettings(snap.data() as Partial<Settings>, defaultSettings);
   } else {
     await setDoc(docRef, defaultSettings);
   }
@@ -552,8 +552,12 @@ const loadData = async () => {
       existingReadingId: existing ? existing.id : null,
       isLocked: !!existing,
       roomLastMeterDate: data.lastMeterDate || '',
-      electricitySettings: data.electricitySettings || undefined,
+      electricitySettings: data.electricitySettings
+        ? normalizeSettings(data.electricitySettings, defaultSettings)
+        : undefined,
       subGroupId: data.subGroupId || '',
+      cycleFirstUsage: prev?.usage,
+      cycleFirstCost: prev?.cost,
     };
   });
 
@@ -576,6 +580,8 @@ const loadData = async () => {
       meterType: 'public',
       subGroupId: pm.subGroupId,
       landlordPays: pm.landlordPays,
+      cycleFirstUsage: prev?.usage,
+      cycleFirstCost: prev?.cost,
     };
   });
 
@@ -621,6 +627,15 @@ const getDaysDiff = (start: string, end: string) => {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
 };
 
+// 一個「完整計費月」的天數：自 start 起算滿一個月（含頭尾）
+// 例：8/1 起算 → 31 天（8/1~8/31）；2/1 起算 → 28 天
+const getFullMonthDays = (start: string) => {
+  const [y, m, d] = start.split('-').map(Number);
+  if (!y || !m || !d) return 30;
+  const diff = new Date(y, m, d).getTime() - new Date(y, m - 1, d).getTime();
+  return Math.round(diff / 86400000);
+};
+
 const countSummerDays = (start: string, end: string) => {
   let count = 0;
   let current = new Date(start);
@@ -643,6 +658,15 @@ const calculateGroupAvgRate = (group: MeterGroup) => {
 const getRoomSettings = (room: MeterEntry): Settings =>
   room.electricitySettings ?? settings.value
 
+// 選定月份在台電雙月帳期中的序位（1 = 單月/預估，2 = 雙月/結算）
+const cycleIndex = computed<1 | 2>(() => {
+  const cfg = settings.value.tieredConfig;
+  if (cfg.cycle !== 'bimonthly') return 1;
+  const month = Number(selectedMonth.value.split('-')[1]);
+  const isFirst = cfg.cycleAnchor === 'even' ? month % 2 === 0 : month % 2 === 1;
+  return isFirst ? 1 : 2;
+});
+
 const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup, s?: Settings) => {
   const activeSettings = s ?? getRoomSettings(room)
   let totalCost = 0;
@@ -653,6 +677,9 @@ const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup
   let usageSummer = 0;
   let usageNonSummer = 0;
   let useAverageRate = false;
+  // 各季節段分到的級距額度比例：跨季期間須依天數拆分，否則兩段都拿到整期額度
+  let summerShare = 1;
+  let nonSummerShare = 1;
 
   // tiered_avg 模式：不分夏/非夏，直接用平均費率
   const isAvgMode = activeSettings.mode === 'tiered_avg'
@@ -668,11 +695,28 @@ const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup
     const summerRatio = summerDays / days;
     usageSummer = usage * summerRatio;
     usageNonSummer = usage * (1 - summerRatio);
+    summerShare = summerRatio;
+    nonSummerShare = 1 - summerRatio;
     log += `季節判定 (共${days}天): 夏月${summerDays}天 / 非夏月${days - summerDays}天\n`;
-    log += `用量拆分: 夏月 ${usageSummer.toFixed(1)}度 / 非夏月 ${usageNonSummer.toFixed(1)}度\n\n`;
+    log += `用量拆分: 夏月 ${usageSummer.toFixed(1)}度 / 非夏月 ${usageNonSummer.toFixed(1)}度\n`;
+    if (summerDays > 0 && summerDays < days) {
+      log += `級距額度亦依天數拆分: 夏月 ${(summerShare * 100).toFixed(1)}% / 非夏月 ${(nonSummerShare * 100).toFixed(1)}%\n`;
+    }
+    log += `\n`;
   }
 
-  let scaleFactor = days / 30;
+  const dayScaling = activeSettings.tieredConfig.dayScaling ?? 'full-month';
+  let scaleFactor = 1;
+  if (dayScaling === 'legacy') {
+    scaleFactor = days / 30;
+    log += `天數比例: ${days}天 / 30 = ${scaleFactor.toFixed(3)}\n`;
+  } else if (dayScaling === 'full-month') {
+    const fullDays = getFullMonthDays(room.lastReadingDate);
+    scaleFactor = days / fullDays;
+    log += scaleFactor === 1
+      ? `天數比例: 完整月 (${days}天)，不縮放\n`
+      : `天數比例: ${days}天 / 完整月${fullDays}天 = ${scaleFactor.toFixed(3)}\n`;
+  }
   if (activeSettings.tieredConfig.strategy === 'split') {
     scaleFactor *= (group.officialMetersCount / group.roomCount);
     log += `級距策略: 資本拆分 (總表${group.officialMetersCount} / 電表數${group.roomCount})\n`;
@@ -680,17 +724,19 @@ const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup
     scaleFactor *= group.officialMetersCount;
     log += `級距策略: 標準台電 (總表${group.officialMetersCount})\n`;
   }
-  log += `級距調整係數: ${scaleFactor.toFixed(3)}\n`;
+  log += `級距調整係數: ${scaleFactor.toFixed(4)}\n`;
 
-  const calcPart = (amount: number, type: 'summer' | 'non-summer' | 'average') => {
+  const calcPart = (amount: number, type: 'summer' | 'non-summer' | 'average', share = 1) => {
+    const partScale = scaleFactor * share;
     let remaining = amount;
     let cost = 0;
     let prevLimit = 0;
     let partLog = type === 'summer' ? '--- [夏月計算] ---\n' : type === 'non-summer' ? '--- [非夏月計算] ---\n' : '--- [平均費率計算] ---\n';
+    if (share !== 1) partLog += `本段級距係數: ${partScale.toFixed(4)}\n`;
     for (const tier of activeSettings.tiers) {
       if (remaining <= 0) break;
-      const scaledLimit = (tier.limit === 99999) ? 99999 : tier.limit * scaleFactor;
-      const gap = scaledLimit - (prevLimit * scaleFactor);
+      const scaledLimit = (tier.limit === 99999) ? 99999 : tier.limit * partScale;
+      const gap = scaledLimit - (prevLimit * partScale);
       const inTier = Math.min(remaining, gap);
       if (inTier > 0) {
         const rate = type === 'summer' ? tier.summerRate : type === 'non-summer' ? tier.nonSummerRate : (tier.summerRate + tier.nonSummerRate) / 2;
@@ -709,10 +755,27 @@ const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup
     totalCost += res.cost;
     log += res.log;
   } else {
-    if (usageSummer > 0) { const res = calcPart(usageSummer, 'summer'); totalCost += res.cost; log += res.log; }
-    if (usageNonSummer > 0) { const res = calcPart(usageNonSummer, 'non-summer'); totalCost += res.cost; log += res.log; }
+    if (usageSummer > 0) { const res = calcPart(usageSummer, 'summer', summerShare); totalCost += res.cost; log += res.log; }
+    if (usageNonSummer > 0) { const res = calcPart(usageNonSummer, 'non-summer', nonSummerShare); totalCost += res.cost; log += res.log; }
   }
-  return { cost: Math.round(totalCost), log };
+  return { cost: Math.round(totalCost), raw: totalCost, log };
+};
+
+// 保底單價：算出的平均單價低於 minRate 時，改用 minRate 計費
+const applyMinRate = (
+  res: { cost: number; raw: number; log: string },
+  usage: number,
+  minRate: number,
+) => {
+  if (!(minRate > 0) || usage <= 0) return res;
+  const avg = res.raw / usage;
+  if (avg >= minRate) return res;
+  const cost = Math.round(usage * minRate);
+  return {
+    cost,
+    raw: usage * minRate,
+    log: `${res.log}\n平均單價 $${avg.toFixed(3)} < 保底 $${minRate} → 改用保底: ${usage}度 x $${minRate} = $${cost}`,
+  };
 };
 
 const calculateElectricity = (room: MeterEntry) => {
@@ -730,8 +793,42 @@ const calculateElectricity = (room: MeterEntry) => {
     const cost = Math.round(usage * rate);
     return { cost, log: `帳單分攤: ${usage}度 x 平均單價$${rate.toFixed(4)} = $${cost}` };
   }
+
   // 'tiered' 和 'tiered_avg' 皆走此路徑
-  return calculateTieredLogic(usage, room, group, s);
+  const minRate = s.tieredConfig.minRate ?? 0;
+  const isCycleSecond = s.tieredConfig.cycle === 'bimonthly'
+    && cycleIndex.value === 2
+    && room.cycleFirstUsage != null
+    && room.cycleFirstCost != null;
+
+  if (!isCycleSecond) {
+    return applyMinRate(calculateTieredLogic(usage, room, group, s), usage, minRate);
+  }
+
+  // 雙月帳期第 2 月：以「帳期累積度數」跑累進，再扣掉第 1 月已收金額
+  const firstUsage = room.cycleFirstUsage!;
+  const firstCost = room.cycleFirstCost!;
+  const cumUsage = firstUsage + usage;
+  const res = calculateTieredLogic(cumUsage, room, group, s);
+  const header = `【雙月帳期第 2 月】\n帳期累積: 第1月 ${firstUsage}度 + 本期 ${usage}度 = ${cumUsage}度\n`;
+  const cumAvg = res.raw / cumUsage;
+
+  if (minRate > 0 && cumAvg < minRate) {
+    const cost = Math.round(usage * minRate);
+    return {
+      cost,
+      log: `${header}${res.log}\n累積平均單價 $${cumAvg.toFixed(3)} < 保底 $${minRate}`
+        + `\n→ 本期 = ${usage}度 x $${minRate} = $${cost}`,
+    };
+  }
+
+  const diff = res.raw - firstCost;
+  const cost = Math.round(Math.max(0, diff));
+  return {
+    cost,
+    log: `${header}${res.log}\n累積金額 $${res.raw.toFixed(2)} − 第1月已收 $${firstCost.toFixed(2)} = $${cost}`
+      + (diff < 0 ? `\n※ 第1月已收超過累積金額（第1月觸發保底），本期歸零` : ''),
+  };
 };
 
 // --- Computed ---
@@ -866,6 +963,8 @@ const saveAllReadings = async () => {
         periodEnd: entry.currentReadingDate,
         calcLog: log,
         mode: settings.value.mode,
+        cycle: settings.value.tieredConfig.cycle,
+        cycleIndex: cycleIndex.value,
         ...(entry.meterType === 'public' ? { meterType: 'public', subGroupId: entry.subGroupId || '' } : {}),
         createdAt: serverTimestamp(),
       };

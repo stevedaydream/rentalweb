@@ -173,6 +173,48 @@
           </div>
         </section>
 
+        <!-- 累進制共用參數（tiered / tiered_avg） -->
+        <section v-if="isTieredMode" class="space-y-5 animation-fade-in border-t border-gray-100 dark:border-gray-700 pt-6">
+          <h3 class="text-sm font-bold text-gray-500 uppercase">累進制共用參數</h3>
+
+          <div>
+            <label for="settings-cycle" class="block text-xs font-bold text-gray-500 mb-1">台電帳期</label>
+            <select id="settings-cycle" v-model="local.tieredConfig.cycle" class="form-input text-sm">
+              <option value="monthly">單月獨立（每月各自跑累進）</option>
+              <option value="bimonthly">雙月累積（第2月用累積度數跑累進後扣掉第1月已收）</option>
+            </select>
+          </div>
+
+          <div v-if="local.tieredConfig.cycle === 'bimonthly'">
+            <label for="settings-cycle-anchor" class="block text-xs font-bold text-gray-500 mb-1">帳期第 1 個月</label>
+            <select id="settings-cycle-anchor" v-model="local.tieredConfig.cycleAnchor" class="form-input text-sm">
+              <option value="odd">奇數月（帳期為 1-2、3-4、5-6、7-8、9-10、11-12 月）</option>
+              <option value="even">偶數月（帳期為 2-3、4-5、6-7、8-9、10-11、12-1 月）</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="settings-day-scaling" class="block text-xs font-bold text-gray-500 mb-1">級距天數比例</label>
+            <select id="settings-day-scaling" v-model="local.tieredConfig.dayScaling" class="form-input text-sm">
+              <option value="full-month">完整月不縮放，不完整月才按比例（推薦）</option>
+              <option value="none">不縮放（永遠用固定級距）</option>
+              <option value="legacy">舊制：一律除以 30 天</option>
+            </select>
+            <p class="text-[11px] text-gray-400 mt-1">
+              控制搬入／搬出等不滿一個月的期間，級距額度是否等比例縮小。
+            </p>
+          </div>
+
+          <div>
+            <label for="settings-min-rate" class="block text-xs font-bold text-gray-500 mb-1">保底單價 (元/度)</label>
+            <input id="settings-min-rate" v-model.number="local.tieredConfig.minRate" type="number" step="0.1" min="0"
+              class="form-input text-sm w-32">
+            <p class="text-[11px] text-gray-400 mt-1">
+              算出的平均單價低於此值時改用此值計費，填 0 停用。
+            </p>
+          </div>
+        </section>
+
         <!-- 電表群組管理（僅全域設定） -->
         <section v-if="!roomId" class="space-y-4 border-t border-gray-100 dark:border-gray-700 pt-6">
           <div class="flex items-start justify-between gap-3">
@@ -289,10 +331,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { db } from '../../firebase/config';
 import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import { useToastStore } from '../../stores/toast';
+import { defaultSettings, normalizeSettings } from './types';
 import type { Settings, SubGroup, MeterGroupDoc, PublicMeterDoc } from './types';
 import { getMeterGroups, addMeterGroup, updateMeterGroup } from '../../services/meterGroupService';
 import { getPublicMeters, addPublicMeter, updatePublicMeter, deletePublicMeter } from '../../services/publicMeterService';
@@ -316,7 +359,9 @@ const emit = defineEmits<{
 
 const toast = useToastStore();
 
-const local = ref<Settings>(JSON.parse(JSON.stringify(props.modelValue)));
+const local = ref<Settings>(normalizeSettings(JSON.parse(JSON.stringify(props.modelValue)), defaultSettings));
+
+const isTieredMode = computed(() => local.value.mode === 'tiered' || local.value.mode === 'tiered_avg');
 
 // --- 電表群組狀態（僅全域模式） ---
 type EditablePublicMeter = PublicMeterDoc & { _isNew?: boolean };
@@ -454,7 +499,7 @@ const saveGroupData = async () => {
 
 watch(() => props.show, (val) => {
   if (val) {
-    local.value = JSON.parse(JSON.stringify(props.modelValue));
+    local.value = normalizeSettings(JSON.parse(JSON.stringify(props.modelValue)), defaultSettings);
     if (!props.roomId) loadGroupData();
   }
 });

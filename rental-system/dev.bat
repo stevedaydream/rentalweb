@@ -1,5 +1,9 @@
 @echo off
 title Rental System - Dev Tools
+:: Run from this file's own directory. Double-clicking already does that, but a
+:: shortcut with a different "Start in", or launching from another drive, would
+:: otherwise run npm/firebase in the wrong place.
+cd /d "%~dp0"
 
 :menu
 cls

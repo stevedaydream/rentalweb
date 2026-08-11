@@ -72,7 +72,7 @@ rental-system/
 | `bills` | id, tenantId, tenantName, landlordId, roomId, roomName, amount, status('pending'\|'waiting_confirmation'\|'completed'\|'overdue'), month, dueDate, paidAt, electricityFee, waterFee, managementFee, paymentProofUrl?, ecpayOrderId?, paymentMethod?, paymentGateway? |
 | `payment_proofs` | id, billId, tenantId, landlordId, imageUrl, uploadedAt, ocrRaw?(預留), matchResult?(預留), status('pending'\|'approved'\|'rejected') |
 | `repair_requests` | id, tenantId, tenantName, landlordId, roomId, type, description, status('pending'\|'processing'\|'resolved'), priority('low'\|'medium'\|'high'), imageUrl |
-| `meter_readings` | id, landlordId, roomId, roomName, reading, previousReading, usage, readingDate, meterType?('public'=公共表, roomId=public_meters id), subGroupId? |
+| `meter_readings` | id, landlordId, roomId, roomName, reading, previousReading, usage, readingDate, meterType?('public'=公共表, roomId=public_meters id), subGroupId?, cycle?('monthly'/'bimonthly'), cycleIndex?(1/2) |
 | `meter_groups` | id, landlordId, name(台電總表), subGroups[{id, name(4樓/5樓)}] |
 | `public_meters` | id, landlordId, groupId, subGroupId, name, landlordPays, lastMeterReading, lastMeterDate |
 | `announcements` | id, landlordId, title, content, pinned |
@@ -109,6 +109,8 @@ rental-system/
 - 繳費通知單列印（2026-07-13，未綁 LINE 租客的紙本過渡方案）：Financials「更多」→「列印帳單」Modal（月份＋房間勾選，預設全勾有帳單的房）；每房一頁 A4：本期項目（含已繳✓）、前期未繳紅字區、尚需繳納總額、電費計算標準區（方案/用電度數/平均每度/calcLog 計算過程）、繳費資訊（bankInfo）；範本 `src/templates/billStatement.html`（內嵌 PAGE 片段標記，前端逐房組頁）＋ functions 副本 `BillStatement` type；本地 printHtmlPdf 優先、伺服端 generatePdf fallback
 - 抄表記錄（手動輸入 + Excel 批次匯入）+ 抄表歷史
 - 電表群組計費（2026-07-12）：台電總表 → 樓層子群組 → 房間/公共電表三層結構；級距額度以群組內電表總數均分；公共電表電費 ÷ 子群組房數分攤（空房份額房東吸收、每表可設「房東負擔」）；生成帳單時自動產生獨立「公共電費」bill（防重複鍵 = 抄表id_roomId，缺抄表顯示警告）；抄表頁依樓層分區塊＋樓層小計；度數欄 Tab/Enter 直接跳下一欄、聚焦全選；未設群組自動 fallback 舊行為
+- 累進電費對齊 Excel（2026-08-11）：`tieredConfig` 新增 4 項參數 —— `cycle`（單月獨立／台電雙月累積）、`cycleAnchor`（帳期第1月為奇/偶數月）、`dayScaling`（`full-month` 完整月不縮放，只有搬入搬出等不滿月才按比例縮小級距；`legacy` = 舊的 days/30；`none` 不縮放）、`minRate`（保底單價，預設 5 元/度，0 停用）。雙月制第 2 月改以「帳期累積度數」跑累進再扣掉第 1 月已收金額（第 1 月度數與金額由 `loadData` 的上月 `meter_readings` 帶入 `MeterEntry.cycleFirstUsage/cycleFirstCost`）。`defaultSettings.tiers` 更新為現行台電費率（夏 1.68/2.45/3.70/5.04/6.24/8.46、非夏 1.68/2.16/3.03/4.14/5.07/6.63）。新增 `normalizeSettings()` 補齊舊 Firestore 設定缺少的欄位（原本 `{...defaultSettings, ...snap.data()}` 淺合併會整包蓋掉 `tieredConfig`）
+- 跨季級距拆分修正（2026-08-11）：`season: 'auto'` 且抄表期間橫跨夏月邊界（5/31、9/30）時，原本夏月段與非夏月段各自拿到「整期」的級距額度，等於低價級距被發兩次，金額低到比全用非夏月費率還便宜（100度少收 34%）。`calcPart` 改為接受 `share` 參數，級距用 `scaleFactor * share`，兩段依天數比例分攤額度；不跨季的期間結果不變
 - 報修管理（查看/處理租客報修申請）
 - 公告發布
 - 合約管理（自訂範本、PDF 匯出、電子簽名、排程續約：續約後目前租期維持到期滿、新租期存 pendingRenewal 到期自動接續+通知租客+導向重簽；房東「標記不續約」註記）
