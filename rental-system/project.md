@@ -116,6 +116,7 @@ rental-system/
 - 手動新增帳單歸戶修正（2026-08-11）：帳務「新增一筆」選租客時只寫 `target` 字串且格式為「房號 姓名」，而自動生成的是「姓名 房號」，`PrintBillsModal.belongsToRoom` 兩種比對都落空 → 手動帳單不會出現在繳費通知單（本期項目與前期未繳皆是；與 status 無關，該函式不濾 status）。修法：`BillTransactionModal` 選到租客時寫入 `relatedTenantDocId` / `tenantId`（自由輸入或清空時以空值解除綁定，用 `''`／`null` 而非 delete 才能讓 updateDoc 真的清除；以 `openedTarget` 判斷是否真被改動，避免開啟編輯時誤清既有綁定），`tenantsList` 補傳 `uid`；`belongsToRoom` 同時接受兩種 target 字串順序以救回既有資料
 - 級距分母排除未分組電表（2026-08-11）：`roomCount` 原為 `meterData.length`（全部電表），未綁定子群組的房源（如測試房、其他物件）也被算進去，分母被灌大導致級距變小、電費高估。改為已建立子群組時只計入 `subGroupId` 在該群組內的電表，未建子群組則 fallback 全部（維持舊行為），並以 `Math.max(1, …)` 防除以 0。抄表頁另加紅色警示橫幅列出未綁定子群組的電表：它們雖已排除在分母外，但仍會套用此群組的累進參數計算（系統目前只支援單一台電總表，`calculateElectricity` 一律取 `meterGroups[0]`）；警示對象限 `billableEntries`（在租房間＋公共表），排除空房（本就不計費）與已改固定費率的房間（提前返回不受影響），確保橫幅只在真的會出錯時出現
 - 繳費通知單「分別存檔」（2026-08-11，租客尚未綁 LINE 的替代通知方式）：原本只能合併成一份多頁 PDF（`printHtmlPdf` 一次呼叫 = 一個列印對話框）。新增逐房呼叫伺服端 `generatePdf` 產生獨立檔案（`繳費通知單-{房號}-{月份}.pdf`），逐筆進度顯示、單房失敗不中斷並回報失敗清單。配套：`generatePdf` 新增 `pdfMargin` 參數（未傳沿用原本 10mm），因 billStatement 範本的 `.sheet` 已是滿版 210×297mm，套 10mm 邊界會溢出產生空白頁；`firebase.json` 的 `/generatePdf` rewrite 補上 `"region": "asia-east1"`（函式非部署於預設的 us-central1）
+- 編輯租客 Drawer 補回半年繳選項（2026-08-11）：`TenantList.vue` 的編輯 Drawer 繳費方式下拉漏了 `semiannual`（新增租客 Modal 與 ContractForm 都有，後端 `shouldGenerateBill`／`getBillingAmount`／`getBillingDescription` 也早已支援），導致既有租客無法改成半年繳、且原本是半年繳者開啟編輯時下拉顯示空白
 - 報修管理（查看/處理租客報修申請）
 - 公告發布
 - 合約管理（自訂範本、PDF 匯出、電子簽名、排程續約：續約後目前租期維持到期滿、新租期存 pendingRenewal 到期自動接續+通知租客+導向重簽；房東「標記不續約」註記）

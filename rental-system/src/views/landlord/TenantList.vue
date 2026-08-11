@@ -814,6 +814,7 @@
                     <select id="drawer-payment-frequency" v-model="form.paymentFrequency" class="form-input" autocomplete="off">
                       <option value="monthly">月繳（每月一期）</option>
                       <option value="quarterly">季繳（每季一期，金額 ×3）</option>
+                      <option value="semiannual">半年繳（每半年一期，金額 ×6）</option>
                       <option value="yearly">年繳（每年一期，金額 ×12）</option>
                     </select>
                   </div>
