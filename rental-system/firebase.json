@@ -85,7 +85,8 @@
     "rewrites": [
       {
         "source": "/generatePdf",
-        "function": "generatePdf"
+        "function": "generatePdf",
+        "region": "asia-east1"
       },
       {
         "source": "**",

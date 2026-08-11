@@ -75,7 +75,7 @@
 
       <FinancialOverviewCard :financial="financial" @select="billFilter = $event" />
 
-      <MeterQuickEntry :rooms="meterRooms" @save="saveMeterReading" />
+      <MeterUsageOverview :usage="meterUsage" />
 
       <RepairTicketCard :tickets="repairTickets" />
 
@@ -93,7 +93,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useAuthStore } from '../../stores/auth';
-import { useToastStore } from '../../stores/toast';
 import { db } from '../../firebase/config';
 import {
   collection,
@@ -102,21 +101,20 @@ import {
   getDocs,
   orderBy,
   limit,
-  doc,
-  updateDoc,
-  addDoc
+  type QuerySnapshot,
+  type DocumentData
 } from 'firebase/firestore';
 
 import LandlordProfileCard from '../../components/dashboard/LandlordProfileCard.vue';
 import FinancialOverviewCard from '../../components/dashboard/FinancialOverviewCard.vue';
-import MeterQuickEntry, { type MeterRoom } from '../../components/dashboard/MeterQuickEntry.vue';
+import MeterUsageOverview, { type MeterUsageSummary, type MeterUsageRow } from '../../components/dashboard/MeterUsageOverview.vue';
+import { getPublicMeters } from '../../services/publicMeterService';
 import RepairTicketCard, { type RepairTicket } from '../../components/dashboard/RepairTicketCard.vue';
 import MonthlyTaskCard from '../../components/dashboard/MonthlyTaskCard.vue';
 import BillStatusModal, { type BillCategory, type BillLite } from '../../components/dashboard/BillStatusModal.vue';
 import InviteTenantModal from '../../components/InviteTenantModal.vue';
 
 const authStore = useAuthStore();
-const toast = useToastStore();
 const isLoading = ref(true);
 const showInvite = ref(false);
 
@@ -146,7 +144,12 @@ const financial = reactive({
   overdueAmount: 0
 });
 
-const meterRooms = ref<MeterRoom[]>([]);
+const currentMonthStr = new Date().toISOString().slice(0, 7);
+const meterUsage = ref<MeterUsageSummary>({
+  month: currentMonthStr,
+  metersTotal: 0, metersRead: 0, unreadNames: [],
+  totalUsage: 0, totalCost: 0, deltaPct: null, rows: [],
+});
 const repairTickets = ref<RepairTicket[]>([]);
 
 const billFilter = ref<BillCategory | null>(null);
@@ -156,6 +159,52 @@ const billDetails = reactive<Record<BillCategory, BillLite[]>>({
   overdue: []
 });
 
+// 依本月／上月抄表紀錄組出用電概況。同一電表若當月有多筆，取 periodEnd 最新的一筆。
+type ReadingSnap = QuerySnapshot<DocumentData> | null;
+
+const buildMeterUsage = (
+  billableMeters: { id: string; name: string; isPublic: boolean }[],
+  readingsSnap: ReadingSnap,
+  prevReadingsSnap: ReadingSnap,
+): MeterUsageSummary => {
+  const latestByMeter = (snap: ReadingSnap) => {
+    const map = new Map<string, DocumentData>();
+    snap?.docs.forEach(d => {
+      const data = d.data();
+      const existing = map.get(data.roomId);
+      if (!existing || (data.periodEnd ?? '') > (existing.periodEnd ?? '')) map.set(data.roomId, data);
+    });
+    return map;
+  };
+
+  const current = latestByMeter(readingsSnap);
+  const prev = latestByMeter(prevReadingsSnap);
+
+  const rows: MeterUsageRow[] = [];
+  const unreadNames: string[] = [];
+  for (const meter of billableMeters) {
+    const r = current.get(meter.id);
+    if (r) rows.push({ name: meter.name, usage: Number(r.usage) || 0, cost: Number(r.cost) || 0, isPublic: meter.isPublic });
+    else unreadNames.push(meter.name);
+  }
+  rows.sort((a, b) => b.usage - a.usage);
+
+  const totalUsage = rows.reduce((s, r) => s + r.usage, 0);
+  const totalCost = rows.reduce((s, r) => s + r.cost, 0);
+  const prevUsage = billableMeters.reduce((s, m) => s + (Number(prev.get(m.id)?.usage) || 0), 0);
+
+  return {
+    month: currentMonthStr,
+    metersTotal: billableMeters.length,
+    metersRead: rows.length,
+    unreadNames,
+    totalUsage,
+    totalCost,
+    deltaPct: prevUsage > 0 ? ((totalUsage - prevUsage) / prevUsage) * 100 : null,
+    rows,
+  };
+};
+
 const fetchDashboardData = async () => {
   if (!authStore.user) return;
   const uid = authStore.effectiveUid;
@@ -164,7 +213,20 @@ const fetchDashboardData = async () => {
   isLoading.value = true;
 
   try {
-    const [roomsSnap, billsSnap, repairsSnap, tenantsSnap, usersSnap] = await Promise.all([
+    // 用電概況：本月與上月的抄表紀錄（沿用既有索引 landlordId + periodEnd）
+    const prevDate = new Date();
+    prevDate.setDate(1);
+    prevDate.setMonth(prevDate.getMonth() - 1);
+    const prevMonthStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+    const readingsQuery = (month: string) => getDocs(query(
+      collection(db, 'meter_readings'),
+      where('landlordId', '==', uid),
+      where('periodEnd', '>=', `${month}-01`),
+      where('periodEnd', '<=', `${month}-31`)
+    )).catch(() => null);
+
+    const [roomsSnap, billsSnap, repairsSnap, tenantsSnap, usersSnap,
+           readingsSnap, prevReadingsSnap, publicMeters] = await Promise.all([
       getDocs(query(collection(db, 'rooms'), where('landlordId', '==', uid))),
       getDocs(query(collection(db, 'bills'), where('landlordId', '==', uid))),
       getDocs(query(
@@ -177,7 +239,10 @@ const fetchDashboardData = async () => {
       getDocs(query(collection(db, 'tenants'), where('landlordId', '==', uid))),
       myLandlordCode
         ? getDocs(query(collection(db, 'users'), where('boundLandlordCode', '==', myLandlordCode)))
-        : Promise.resolve(null)
+        : Promise.resolve(null),
+      readingsQuery(currentMonthStr),
+      readingsQuery(prevMonthStr),
+      getPublicMeters(uid).catch(() => []),
     ]);
 
     // 1. 房源統計 & 電表
@@ -185,23 +250,23 @@ const fetchDashboardData = async () => {
     stats.occupied = 0;
     stats.vacant = 0;
     stats.maintenance = 0;
-    const tempMeterRooms: MeterRoom[] = [];
+    // 應抄表清單 = 在租房間 + 公共電表（與抄表頁 billableEntries 定義一致）
+    const billableMeters: { id: string; name: string; isPublic: boolean }[] = [];
 
     roomsSnap.forEach(d => {
       const data = d.data();
       if (data.status === 'occupied') stats.occupied++;
       else if (data.status === 'maintenance') stats.maintenance++;
       else stats.vacant++;
-      if (tempMeterRooms.length < 5) {
-        tempMeterRooms.push({
-          id: d.id,
-          name: data.roomName || data.name || data.roomNumber || '未命名',
-          lastReading: Number(data.currentMeter) || 0,
-          newReading: undefined
-        });
+      if (data.tenantName || data.status === 'occupied') {
+        billableMeters.push({ id: d.id, name: data.name || '未命名', isPublic: false });
       }
     });
-    meterRooms.value = tempMeterRooms.sort((a, b) => a.name.localeCompare(b.name));
+    (publicMeters ?? []).forEach(pm => {
+      billableMeters.push({ id: pm.id, name: pm.name || '公共表', isPublic: true });
+    });
+
+    meterUsage.value = buildMeterUsage(billableMeters, readingsSnap, prevReadingsSnap);
 
     // 2. 在租人數（來自 tenants 集合，含手動建立）
     stats.activeTenants = tenantsSnap.size;
@@ -282,30 +347,6 @@ const fetchDashboardData = async () => {
     console.error('Fetch dashboard data error:', error);
   } finally {
     isLoading.value = false;
-  }
-};
-
-const saveMeterReading = async (room: MeterRoom) => {
-  if (!room.newReading || !authStore.user) return;
-  try {
-    const roomRef = doc(db, 'rooms', room.id);
-    await updateDoc(roomRef, {
-      currentMeter: room.newReading,
-      lastMeterUpdate: new Date().toISOString()
-    });
-    await addDoc(collection(db, 'meter_readings'), {
-      roomId: room.id,
-      landlordId: authStore.effectiveUid,
-      roomName: room.name,
-      reading: room.newReading,
-      date: new Date().toISOString(),
-      type: 'manual_quick'
-    });
-    room.lastReading = room.newReading;
-    room.newReading = undefined;
-    toast.success(`${room.name} 電表已儲存`);
-  } catch {
-    toast.error('儲存失敗，請稍後再試');
   }
 };
 

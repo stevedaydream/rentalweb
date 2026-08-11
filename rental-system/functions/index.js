@@ -253,10 +253,16 @@ exports.generatePdf = onRequest({ memory: "1GiB", timeoutSeconds: 60, region: "a
         timeout: 30000 
       });
 
-      const pdfBuffer = await page.pdf({ 
+      // 邊界：範本若自帶滿版 A4 版面（如 BillStatement 的 .sheet 210x297mm）需傳 pdfMargin 全 0，
+      // 否則內容會超出可列印區、產生空白頁。未指定時沿用原本的 10mm。
+      const pdfMargin = data.pdfMargin && typeof data.pdfMargin === 'object'
+        ? data.pdfMargin
+        : { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' };
+
+      const pdfBuffer = await page.pdf({
         format: 'A4',
         printBackground: true,
-        margin: { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
+        margin: pdfMargin
       });
 
       // ========== 修改開頭 ==========

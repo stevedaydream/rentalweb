@@ -101,7 +101,8 @@ rental-system/
 - Admin 模擬房東身份（impersonation，effectiveUid）
 
 ### 房東系統
-- Dashboard（財務概覽、月度任務、快速抄表入口、報修摘要、房東 Profile）
+- Dashboard（財務概覽、月度任務、用電概況、報修摘要、房東 Profile）
+- 用電概況卡（2026-08-11，取代壞掉的「電表快速登錄」）：唯讀卡片，顯示本月抄表進度（分母＝在租房間＋公共電表，與抄表頁 `billableEntries` 同定義）、未抄清單、本月用電度數／電費、較上月增減％、用電排行（前 5 名含長條圖，公共表以紫色區分），底部保留前往抄表頁入口。舊的 `MeterQuickEntry.vue` 已刪除，其問題：讀 `rooms.currentMeter`（不存在，上期度數恆為 0）、寫 `meter_readings` 用 `{reading, date, type:'manual_quick'}` 缺 `periodEnd`／`usage`／`cost`（查詢與帳單生成皆讀不到，形同孤兒文件）、回寫 `rooms.currentMeter`／`lastMeterUpdate` 而非 `lastMeterReading`／`lastMeterDate`（基準度數未更新）
 - 房間管理（新增/編輯/刪除房間，狀態追蹤）
 - 租客清單（新增/管理租客，綁定房間，解除房間綁定，刪除租客）
 - 財務管理（帳單建立、收款記錄、台電帳單、統計圖表）
@@ -114,6 +115,7 @@ rental-system/
 - 房間層電費方案「帶入全域設定」（2026-08-11）：房間的 `electricitySettings` 是整份設定的獨立副本，全域改費率不會連動，且畫面上看不出哪些房間過時。`types.ts` 新增共用的 `settingsFingerprint()`（mode/fixedRate/tieredConfig/tiers，欄位順序固定）。房間層設定 Modal 新增 `globalSettings` prop，開啟時比對，不同則顯示琥珀色提示與「帶入全域設定」按鈕（覆蓋 `local` 但不立即寫入，須按儲存），相同則顯示綠色一致提示。抄表列表同步標示：不一致的房間「個別方案」標籤與電費方案按鈕轉為琥珀色＋警告圖示，表格上方另有彙總橫幅列出所有不一致的房號
 - 手動新增帳單歸戶修正（2026-08-11）：帳務「新增一筆」選租客時只寫 `target` 字串且格式為「房號 姓名」，而自動生成的是「姓名 房號」，`PrintBillsModal.belongsToRoom` 兩種比對都落空 → 手動帳單不會出現在繳費通知單（本期項目與前期未繳皆是；與 status 無關，該函式不濾 status）。修法：`BillTransactionModal` 選到租客時寫入 `relatedTenantDocId` / `tenantId`（自由輸入或清空時以空值解除綁定，用 `''`／`null` 而非 delete 才能讓 updateDoc 真的清除；以 `openedTarget` 判斷是否真被改動，避免開啟編輯時誤清既有綁定），`tenantsList` 補傳 `uid`；`belongsToRoom` 同時接受兩種 target 字串順序以救回既有資料
 - 級距分母排除未分組電表（2026-08-11）：`roomCount` 原為 `meterData.length`（全部電表），未綁定子群組的房源（如測試房、其他物件）也被算進去，分母被灌大導致級距變小、電費高估。改為已建立子群組時只計入 `subGroupId` 在該群組內的電表，未建子群組則 fallback 全部（維持舊行為），並以 `Math.max(1, …)` 防除以 0。抄表頁另加紅色警示橫幅列出未綁定子群組的電表：它們雖已排除在分母外，但仍會套用此群組的累進參數計算（系統目前只支援單一台電總表，`calculateElectricity` 一律取 `meterGroups[0]`）；警示對象限 `billableEntries`（在租房間＋公共表），排除空房（本就不計費）與已改固定費率的房間（提前返回不受影響），確保橫幅只在真的會出錯時出現
+- 繳費通知單「分別存檔」（2026-08-11，租客尚未綁 LINE 的替代通知方式）：原本只能合併成一份多頁 PDF（`printHtmlPdf` 一次呼叫 = 一個列印對話框）。新增逐房呼叫伺服端 `generatePdf` 產生獨立檔案（`繳費通知單-{房號}-{月份}.pdf`），逐筆進度顯示、單房失敗不中斷並回報失敗清單。配套：`generatePdf` 新增 `pdfMargin` 參數（未傳沿用原本 10mm），因 billStatement 範本的 `.sheet` 已是滿版 210×297mm，套 10mm 邊界會溢出產生空白頁；`firebase.json` 的 `/generatePdf` rewrite 補上 `"region": "asia-east1"`（函式非部署於預設的 us-central1）
 - 報修管理（查看/處理租客報修申請）
 - 公告發布
 - 合約管理（自訂範本、PDF 匯出、電子簽名、排程續約：續約後目前租期維持到期滿、新租期存 pendingRenewal 到期自動接續+通知租客+導向重簽；房東「標記不續約」註記）

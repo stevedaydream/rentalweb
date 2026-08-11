@@ -56,14 +56,26 @@
         </div>
       </div>
 
-      <div class="p-6 border-t border-ink-100 dark:border-ink-700 flex justify-end gap-3">
-        <button @click="close" class="px-5 py-2 rounded-xl text-ink-500 hover:bg-surface-light font-medium transition-colors">取消</button>
-        <button @click="handlePrint" :disabled="printing || checkedRows.length === 0"
-          class="px-5 py-2 rounded-xl bg-gold-500 text-white font-bold shadow-md hover:bg-gold-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
-          <span v-if="printing" class="material-symbols-outlined text-[18px] animate-spin" aria-hidden="true">progress_activity</span>
-          <span v-else class="material-symbols-outlined text-[18px]" aria-hidden="true">print</span>
-          {{ printing ? '產生中…' : `列印（${checkedRows.length} 房）` }}
-        </button>
+      <div class="p-6 border-t border-ink-100 dark:border-ink-700 space-y-3">
+        <p class="text-[11px] text-text-secondary-light leading-relaxed">
+          <b>合併列印</b>：一份 {{ checkedRows.length }} 頁 PDF，適合印紙本。
+          <b class="ml-1">分別存檔</b>：每房一個檔案，適合個別傳給租客；瀏覽器可能詢問是否允許多重下載。
+        </p>
+        <div class="flex justify-end gap-3">
+          <button @click="close" class="px-5 py-2 rounded-xl text-ink-500 hover:bg-surface-light font-medium transition-colors">取消</button>
+          <button @click="handleDownloadEach" :disabled="busy || checkedRows.length === 0"
+            class="px-5 py-2 rounded-xl border-2 border-gold-500 text-gold-600 dark:text-gold-300 font-bold hover:bg-gold-50 dark:hover:bg-gold-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+            <span v-if="exporting" class="material-symbols-outlined text-[18px] animate-spin" aria-hidden="true">progress_activity</span>
+            <span v-else class="material-symbols-outlined text-[18px]" aria-hidden="true">download</span>
+            {{ exporting ? `產生中 ${exportDone}/${checkedRows.length}…` : `分別存檔（${checkedRows.length} 檔）` }}
+          </button>
+          <button @click="handlePrint" :disabled="busy || checkedRows.length === 0"
+            class="px-5 py-2 rounded-xl bg-gold-500 text-white font-bold shadow-md hover:bg-gold-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+            <span v-if="printing" class="material-symbols-outlined text-[18px] animate-spin" aria-hidden="true">progress_activity</span>
+            <span v-else class="material-symbols-outlined text-[18px]" aria-hidden="true">print</span>
+            {{ printing ? '產生中…' : `合併列印（${checkedRows.length} 房）` }}
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -97,6 +109,9 @@ const apiBase = import.meta.env.VITE_API_BASE
 const localMonth = ref(props.month)
 const loading = ref(false)
 const printing = ref(false)
+const exporting = ref(false)   // 分別存檔進行中
+const exportDone = ref(0)      // 已完成份數，用於進度顯示
+const busy = computed(() => printing.value || exporting.value)
 
 interface BillLite {
   id: string
@@ -334,14 +349,62 @@ const buildPage = (fragment: string, row: RoomRow): string => {
   })
 }
 
+const getFragment = () => {
+  const match = billStatementTemplate.match(/<!--PAGE_START([\s\S]*?)PAGE_END-->/)
+  if (!match || !match[1]) throw new Error('範本缺少頁面片段標記')
+  return match[1]
+}
+
+const renderPdfOnServer = async (pagesHtml: string): Promise<Blob> => {
+  const token = await auth.currentUser?.getIdToken()
+  const res = await axios.post(
+    `${apiBase}/generatePdf`,
+    // 範本的 .sheet 已是滿版 A4，交由它自己控制留白，故 PDF 邊界設 0
+    { templateType: 'BillStatement', pagesHtml, pdfMargin: { top: '0', bottom: '0', left: '0', right: '0' } },
+    { responseType: 'blob', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } },
+  )
+  return res.data
+}
+
+// 每房一個獨立 PDF，供個別傳送給租客（尚未綁 LINE 時的替代通知方式）。
+// 走伺服端 generatePdf：本地列印是一次一個對話框，逐房會跳 N 次。
+const handleDownloadEach = async () => {
+  const rows = checkedRows.value
+  if (rows.length === 0) return
+  exporting.value = true
+  exportDone.value = 0
+  const failed: string[] = []
+  try {
+    const fragment = getFragment()
+    const month = localMonth.value
+    for (const row of rows) {
+      try {
+        const blob = await renderPdfOnServer(buildPage(fragment, row))
+        downloadPdfFromBlob(blob, `繳費通知單-${row.roomName}-${month}.pdf`)
+      } catch (e) {
+        console.error(`產生 ${row.roomName} 的 PDF 失敗:`, e)
+        failed.push(row.roomName)
+      }
+      exportDone.value++
+    }
+    const ok = rows.length - failed.length
+    if (failed.length === 0) toast.success(`已產生 ${ok} 份 PDF`)
+    else if (ok > 0) toast.warning(`已產生 ${ok} 份，失敗：${failed.join('、')}`)
+    else toast.error('全部產生失敗，請稍後再試')
+  } catch (e: any) {
+    console.error('PrintBillsModal downloadEach error:', e)
+    toast.error(e?.message || '產生失敗，請稍後再試')
+  } finally {
+    exporting.value = false
+  }
+}
+
 const handlePrint = async () => {
   const rows = checkedRows.value
   if (rows.length === 0) return
   printing.value = true
   try {
-    const match = billStatementTemplate.match(/<!--PAGE_START([\s\S]*?)PAGE_END-->/)
-    if (!match || !match[1]) throw new Error('範本缺少頁面片段標記')
-    const fragment = match[1]
+    const fragment = getFragment()
     const pagesHtml = rows.map(r => buildPage(fragment, r)).join('\n')
 
     const month = localMonth.value
@@ -354,13 +417,7 @@ const handlePrint = async () => {
       toast.success('已開啟列印視窗，請選「另存為 PDF」或直接列印')
     } catch (e) {
       console.warn('本地帳單組裝失敗，改用伺服端 generatePdf:', e)
-      const token = await auth.currentUser?.getIdToken()
-      const res = await axios.post(
-        `${apiBase}/generatePdf`,
-        { templateType: 'BillStatement', pagesHtml },
-        { responseType: 'blob', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } },
-      )
-      downloadPdfFromBlob(res.data, `${filename}.pdf`)
+      downloadPdfFromBlob(await renderPdfOnServer(pagesHtml), `${filename}.pdf`)
     }
   } catch (e: any) {
     console.error('PrintBillsModal print error:', e)
