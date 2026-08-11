@@ -30,6 +30,9 @@ export interface TransactionForm {
   target: string
   description: string
   status: 'completed' | 'pending' | 'overdue'
+  // 從下拉選單挑到租客時填入，讓手動新增的帳單能與自動生成的一樣正確歸戶
+  relatedTenantDocId?: string
+  tenantId?: string | null
 }
 
 export interface TaipowerForm {

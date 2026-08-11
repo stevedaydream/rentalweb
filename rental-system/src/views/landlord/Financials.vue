@@ -656,7 +656,7 @@ const initDataListeners = (uid: string) => {
   getDocs(query(collection(db, 'tenants'), where('landlordId', '==', uid))).then(snap => {
     tenantsList.value = snap.docs.map(d => {
       const data = d.data()
-      return { id: d.id, name: data.name || '', room: data.room || '' }
+      return { id: d.id, name: data.name || '', room: data.room || '', uid: data.uid || null }
     })
   })
 

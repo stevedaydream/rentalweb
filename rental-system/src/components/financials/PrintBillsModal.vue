@@ -141,9 +141,14 @@ const toggleAll = () => {
 
 const isCollected = (b: BillLite) => b.status === 'completed' || b.status === 'paid'
 
+// target 字串在系統內有兩種寫法：自動生成為「姓名 房號」，手動新增的下拉選單為「房號 姓名」，
+// 兩種都要認，否則舊的手動帳單會漏印。新資料一律有 relatedTenantDocId，優先用它比對。
 const belongsToRoom = (bill: BillLite, roomName: string, tenantDocId: string, tenantName: string) =>
-  (bill.relatedTenantDocId && bill.relatedTenantDocId === tenantDocId) ||
-  (!!tenantName && bill.target === `${tenantName} ${roomName}`)
+  (!!bill.relatedTenantDocId && bill.relatedTenantDocId === tenantDocId) ||
+  (!!tenantName && (
+    bill.target === `${tenantName} ${roomName}` ||
+    bill.target === `${roomName} ${tenantName}`
+  ))
 
 const loadData = async () => {
   if (!props.show || !localMonth.value) return

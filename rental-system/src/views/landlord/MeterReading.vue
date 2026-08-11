@@ -126,6 +126,22 @@
       </div>
     </div>
 
+    <!-- 未納入電表群組提醒 -->
+    <div v-if="!loading && ungroupedMeters.length > 0"
+      class="flex items-start gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+      <span class="material-symbols-outlined text-red-500 text-[20px] shrink-0" aria-hidden="true">error</span>
+      <div class="min-w-0">
+        <p class="text-sm font-bold text-red-800 dark:text-red-200">
+          {{ ungroupedMeters.length }} 個電表未納入「{{ meterGroup?.name || '電表群組' }}」
+        </p>
+        <p class="text-xs text-red-700 dark:text-red-300 mt-0.5">
+          {{ ungroupedMeters.map(m => m.name).join('、') }}
+          —— 這些電表不計入級距分母（目前分母 {{ meterGroups[0]?.roomCount ?? 0 }}），但仍會套用此群組的累進參數計算，等同用別棟的級距出帳。
+          請到設定將其綁定子群組，或改為「固定費率」個別方案。
+        </p>
+      </div>
+    </div>
+
     <!-- 個別方案與全域不一致提醒 -->
     <div v-if="!loading && staleRooms.length > 0"
       class="flex items-start gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
@@ -622,11 +638,19 @@ const loadData = async () => {
   meterData.value = [...roomEntries, ...publicEntries];
 
   // 級距分母 = 群組內電表總數（房間 + 公共表，含空房）
+  // 已建立子群組時，只計入有綁定子群組的電表；未分組的房源不屬於這顆台電表，不該撐大分母。
+  // 尚未建立子群組（或全部都沒綁）時 fallback 為全部電表，維持舊行為。
+  const subGroupIds = new Set((meterGroup.value?.subGroups ?? []).map(sg => sg.id));
+  const groupedMeters = subGroupIds.size > 0
+    ? meterData.value.filter(m => !!m.subGroupId && subGroupIds.has(m.subGroupId))
+    : meterData.value;
+  const meterCount = Math.max(1, groupedMeters.length || meterData.value.length);
+
   meterGroups.value = [{
     id: meterGroup.value?.id || 'default_group',
     name: meterGroup.value?.name || '本棟總表',
     officialMetersCount: 1,
-    roomCount: meterData.value.length,
+    roomCount: meterCount,
     masterLastReading: 0,
     masterCurrentReading: undefined,
     masterBillAmount: undefined,
@@ -879,6 +903,17 @@ const vacantRooms = computed(() => meterData.value.filter(r => r.meterType !== '
 const publicEntries = computed(() => meterData.value.filter(r => r.meterType === 'public'));
 const billableEntries = computed(() => [...occupiedRooms.value, ...publicEntries.value]);
 const filledCount = computed(() => billableEntries.value.filter(r => r.currentReading !== undefined).length);
+
+// 未綁定子群組、且實際會出帳的電表：不計入級距分母，卻仍套用此群組的累進參數計算，等同用別棟的級距。
+// 排除三種不會出錯的情況：空房（不計費）、已改固定費率（calculateElectricity 提前返回）、尚未建立子群組（走 fallback）。
+const ungroupedMeters = computed(() => {
+  const subGroupIds = new Set((meterGroup.value?.subGroups ?? []).map(sg => sg.id));
+  if (subGroupIds.size === 0) return [];
+  return billableEntries.value.filter(m =>
+    (!m.subGroupId || !subGroupIds.has(m.subGroupId)) &&
+    (m.electricitySettings ?? settings.value).mode !== 'fixed'
+  );
+});
 
 // 依子群組分區塊：房間在前、公共表在後；未分組房間歸入最後一個 section
 interface DisplaySection {

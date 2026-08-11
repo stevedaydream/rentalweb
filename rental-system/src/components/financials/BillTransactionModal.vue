@@ -199,7 +199,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import type { TransactionForm } from './types'
 
-interface TenantOption { id: string; name: string; room: string }
+interface TenantOption { id: string; name: string; room: string; uid?: string | null }
 
 const props = defineProps<{
   show: boolean
@@ -219,17 +219,39 @@ const targetRef = ref<HTMLElement | null>(null)
 const targetSearch = ref('')
 const showTargetDrop = ref(false)
 
+// 開啟當下的對象字串：只要沒被改動就保留原有的租客綁定（編輯既有帳單時很重要）
+const openedTarget = ref('')
+
 watch(() => props.show, (val) => {
   if (val) {
     local.value = JSON.parse(JSON.stringify(props.modelValue))
-    targetSearch.value = props.modelValue.target || ''
+    openedTarget.value = props.modelValue.target || ''
+    targetSearch.value = openedTarget.value
   }
 })
 
 // Sync targetSearch → local.target when typing freely
-watch(targetSearch, (v) => { local.value.target = v })
+// 自由輸入時解除租客綁定，避免改了對象卻仍歸戶到原租客
+watch(targetSearch, (v) => {
+  local.value.target = v
+  if (v === openedTarget.value) return // 未改動，維持載入時的綁定
+  const picked = (props.tenants ?? []).find(t => targetLabel(t) === v)
+  if (!picked) unbindTenant()
+})
+
+// 用空值而非 delete：編輯既有帳單時 updateDoc 才會真的清掉舊的綁定
+const unbindTenant = () => {
+  local.value.relatedTenantDocId = ''
+  local.value.tenantId = null
+}
 
 const targetLabel = (t: TenantOption) => t.room ? `${t.room} ${t.name}` : t.name
+
+// 綁定租客文件 id：列印通知單／前期未繳都靠這個欄位歸戶，比 target 字串可靠
+const bindTenant = (t: TenantOption) => {
+  local.value.relatedTenantDocId = t.id
+  local.value.tenantId = t.uid ?? null
+}
 
 const filteredTenants = computed(() => {
   const q = targetSearch.value.toLowerCase()
@@ -242,17 +264,20 @@ const filteredTenants = computed(() => {
 const selectTarget = (t: TenantOption) => {
   local.value.target = targetLabel(t)
   targetSearch.value = targetLabel(t)
+  bindTenant(t)
   showTargetDrop.value = false
 }
 
 const selectCustomTarget = () => {
   local.value.target = targetSearch.value
+  unbindTenant()
   showTargetDrop.value = false
 }
 
 const clearTarget = () => {
   local.value.target = ''
   targetSearch.value = ''
+  unbindTenant()
 }
 
 // Close dropdown on outside click
