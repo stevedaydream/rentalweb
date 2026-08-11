@@ -8,7 +8,10 @@
     "stop": "npx kill-port 8085 4000 4400 9099 9199",
     "dev": "vite",
     "dev:emulator": "firebase emulators:start --import=./emulator-data --export-on-exit=./emulator-data",
-    "build": "vue-tsc -b && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build": "vitest run && vue-tsc -b && vite build",
+    "build:nocheck": "vite build",
     "preview": "vite preview",
     "analyze": "cross-env ANALYZE=true vite build",
     "lint": "eslint src --ext .ts,.vue",
@@ -49,6 +52,7 @@
     "typescript": "~5.9.3",
     "vite": "^7.2.4",
     "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^3.2.7",
     "vue-eslint-parser": "^10.4.0",
     "vue-tsc": "^3.1.4"
   }
