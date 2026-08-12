@@ -146,6 +146,44 @@
 
 ---
 
+## BF-009：JavaScript 語言陷阱造成的三個電費計算錯誤
+
+- **問題描述**：三個獨立的電費計算錯誤，根因都是 JS 的語言行為而非邏輯設計失誤。皆由單元測試發現，肉眼審閱時全部看起來正確。
+- **根本原因與解法**：
+
+  **① `new Date(y, m, d)` 的月份溢位**
+  ```js
+  new Date(2026, 1, 31)   // 想表達 2/31 → 實際得到 3/3，不是夾到 2/28
+  ```
+  `getFullMonthDays('2026-01-31')` 因此算出 31 天（正解 28 天）。抄表日固定在月底者，2 月那期天數比例變成 0.903、級距被縮小 10%，租客多付。
+  解法：先用 `new Date(y, m + 1, 0).getDate()` 取得目標月份最後一天，把「日」夾進去再相減。
+
+  **② `??` 攔不到 `0`**
+  ```js
+  officialMetersCount: g.officialMetersCount ?? 1   // 0 會原樣通過
+  ```
+  為 0 時 `scaleFactor` 歸零 → 所有級距上限失效 → 全部用電落到最高費率（300 度從 925 元變成 2538 元）。同一物件相鄰那行的 `roomCount` 早有 `Math.max(1, …)` 保護，此處漏了。
+  解法：數值防呆用 `Math.max(1, Number(x) || 1)`，不要用 `??`。**`??` 只擋 null/undefined，`||` 才擋 0**——需求是「排除無效數值」時應選後者。
+
+  **③ 與 `NaN` 的比較恆為 false，會靜默走進 else 分支**
+  ```js
+  const avg = res.raw / usage          // 日期無效 → NaN
+  if (avg >= minRate) return res       // NaN >= 5 為 false → 往下走
+  return { cost: Math.round(usage * minRate) }   // 靜默改用 5 元/度出帳
+  ```
+  日期一壞不會報錯，而是無聲改用保底單價出帳。
+  解法：在進入累進計算前先 `Number.isFinite(days)` 驗證，無效時回傳 0 並在 `calcLog` 明示原因，不讓 NaN 流入後續比較。
+
+- **牽扯檔案**：`src/utils/meter/calc.ts`（`getFullMonthDays`、`calculateElectricity`）、`src/utils/meter/groups.ts`（`buildMeterGroups`）
+
+> **通用避坑**：
+> 1. 用 `new Date(y, m, d)` 做「加一個月」時，`d` 必須先夾到目標月份天數
+> 2. 數值防呆分清楚 `??`（只擋 null/undefined）與 `||`（也擋 0）
+> 3. 任何除法結果進入比較前先驗證 `Number.isFinite`；`NaN` 的比較永遠 false，會安靜地選錯分支
+> 4. 這三個都是肉眼審閱看不出來的錯誤，計算類邏輯應以單元測試涵蓋邊界值
+
+---
+
 ## BF 範本
 
 ### BF-XXX：標題

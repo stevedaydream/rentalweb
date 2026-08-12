@@ -25,6 +25,7 @@ Firebase 專案 ID：`rental-system-7675e`
 | PDF | Puppeteer + @sparticuz/chromium（Cloud Function） |
 | LINE Bot | @line/bot-sdk，多房東架構（?lid= 參數） |
 | Excel 匯入 | xlsx 套件 |
+| 單元測試 | Vitest（`environment: 'node'`，純函式；已接入 `npm run build` 作為部署前 gate） |
 
 ---
 
@@ -45,6 +46,7 @@ rental-system/
 │   │   └── meter/         # 抄表元件（2 個）
 │   ├── stores/            # Pinia：auth, bill, notification, toast, user
 │   ├── services/          # Firestore CRUD：bill, meter, repair, room, tenant, announcement
+│   ├── utils/meter/       # 電費計算純函式 + 單元測試（calc / groups / sections）
 │   ├── router/            # 路由設定（含角色守衛）
 │   ├── firebase/          # Firebase 初始化與模擬器自動切換
 │   ├── layouts/           # LandlordLayout, TenantLayout, SuperAdminLayout
@@ -120,6 +122,13 @@ rental-system/
 - 多台電總表支援 — Phase A 計算層（2026-08-12）：`meter_groups` collection 本來就可存多筆、`public_meters.groupId` 早已存在，主要瓶頸在計算層寫死 `meterGroups[0]`。改動：`MeterGroupDoc` 新增 `officialMetersCount?`（原寫死 1）與 `electricitySettings?`；`MeterEntry` 新增 `groupId`；`types.ts` 新增 `UNGROUPED_ID`。載入時以 `Map<subGroupId, groupId>` 反查房間所屬總表（**rooms 僅存 subGroupId，靠此反查免除 schema 遷移**），公共表優先用自身 `groupId`。級距分母改為每群組獨立計算，未歸屬者自成一組不影響他棟；無任何群組時全部視為一組（維持舊行為）。設定優先序改為 房間個別 > 所屬群組 > 全域（`getRoomSettings`）；`cycleIndex` 由 computed 改為 `getCycleIndex(s)` 以支援各群組不同帳期；`calculateElectricity` 改用 `getRoomGroup(room)`。抄表存檔改記錄該筆實際採用的 `mode`／`cycle`／`cycleIndex`（原本一律寫全域值）並新增 `groupId`。`sections` 改為走訪所有群組的子群組，多群組時標題加上總表名稱。帳單分攤制的總表輸入區原本就是 `v-for="group in meterGroups"`，自動支援多顆。- 多台電總表支援 — Phase C 抄表頁群組頁籤（2026-08-12）：頂部新增總表頁籤（僅在 >1 顆時顯示），每個頁籤帶「已抄/應抄」徽章（綠=完成、橘=未完成），不必逐頁點開就知道哪棟還沒抄。`activeGroupId` 驅動 `scopedData`，`occupiedRooms`／`vacantRooms`／`publicEntries`／`billableEntries`／`totalEstimatedCost`／`sections` 全部限縮至目前總表；`sections` 只走該總表的子群組，標題不再需要總表前綴。統計卡改讀 `activeSettings`（群組層 > 全域），並顯示該組電表數與「專屬方案」標記；表頭與帳單分攤區塊同步改用 `activeSettings`／`activeGroup`。警示橫幅（未分組、個別方案過時）改用 `allBillableEntries` 維持跨總表。**儲存仍為全域**（`pendingSaveRooms` 不限縮），切換頁籤不會遺失已輸入但未儲存的度數
 - 多台電總表支援 — Phase B 設定頁（2026-08-12）：`MeterSettingsModal` 群組管理由單一群組改為 N 顆總表，每顆可編輯名稱、`officialMetersCount`、子群組、公共電表，並可新增／刪除總表（刪除時連帶移除其公共電表、解除房間綁定）。新建總表使用暫時 id，儲存時先 `addMeterGroup` 取得真實 id 再以 `idMap` 重寫公共電表的 `groupId`。房間綁定改為跨總表的單一區塊，下拉以 `<optgroup>` 依總表分組。Modal 新增第三種模式：原本只有「全域」與「房間層」（`roomId`），現增加「群組層」（`groupId`，寫入 `meter_groups/{id}.electricitySettings`），`isScoped` / `scopeLabel` 統一兩種 scoped 模式的提示文案、差異比對與「重設為全域設定」。群組卡片的「電費方案」按鈕 emit `edit-group-settings`，由 `MeterReading.vue` 開啟第三個 Modal 實例（新建未儲存的總表會擋下並提示先儲存）
 - 帳單分攤制總表資料持久化（2026-08-12）：`buildMeterGroups` 每次 `loadData` 都把 `masterCurrentReading`／`masterBillAmount` 重建為 `undefined`，而 UI 直接 v-model 綁在這個暫存物件上。後果是換月份或任何重載會清空輸入，之後若解鎖某列重新儲存，平均單價變 0 → 該筆電費被靜默歸零。改為沿用既有的 `taipower_bills` collection（`{month, usage, amount}` 正是分攤制所需），新增 `groupId` 欄位區分多顆總表；`getTaipowerBillsByMonth`／`upsertTaipowerBill`（同月同表已存在則更新，避免重複）；純函式 `applyMasterBills` 負責把帳單套進各總表，舊資料無 `groupId` 時僅在單一總表情況下採用，多表時不臆測歸屬。總表欄位改為 `@change` 即時寫回，不依賴「儲存紀錄」按鈕
+- 電費計算單元測試與抽取（2026-08-12）：計算邏輯原本困在 `MeterReading.vue` 的 SFC 內、混著 Vue ref 無法測試。抽成 `src/utils/meter/` 三個純模組（`calc` 算錢／`groups` 歸屬與分母／`sections` 分區與彙總），Vue ref 依賴改為明確參數，`MeterReading.vue` 1197 → 920 行只保留注入元件狀態的薄包裝。導入 Vitest 並接入 `npm run build`，測試失敗即擋下部署（`dev.bat` 選項 7 既有的 errorlevel 中止機制自動生效）；另有 `build:nocheck` 逃生門。測試 225 項，含 24 項黃金測資（基隆 7 房 2026-07/08 真實金額，402/503 採系統正確值 701/4863，Excel 該兩格為手動覆寫）。過程中修正 5 個計算錯誤：
+  1. `getFullMonthDays` 月底起算溢位（`new Date(2026,1,31)` 被正規化為 3/3），抄表日在月底者 2 月級距被縮小 10%，租客多付
+  2. 計費期間日期無效時 NaN 一路外洩成 NaN 帳單金額，且因 `NaN >= minRate` 為 false 而靜默套用保底單價，等於無聲改用 5 元/度出帳
+  3. 最高級距上限取自可編輯的 `tier.limit`（99999 只是哨兵值），房東改成 2000 則超過部分完全免費，房東少收
+  4. 帳單分攤制總表資料未持久化，重載後清空，重新儲存時電費靜默歸零
+  5. `officialMetersCount` 用 `??` 攔不到 0，為 0 時 `scaleFactor` 歸零使所有級距失效，全部用電落到最高費率（300 度 925 → 2538 元）
+  另有 1 項政策變更：公共電表不再套用保底單價（保底對象為租客，走廊燈等低用量表會被拉抬數倍）。既有帳目金額全部未受影響。
 - 報修管理（查看/處理租客報修申請）
 - 公告發布
 - 合約管理（自訂範本、PDF 匯出、電子簽名、排程續約：續約後目前租期維持到期滿、新租期存 pendingRenewal 到期自動接續+通知租客+導向重簽；房東「標記不續約」註記）
@@ -185,6 +194,11 @@ rental-system/
 
 - 手機 Google 登入（歷史 Bug，已解決）：須在 Google Cloud Console 手動加入 `web.app` 到已授權 JS 來源，詳見 DEV_GUIDE.md 第九節
 - Cloudflare Tunnel URL 每次重啟後變更，需手動更新 LINE Console Webhook URL
+- **公共電費分攤有兩份獨立實作，數字可能對不上（待統一）**：
+  - `sections.ts buildSections`（抄表頁預估）：同子群組多顆公共表**先加總再除**，取整只做一次；且依總表頁籤限縮
+  - `Financials.vue:997`（實際出帳）：`Math.round(reading.cost / sgRooms.length)`，**每顆表各自除、各自取整**，且不限縮總表
+  - 單顆公共表時兩者一致；多顆時取整時機不同會產生差異，抄表頁看到的預估分攤與實際開出的帳單金額可能不符
+  - 修法方向：把 `Financials` 的分攤改為呼叫 `sections.ts` 的同一份邏輯，並補上出帳路徑的單元測試（`billing.ts`）。此變更會改動實際出帳金額，需另行對帳驗收
 
 ---
 
