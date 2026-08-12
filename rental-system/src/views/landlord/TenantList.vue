@@ -1380,6 +1380,7 @@ watch([manualTenantsList, onlineUsers], ([newManual, newOnline]) => {
   refreshBillStatuses();
 });
 
+
 onUnmounted(() => {
   if (unsubscribeTenants) unsubscribeTenants();
   if (unsubscribeUsers) unsubscribeUsers();
@@ -1672,6 +1673,16 @@ const openNewTenantModal = () => {
 // --- Drawer State ---
 const showDrawer = ref(false);
 const drawerTenant = ref<Tenant | null>(null);
+// drawerTenant 是開啟抽屜當下的淺複本，不會隨 onSnapshot 更新。
+// 例如「解除房間綁定」後 Firestore 的 room 已清空、列表也更新了，抽屜內卻
+// 仍是舊房號，導致「刪除租客」被 `!!drawerTenant?.room` 擋住，必須關閉再開。
+// 此處以 id 對回最新資料，讓抽屜內容與列表保持一致。
+watch(tenants, (list) => {
+  const current = drawerTenant.value;
+  if (!current) return;
+  const fresh = list.find(t => t.id === current.id);
+  if (fresh) drawerTenant.value = { ...fresh };
+});
 const drawerTab = ref<'info' | 'bills' | 'deposits'>('info');
 const drawerEditing = ref(false);
 const drawerBills = ref<DrawerBill[]>([]);
@@ -2381,7 +2392,7 @@ const unbindRoom = async (tenant: Tenant) => {
 
     toast.success('已解除房間綁定');
     drawerEditing.value = false;
-    // drawerTenant 會透過 onSnapshot 自動更新
+    // drawerTenant 由 tenants 的 watch 依 id 同步回最新資料
     await fetchRooms();
   } catch (e) {
     console.error('unbindRoom error:', e);
