@@ -30,13 +30,7 @@
 
     <!-- 雙方簽名 -->
     <div class="grid grid-cols-2 gap-3">
-      <div class="p-3 rounded-xl border border-gray-100 dark:border-gray-800">
-        <p class="text-[11px] text-text-secondary-light mb-1">出租人（房東）</p>
-        <div class="h-14 flex items-end">
-          <img v-if="landlordSignature" :src="landlordSignature" alt="房東簽名" class="max-h-14 max-w-full object-contain" />
-          <span v-else class="text-[11px] text-text-secondary-light">未設定，將留白（設定 → 我的簽名）</span>
-        </div>
-      </div>
+      <LandlordSignatureField v-model="landlordSignature" :landlord-id="props.landlordId" />
       <div class="p-3 rounded-xl border border-gray-100 dark:border-gray-800">
         <p class="text-[11px] text-text-secondary-light mb-1">承租人（租客）</p>
         <div class="h-14 flex items-end justify-between gap-2">
@@ -68,9 +62,10 @@ import { useToastStore } from '../stores/toast'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { printHtmlPdf } from '../utils/contractRender'
 import { amountToChineseCapital } from '../utils/chineseAmount'
-import { loadLandlordSignature, BLANK_PIXEL } from '../utils/signature'
+import { BLANK_PIXEL } from '../utils/signature'
 import receiptTemplate from '../templates/receipt.html?raw'
 import Signature from './Signature.vue'
+import LandlordSignatureField from './LandlordSignatureField.vue'
 
 const props = defineProps({
   prefill: { type: Object, default: () => ({}) },
@@ -174,6 +169,5 @@ onMounted(async () => {
   form.value.duration = Number(p.duration) || 1
   if (p.startDate) form.value.startDate = p.startDate
   form.value.landlord = authStore.userProfile?.name || ''
-  landlordSignature.value = await loadLandlordSignature(props.landlordId)
 })
 </script>

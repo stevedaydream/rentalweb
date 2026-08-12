@@ -133,6 +133,12 @@ rental-system/
 - 帳務管理「依租客」檢視（2026-08-12）：收款時關心的是「這位租客繳了沒」，但清單是逐筆帳單（7 房 × 租金＋電費 = 14 列，加公共電費 21 列），要用眼睛找同一租客的兩筆。分頁列右側新增切換鈕（**預設開啟**，逐筆清單留給稽核時手動切換），依租客摺疊：一列顯示筆數／合計／待收，並提供一鍵收款批次標記該租客全部未收帳單；點擊展開看明細，仍可逐筆標記。待收的租客排前面、「其他（支出・台電帳單）」置底。分組僅為顯示層，收款狀態仍逐筆儲存於各自的 bills 文件。歸戶鍵優先 `relatedTenantDocId`，退回 `tenantId`、再退回 `target` 字串（早期手動帳單只有這個）。邏輯抽於 `src/utils/financials/tenantGroups.ts`（26 項測試，含「每筆帳單恰好出現在一組」「各組合計相加等於總收支」等不變量），`isCollected` 一併移入共用
 - 簽約流程房源租金未帶入修正（2026-08-12）：`OnboardingMode.vue` 載入可選房源時讀 `r.rent`，但 `rooms` 文件的月租金欄位是 **`price`**（`RoomManagement` 表單以此建檔，模擬器實測三筆房源皆只有 `price`、無 `rent`），故選了房源租金恆為 0、押金也連帶算不出來。`TenantList` 用的是正確的 `r.price`，只有簽約流程寫錯。共用型別 `Room` 更是宣告了不存在的 `rent?` 卻沒有 `price`，等於在誤導後續開發。修法：新增 `src/utils/room.ts` 的 `roomMonthlyRent()` 作為唯一取值入口（依序嘗試 `price` → `rent`，以「正的有限數」為有效；新增房源時 `price` 預設 0 代表尚未設定而非租金為零，故不可用 `??` 判斷是否退回舊欄位），`OnboardingMode` 與 `TenantList` 兩處皆改走此函式；`Room` 型別補上 `price` 並將 `rent` 標為 `@deprecated`。測試 11 項
 - 精靈模式合約地址未帶入修正（2026-08-12）：`OnboardingMode` 的 `contractPrefill` 只帶 tenant／roomNo／rentfee／startDate／duration，缺 `address`，故精靈模式簽出的合約地址欄位為空（獨立簽約頁的 `ContractForm.onRoomSelect` 有正確帶入，`ContractForm` 的 prefill 也接得住，只有精靈模式漏傳）。根因與租金同源：`availableRooms` 當初只撈 `{ name, rent }`。修法：`availableRooms` 補 `address`，新增 `selectedRoom` computed 供 `onRoomSelect` 與 `contractPrefill` 共用，並讓營運用的 `contracts` 文件一併存入 `address`
+- 房東簽名加密保險箱（2026-08-12）：原本簽名以明文 dataURL 存於 `settings/{landlordId}.signatureImage`，且合約／押金收據頁只能提示「未設定，將留白（設定 → 我的簽名）」，無法當場簽。改動：
+  - `src/utils/signatureVault.ts`：以 PIN 派生金鑰加密（WebCrypto PBKDF2-SHA256 210k 迭代 + AES-GCM），每次加密使用新的 salt／iv；PIN 錯誤或密文遭竄改皆由 GCM 驗證標籤攔下並統一轉為 `WrongPinError`。29 項測試
+  - `src/composables/useSignatureVault.ts`：工作階段解鎖，明文存 `sessionStorage`（關分頁／登出即失效），提供 `lock()` 供交手機給租客前手動鎖回
+  - `src/components/LandlordSignatureField.vue`：共用簽名欄位，可當場手寫；未設定過者簽完詢問「儲存我的簽名」，勾選才要求設 PIN，不勾則僅用於該份文件不入庫。已加密者顯示「解鎖簽名」按鈕
+  - 套用於合約表單與押金收據表單；設定頁改為加密儲存並顯示「已加密儲存」狀態
+  - **安全界線**：PIN 保護的是「簽名被再利用」（下載原圖、蓋到其他單據、資料庫外洩），**不是「被看見」** —— 租客簽署時該份文件上本來就會顯示房東簽名
 - 報修管理（查看/處理租客報修申請）
 - 公告發布
 - 合約管理（自訂範本、PDF 匯出、電子簽名、排程續約：續約後目前租期維持到期滿、新租期存 pendingRenewal 到期自動接續+通知租客+導向重簽；房東「標記不續約」註記）
@@ -198,6 +204,7 @@ rental-system/
 
 - 手機 Google 登入（歷史 Bug，已解決）：須在 Google Cloud Console 手動加入 `web.app` 到已授權 JS 來源，詳見 DEV_GUIDE.md 第九節
 - Cloudflare Tunnel URL 每次重啟後變更，需手動更新 LINE Console Webhook URL
+- eslint 設定未宣告瀏覽器全域（`console`／`document`／`window`／`crypto`／`sessionStorage` 等一律報 `no-undef`），導致 lint 幾乎每個檔案都有錯誤、實質失去把關作用。修正方向：在 `eslint.config.js` 補上 browser globals
 - ~~公共電費分攤有兩份獨立實作~~（2026-08-12 已解決，見「出帳規則統一」）
 
 ---

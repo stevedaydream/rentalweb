@@ -498,12 +498,16 @@
         <span class="material-symbols-outlined text-[20px] text-gold-500 mr-2">draw</span>
         我的簽名 / 印章
       </h2>
-      <p class="text-sm text-text-secondary-light mb-4">存一次後，退租點交清單、退租結清單、收據等單據的「出租人」欄會自動帶入此簽名 / 印章，不必每次重簽。</p>
+      <p class="text-sm text-text-secondary-light mb-4">存一次後，合約、押金收據、退租點交等單據的「出租人」欄可帶入此簽名 / 印章，不必每次重簽。簽名會以 PIN 碼加密儲存，套用時輸入一次即可，關閉分頁後失效。</p>
 
       <div class="flex flex-col sm:flex-row gap-5 items-start">
         <div class="shrink-0">
           <div class="w-56 h-28 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/40 flex items-center justify-center overflow-hidden">
             <img v-if="signatureImage" :src="signatureImage" alt="目前簽名" class="max-w-full max-h-full object-contain" />
+            <span v-else-if="signatureVault.hasVault.value" class="text-xs text-amber-600 flex items-center gap-1">
+              <span class="material-symbols-outlined text-[14px]" aria-hidden="true">lock</span>
+              已加密儲存（套用時輸入 PIN 取出）
+            </span>
             <span v-else class="text-xs text-text-secondary-light">尚未設定簽名 / 印章</span>
           </div>
         </div>
@@ -538,6 +542,37 @@
 
     <Signature v-model:visible="showSignPad" @confirm="onSignConfirm" />
 
+    <!-- 簽名加密 PIN -->
+    <div v-if="showPinDialog" class="fixed inset-0 z-[200] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showPinDialog = false"></div>
+      <div role="dialog" aria-modal="true" aria-labelledby="settings-pin-title"
+        class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4">
+        <div>
+          <h3 id="settings-pin-title" class="font-bold text-text-primary-light dark:text-text-primary-dark">設定簽名 PIN 碼</h3>
+          <p class="text-xs text-text-secondary-light mt-1">
+            簽名將以此 PIN 加密後儲存，日後套用到合約或收據時需輸入一次。
+            <b>忘記 PIN 只能重新簽名</b>，系統無法還原。
+          </p>
+        </div>
+        <input v-model="signaturePin" type="password" inputmode="numeric" autocomplete="off" maxlength="8"
+          placeholder="4~8 位數字" class="form-input text-center text-lg tracking-[0.4em] font-mono"
+          @keydown.enter="confirmSaveSignature" />
+        <p v-if="signaturePinError" class="text-xs text-red-500">{{ signaturePinError }}</p>
+        <div class="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2.5">
+          <span class="material-symbols-outlined text-[16px] shrink-0" aria-hidden="true">info</span>
+          <span>PIN 阻止的是簽名被下載或蓋到其他單據；租客簽署時本來就會看到該份文件上的簽名。</span>
+        </div>
+        <div class="flex gap-2">
+          <button type="button" @click="showPinDialog = false"
+            class="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">取消</button>
+          <button type="button" @click="confirmSaveSignature" :disabled="isSavingSignature"
+            class="flex-1 py-2.5 rounded-xl bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 transition-colors disabled:opacity-50">
+            {{ isSavingSignature ? '儲存中…' : '加密並儲存' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -549,6 +584,8 @@ import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { DEFAULT_CATALOG, type CatalogItem } from '../../utils/inventory';
 import { fileToResizedDataUrl } from '../../utils/signature';
+import { useSignatureVault } from '../../composables/useSignatureVault';
+import { isValidPin } from '../../utils/signatureVault';
 import Signature from '../../components/Signature.vue';
 
 const authStore = useAuthStore();
@@ -559,6 +596,7 @@ const isSaving = ref(false);
 const signatureImage = ref('');
 const showSignPad = ref(false);
 const isSavingSignature = ref(false);
+const signatureVault = useSignatureVault();
 const onSignConfirm = (img: string) => { signatureImage.value = img; };
 const onSealUpload = async (e: Event) => {
   const file = (e.target as HTMLInputElement).files?.[0];
@@ -572,15 +610,42 @@ const onSealUpload = async (e: Event) => {
     (e.target as HTMLInputElement).value = '';
   }
 };
+// 簽名一律加密儲存：明文 dataURL 只要被任何路徑讀到就等於外流，
+// 故存檔前必須設定 PIN，並同時清除舊的明文欄位。
+const showPinDialog = ref(false);
+const signaturePin = ref('');
+const signaturePinError = ref('');
+const openSignaturePin = () => { signaturePin.value = ''; signaturePinError.value = ''; showPinDialog.value = true; };
+
 const saveSignature = async () => {
   if (!authStore.user) return;
+  // 清除簽名不需要 PIN
+  if (!signatureImage.value) {
+    isSavingSignature.value = true;
+    try {
+      await signatureVault.remove(authStore.effectiveUid);
+      toast.success('已清除簽名 / 印章');
+    } catch (e) {
+      console.error('Signature save error:', e);
+      toast.error('儲存失敗，請稍後再試');
+    } finally {
+      isSavingSignature.value = false;
+    }
+    return;
+  }
+  openSignaturePin();
+};
+
+const confirmSaveSignature = async () => {
+  if (!isValidPin(signaturePin.value)) { signaturePinError.value = 'PIN 碼須為 4~8 位數字'; return; }
   isSavingSignature.value = true;
   try {
-    await setDoc(doc(db, 'settings', authStore.effectiveUid), { signatureImage: signatureImage.value || '' }, { merge: true });
-    toast.success(signatureImage.value ? '簽名 / 印章已儲存' : '已清除簽名 / 印章');
+    await signatureVault.save(authStore.effectiveUid, signatureImage.value, signaturePin.value);
+    showPinDialog.value = false;
+    toast.success('簽名 / 印章已加密儲存');
   } catch (e) {
     console.error('Signature save error:', e);
-    toast.error('儲存失敗，請稍後再試');
+    signaturePinError.value = '儲存失敗，請稍後再試';
   } finally {
     isSavingSignature.value = false;
   }
@@ -811,7 +876,10 @@ onMounted(async () => {
     catalog.value = Array.isArray(savedCatalog) && savedCatalog.length > 0
       ? savedCatalog.map(c => ({ name: c.name, unitPrice: Number(c.unitPrice) || 0 }))
       : DEFAULT_CATALOG.map(c => ({ ...c }));
-    signatureImage.value = settingsSnap.exists() ? (settingsSnap.data().signatureImage || '') : '';
+    await signatureVault.load(authStore.effectiveUid);
+    // 加密後明文欄位為空，若本工作階段已解鎖則直接顯示，否則呈現「已加密」狀態
+    signatureImage.value = (settingsSnap.exists() ? (settingsSnap.data().signatureImage || '') : '')
+      || signatureVault.unlockedSignature.value;
     if (lineSnap.exists()) {
       const data = lineSnap.data();
       lineConfig.value.isEnabled = !!(data.channelSecret && data.channelAccessToken);

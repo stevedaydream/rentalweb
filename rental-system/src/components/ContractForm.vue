@@ -99,13 +99,7 @@
 
     <!-- 雙方簽名 -->
     <div class="grid grid-cols-2 gap-3">
-      <div class="p-3 rounded-xl border border-gray-100 dark:border-gray-800">
-        <p class="text-[11px] text-text-secondary-light mb-1">出租人（房東）</p>
-        <div class="h-14 flex items-end">
-          <img v-if="form.landlordSignature" :src="form.landlordSignature" alt="房東簽名" class="max-h-14 max-w-full object-contain" />
-          <span v-else class="text-[11px] text-text-secondary-light">未設定，將留白（設定 → 我的簽名）</span>
-        </div>
-      </div>
+      <LandlordSignatureField v-model="form.landlordSignature" :landlord-id="landlordId" />
       <div class="p-3 rounded-xl border border-gray-100 dark:border-gray-800">
         <p class="text-[11px] text-text-secondary-light mb-1">承租人（租客）</p>
         <div class="h-14 flex items-end justify-between gap-2">
@@ -144,9 +138,9 @@ import { db, auth } from '../firebase/config'
 import { collection, addDoc, getDoc, getDocs, query, where, doc, serverTimestamp } from 'firebase/firestore'
 import Preview from './Preview.vue'
 import Signature from './Signature.vue'
+import LandlordSignatureField from './LandlordSignatureField.vue'
 import ContractTemplateModal from './ContractTemplateModal.vue'
 import { printHtmlPdf } from '../utils/contractRender'
-import { loadLandlordSignature } from '../utils/signature'
 import contractTemplate from '../templates/contractTemplate.html?raw'
 
 // 與 functions/index.js TEMPLATE_VERSIONS.Contract 對齊
@@ -382,6 +376,5 @@ onMounted(async () => {
     console.warn('載入合約範本設定失敗:', e)
   }
 
-  form.value.landlordSignature = await loadLandlordSignature(props.landlordId)
 })
 </script>

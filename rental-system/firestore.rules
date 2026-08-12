@@ -121,9 +121,11 @@ service cloud.firestore {
       allow update, delete: if isAdmin() || isLandlordData();
     }
 
-    // 系統設定 (settings) — 非 LINE 相關的全域設定
+    // 系統設定 (settings) — doc id 即 landlordId，內含電費方案與簽名/印章。
+    // 必須限定本人：原本只檢查 isLandlord()，任何房東帳號都能讀寫其他房東的
+    // 設定文件，等於可取得他人簽名圖或竄改其計費參數。
     match /settings/{docId} {
-      allow read, write: if isAdmin() || isLandlord();
+      allow read, write: if isAdmin() || (isLandlord() && request.auth.uid == docId);
     }
 
     // LINE Bot 設定 (line_configs) — 每位房東各自的 Channel Secret / Token
