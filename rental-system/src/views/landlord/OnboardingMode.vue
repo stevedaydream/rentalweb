@@ -263,7 +263,7 @@ const steps = ONBOARDING_STEPS;
 const step = ref(1);
 const tenantId = ref<string>((route.params.tenantId as string) || '');
 const saving = ref(false);
-const availableRooms = ref<{ name: string; rent: number }[]>([]);
+const availableRooms = ref<{ name: string; rent: number; address: string }[]>([]);
 const skipped = ref<OnboardingStepKey[]>([]);
 const completedKeys = ref<Record<string, boolean>>({});
 
@@ -279,9 +279,10 @@ const applyDeposit = () => {
   form.value.deposit = Math.round((Number(form.value.rent) || 0) * (Number(form.value.depositMonths) || 0));
 };
 const setDepositMonths = (m: number) => { form.value.depositMonths = m; applyDeposit(); };
+const selectedRoom = computed(() => availableRooms.value.find(x => x.name === form.value.room));
 // 選房源 → 帶入月租金 → 連動押金
 const onRoomSelect = () => {
-  const r = availableRooms.value.find(x => x.name === form.value.room);
+  const r = selectedRoom.value;
   if (r && r.rent) { form.value.rent = r.rent; applyDeposit(); }
 };
 
@@ -316,6 +317,8 @@ const contractPrefill = computed(() => ({
   tenantId: form.value.idNumber,
   tenantPhone: form.value.phone,
   roomNo: form.value.room,
+  // 房源地址一併帶入，否則精靈模式的合約地址欄位是空的（獨立簽約頁有帶）
+  address: selectedRoom.value?.address || '',
   rentfee: form.value.rent,
   startDate: form.value.leaseStart,
   duration: form.value.duration,
@@ -336,6 +339,7 @@ const onContractSaved = async (_signedId: string) => {
         tenantDocId: tenantId.value,
         tenantName: form.value.name,
         roomNumber: form.value.room,
+        address: selectedRoom.value?.address || '',
         rent,
         depositMonths,
         startDate: form.value.leaseStart,
@@ -391,7 +395,7 @@ const loadRooms = async () => {
     availableRooms.value = snap.docs
       .map(d => d.data())
       .filter(r => r.status === 'vacant' || r.name === form.value.room)
-      .map(r => ({ name: r.name as string, rent: roomMonthlyRent(r) }));
+      .map(r => ({ name: r.name as string, rent: roomMonthlyRent(r), address: (r.address as string) || '' }));
   } catch (e) {
     console.warn('載入房源失敗:', e);
   }
