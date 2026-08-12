@@ -909,7 +909,8 @@ const filteredTransactions = computed(() => {
 })
 
 // --- 依租客分組檢視（實作於 src/utils/financials/tenantGroups.ts） ---
-const groupByTenant = ref(false)
+// 預設依租客：收款是最常見的操作，逐筆清單留給稽核時手動切換
+const groupByTenant = ref(true)
 const expandedGroups = ref<Set<string>>(new Set())
 const markingGroupKey = ref<string | null>(null)
 
