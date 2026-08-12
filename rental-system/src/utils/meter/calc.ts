@@ -147,9 +147,15 @@ export const calculateTieredLogic = (
     let prevLimit = 0
     let partLog = type === 'summer' ? '--- [夏月計算] ---\n' : type === 'non-summer' ? '--- [非夏月計算] ---\n' : '--- [平均費率計算] ---\n'
     if (share !== 1) partLog += `本段級距係數: ${partScale.toFixed(4)}\n`
-    for (const tier of activeSettings.tiers) {
+    const tiers = activeSettings.tiers
+    for (let i = 0; i < tiers.length; i++) {
+      const tier = tiers[i]!
       if (remaining <= 0) break
-      const scaledLimit = (tier.limit === 99999) ? 99999 : tier.limit * partScale
+      // 最後一段一律視為無上限：累進費率表的最高級距本就沒有上界。
+      // 若改用 tier.limit（例如房東把 99999 改成 2000），超出的度數會在
+      // 迴圈結束後被靜默丟棄而完全不收費。
+      const isLast = i === tiers.length - 1
+      const scaledLimit = isLast ? Infinity : tier.limit * partScale
       const gap = scaledLimit - (prevLimit * partScale)
       const inTier = Math.min(remaining, gap)
       if (inTier > 0) {
