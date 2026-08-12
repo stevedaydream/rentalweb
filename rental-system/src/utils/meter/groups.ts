@@ -52,7 +52,9 @@ export const buildMeterGroups = (groupDocs: MeterGroupDoc[], entries: MeterEntry
   const built: MeterGroup[] = groupDocs.map(g => ({
     id: g.id,
     name: g.name || '未命名總表',
-    officialMetersCount: g.officialMetersCount ?? 1,
+    // 至少為 1：0 或負數會讓 scaleFactor 歸零／變號，使所有級距上限失效、
+    // 全部用電落到最高費率（300 度會從 925 元變成 2538 元）
+    officialMetersCount: Math.max(1, Number(g.officialMetersCount) || 1),
     roomCount: Math.max(1, countIn(g.id)),
     masterLastReading: 0,
     masterCurrentReading: undefined,
