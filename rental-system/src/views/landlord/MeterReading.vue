@@ -63,16 +63,20 @@
         <div class="flex flex-col md:flex-row justify-between items-center gap-4">
           <div>
             <h3 class="font-bold text-lg text-blue-900 dark:text-blue-100">{{ group.name || '主建物總表' }}</h3>
-            <p class="text-xs text-blue-700">用於計算平均分攤單價</p>
+            <p class="text-xs text-blue-700">
+              用於計算平均分攤單價
+              <span v-if="savingMaster" class="ml-1 animate-pulse">儲存中…</span>
+              <span v-else-if="group.masterBillAmount" class="ml-1 text-green-600">已存至台電帳單</span>
+            </p>
           </div>
           <div class="flex items-center gap-4">
             <div class="text-right">
               <label class="text-xs font-bold text-gray-500 block">本期總度數</label>
-              <input type="number" v-model.number="group.masterCurrentReading" class="w-24 text-right font-bold border-b border-blue-500 bg-transparent focus:outline-none" placeholder="輸入">
+              <input type="number" v-model.number="group.masterCurrentReading" @change="persistMasterBill(group)" class="w-24 text-right font-bold border-b border-blue-500 bg-transparent focus:outline-none" placeholder="輸入">
             </div>
             <div class="text-right">
               <label class="text-xs font-bold text-gray-500 block">本期總帳單($)</label>
-              <input type="number" v-model.number="group.masterBillAmount" class="w-24 text-right font-bold border-b border-blue-500 bg-transparent focus:outline-none" placeholder="輸入金額">
+              <input type="number" v-model.number="group.masterBillAmount" @change="persistMasterBill(group)" class="w-24 text-right font-bold border-b border-blue-500 bg-transparent focus:outline-none" placeholder="輸入金額">
             </div>
           </div>
           <div class="text-right">
@@ -484,8 +488,9 @@ import {
 } from '../../utils/meter/calc';
 import {
   buildSubGroupIndex, resolveGroupId as resolveGroupIdOf, buildMeterGroups,
-  buildGroupSettingsMap, resolveRoomSettings, resolveRoomGroup,
+  buildGroupSettingsMap, resolveRoomSettings, resolveRoomGroup, applyMasterBills,
 } from '../../utils/meter/groups';
+import { getTaipowerBillsByMonth, upsertTaipowerBill } from '../../services/billService';
 import {
   buildSections, groupProgress, pendingSaveRooms as pendingSaveRoomsOf,
   validateReading, isOccupied, isVacant, isPublic, isBillable,
@@ -604,7 +609,7 @@ const loadData = async () => {
   const defaultStartDate = isBackfillMode.value ? `${targetMonth}-01` : today;
   const defaultEndDate = isBackfillMode.value ? getMonthEndDate(targetMonth) : today;
 
-  const [roomsSnap, readingsSnap, prevReadingsSnap, groups, pubMeters] = await Promise.all([
+  const [roomsSnap, readingsSnap, prevReadingsSnap, groups, pubMeters, taipowerBills] = await Promise.all([
     getDocs(query(
       collection(db, 'rooms'),
       where('landlordId', '==', uid),
@@ -624,6 +629,7 @@ const loadData = async () => {
     )),
     getMeterGroups(uid),
     getPublicMeters(uid),
+    getTaipowerBillsByMonth(uid, targetMonth).catch(() => []),
   ]);
 
   meterGroupDocs.value = groups;
@@ -708,7 +714,9 @@ const loadData = async () => {
 
   meterData.value = [...roomEntries, ...publicEntries];
 
-  meterGroups.value = buildMeterGroups(groups, meterData.value);
+  // 帳單分攤制的總表度數與金額改由 taipower_bills 持久化，避免重載後被清空、
+  // 進而在重新儲存時把電費靜默歸零
+  meterGroups.value = applyMasterBills(buildMeterGroups(groups, meterData.value), taipowerBills);
 };
 
 const reloadData = async () => {
@@ -810,6 +818,24 @@ const applyUnifiedDate = () => {
     if (!r.isLocked) r.currentReadingDate = unifiedDate.value;
   });
 };
+// 帳單分攤制：總表度數／金額一經修改即寫回 taipower_bills，
+// 不依賴「儲存紀錄」按鈕（使用者可能只改總表數字而未動任何房間讀數）
+const savingMaster = ref(false);
+const persistMasterBill = async (group: MeterGroup) => {
+  const usage = Number(group.masterCurrentReading) || 0;
+  const amount = Number(group.masterBillAmount) || 0;
+  if (usage <= 0 || amount <= 0) return;
+  savingMaster.value = true;
+  try {
+    await upsertTaipowerBill(authStore.effectiveUid, selectedMonth.value, group.id, { usage, amount });
+  } catch (e) {
+    console.error('儲存台電帳單失敗', e);
+    toast.error('台電總表資料儲存失敗');
+  } finally {
+    savingMaster.value = false;
+  }
+};
+
 const unlockRoom = (room: MeterEntry) => {
   room.isLocked = false;
 };

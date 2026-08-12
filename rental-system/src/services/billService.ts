@@ -1,6 +1,6 @@
 import { db } from '../firebase/config'
 import {
-  collection, addDoc, updateDoc, deleteDoc, doc,
+  collection, addDoc, updateDoc, deleteDoc, doc, getDocs,
   onSnapshot, query, orderBy, serverTimestamp, where, limit,
   type Unsubscribe,
 } from 'firebase/firestore'
@@ -75,6 +75,8 @@ export interface TaipowerBillDoc {
   month: string
   amount: number
   usage: number
+  /** 所屬台電總表。舊資料沒有此欄位，僅在只有一顆總表時才視為該表的帳單 */
+  groupId?: string
   createdAt?: any
 }
 
@@ -102,3 +104,35 @@ export const addTaipowerBill = (payload: TaipowerBillPayload) =>
     ...payload,
     createdAt: serverTimestamp(),
   })
+
+/** 取得某月份的台電帳單（不限總表）。兩個等式條件可由單欄位索引合併，無須複合索引 */
+export const getTaipowerBillsByMonth = async (
+  landlordId: string,
+  month: string,
+): Promise<TaipowerBillDoc[]> => {
+  const q = query(
+    collection(db, 'taipower_bills'),
+    where('landlordId', '==', landlordId),
+    where('month', '==', month),
+  )
+  const snap = await getDocs(q)
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as TaipowerBillDoc))
+}
+
+/**
+ * 寫入某總表某月份的台電帳單；已存在則更新，避免同月同表出現多筆。
+ * 帳單分攤制的平均單價由此份資料推算，故必須持久化而非只存在畫面上。
+ */
+export const upsertTaipowerBill = async (
+  landlordId: string,
+  month: string,
+  groupId: string,
+  data: { usage: number; amount: number },
+) => {
+  const existing = (await getTaipowerBillsByMonth(landlordId, month))
+    .find(b => (b.groupId || '') === groupId)
+  if (existing) return updateDoc(doc(db, 'taipower_bills', existing.id), { ...data, groupId })
+  return addDoc(collection(db, 'taipower_bills'), {
+    landlordId, month, groupId, ...data, createdAt: serverTimestamp(),
+  })
+}

@@ -74,6 +74,33 @@ export const buildMeterGroups = (groupDocs: MeterGroupDoc[], entries: MeterEntry
   return built
 }
 
+/** 台電帳單中帳單分攤制需要的欄位 */
+export interface MasterBill {
+  usage: number
+  amount: number
+  groupId?: string
+}
+
+/**
+ * 把該月的台電帳單套進各總表，供帳單分攤制推算平均單價。
+ *
+ * 舊資料沒有 groupId：只有單一總表時可安全視為該表的帳單；
+ * 多顆總表時不臆測歸屬，寧可留空讓使用者重新輸入，也不要把甲棟的
+ * 帳單金額套到乙棟去分攤。
+ */
+export const applyMasterBills = (groups: MeterGroup[], bills: MasterBill[]): MeterGroup[] =>
+  groups.map(g => {
+    const bill = bills.find(b => b.groupId === g.id)
+      ?? (groups.length === 1 ? bills.find(b => !b.groupId) : undefined)
+    if (!bill) return g
+    return {
+      ...g,
+      masterLastReading: 0,
+      masterCurrentReading: bill.usage,
+      masterBillAmount: bill.amount,
+    }
+  })
+
 /** 群組層設定（已補齊新欄位）；未設專屬方案的群組不會出現在 map 中 */
 export const buildGroupSettingsMap = (groupDocs: MeterGroupDoc[]) => {
   const map = new Map<string, Settings>()
