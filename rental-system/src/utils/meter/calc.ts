@@ -16,7 +16,10 @@ export interface TieredResult extends CostResult {
   raw: number
 }
 
-/** 抄表區間天數，含頭尾（7/1~7/31 = 31 天） */
+/**
+ * 抄表區間天數，含頭尾（7/1~7/31 = 31 天）。
+ * 日期無效時回傳 NaN；呼叫端須自行判斷，不在此處臆測天數。
+ */
 export const getDaysDiff = (start: string, end: string) => {
   const diffTime = Math.abs(new Date(end).getTime() - new Date(start).getTime())
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
@@ -25,11 +28,17 @@ export const getDaysDiff = (start: string, end: string) => {
 /**
  * 一個「完整計費月」的天數：自 start 起算滿一個月（含頭尾）
  * 例：8/1 起算 → 31 天（8/1~8/31）；2/1 起算 → 28 天
+ *
+ * 月底起算須把「日」夾到目標月份的最後一天：new Date(2026, 1, 31) 會被
+ * JS 正規化成 3/3 而非 2/28，導致 1/31 起算算出 31 天（正解 28 天），
+ * 使 2 月那期的天數比例變成 0.903、級距被錯誤縮小。
  */
 export const getFullMonthDays = (start: string) => {
   const [y, m, d] = start.split('-').map(Number)
   if (!y || !m || !d) return 30
-  const diff = new Date(y, m, d).getTime() - new Date(y, m - 1, d).getTime()
+  const lastDayOfNextMonth = new Date(y, m + 1, 0).getDate()
+  const clampedDay = Math.min(d, lastDayOfNextMonth)
+  const diff = new Date(y, m, clampedDay).getTime() - new Date(y, m - 1, d).getTime()
   return Math.round(diff / 86400000)
 }
 
@@ -208,7 +217,18 @@ export const calculateElectricity = (
     return { cost, log: `帳單分攤: ${usage}度 x 平均單價$${rate.toFixed(4)} = $${cost}` }
   }
 
-  // 'tiered' 和 'tiered_avg' 皆走此路徑
+  // 'tiered' 和 'tiered_avg' 皆走此路徑。
+  // 累進計費依賴計費期間，日期無效會讓 days 變 NaN 並一路污染到金額；
+  // 更危險的是接著 applyMinRate 會因 NaN 比較為 false 而靜默套用保底單價，
+  // 等於無聲改用 5 元/度出帳。此處直接擋下並明示原因。
+  const days = getDaysDiff(room.lastReadingDate, room.currentReadingDate)
+  if (!Number.isFinite(days) || days <= 0) {
+    return {
+      cost: 0,
+      log: `錯誤: 計費期間日期無效（起「${room.lastReadingDate || '未填'}」迄「${room.currentReadingDate || '未填'}」），無法計算累進電費`,
+    }
+  }
+
   const minRate = s.tieredConfig.minRate ?? 0
   const isCycleSecond = s.tieredConfig.cycle === 'bimonthly'
     && getCycleIndex(s, month) === 2
