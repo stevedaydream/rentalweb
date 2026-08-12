@@ -5,7 +5,7 @@
  * 依賴 calc 與 groups 兩層，但計算結果一律由呼叫端以 costOf 注入，
  * 避免本層再去解析設定與群組。
  */
-import type { MeterEntry, MeterGroupDoc, SubGroup } from '../../components/meter/types'
+import type { MeterEntry, SubGroup } from '../../components/meter/types'
 import { calculateUsage } from './calc'
 
 export interface DisplaySection {
@@ -87,7 +87,3 @@ export const pendingSaveRooms = (entries: MeterEntry[]) =>
 /** 本期讀數不得小於上期；未填則視為有效 */
 export const validateReading = (room: MeterEntry) =>
   !((room.currentReading || 0) < room.lastReading && room.currentReading !== undefined)
-
-/** 取得目前總表的子群組（找不到回空陣列） */
-export const subGroupsOf = (groupDocs: MeterGroupDoc[], groupId: string): SubGroup[] =>
-  groupDocs.find(g => g.id === groupId)?.subGroups ?? []
