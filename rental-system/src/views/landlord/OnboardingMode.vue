@@ -243,6 +243,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { db } from '../../firebase/config';
 import { useAuthStore } from '../../stores/auth';
+import { roomMonthlyRent } from '../../utils/room';
 import { useToastStore } from '../../stores/toast';
 import {
   collection, query, where, getDocs, getDoc, addDoc, updateDoc, doc, serverTimestamp,
@@ -390,7 +391,7 @@ const loadRooms = async () => {
     availableRooms.value = snap.docs
       .map(d => d.data())
       .filter(r => r.status === 'vacant' || r.name === form.value.room)
-      .map(r => ({ name: r.name as string, rent: Number(r.rent) || 0 }));
+      .map(r => ({ name: r.name as string, rent: roomMonthlyRent(r) }));
   } catch (e) {
     console.warn('載入房源失敗:', e);
   }

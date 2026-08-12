@@ -33,6 +33,9 @@ export interface Room {
   status: RoomStatus;
   landlordId: string;
   floor?: number;
+  /** 月租金（正式欄位，RoomManagement 以此建檔）。取值請用 utils/room.ts 的 roomMonthlyRent */
+  price?: number;
+  /** @deprecated 舊欄位，實際資料未使用；保留僅為相容 */
   rent?: number;
   deposit?: number;
   tenantId?: string;

@@ -1059,6 +1059,7 @@ import { useRouter } from 'vue-router';
 import { auth, db, functions } from '../../firebase/config';
 import { httpsCallable } from 'firebase/functions';
 import { useAuthStore } from '../../stores/auth';
+import { roomMonthlyRent } from '../../utils/room';
 import { useToastStore } from '../../stores/toast';
 import MoveOutWizard from '../../components/MoveOutWizard.vue';
 import MoveInInspectionModal from '../../components/MoveInInspectionModal.vue';
@@ -1651,7 +1652,7 @@ const currentEditingRoom = computed(() => {
 const isRoomInList = (roomName: string) => availableRooms.value.some(r => r.name === roomName);
 const onRoomSelect = () => {
   const r = availableRooms.value.find(room => room.name === form.value.room);
-  if (r) form.value.rent = Number(r.price);
+  if (r) form.value.rent = roomMonthlyRent(r);
 };
 
 const openNewTenantModal = () => {
@@ -1718,7 +1719,7 @@ const enterDrawerEdit = () => {
   form.value = JSON.parse(JSON.stringify(drawerTenant.value));
   if (!form.value.rent && form.value.room) {
     const r = availableRooms.value.find(room => room.name === form.value.room);
-    if (r) form.value.rent = r.price;
+    if (r) form.value.rent = roomMonthlyRent(r);
   }
   drawerEditing.value = true;
 };
