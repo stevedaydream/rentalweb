@@ -89,9 +89,6 @@ export const printHtmlPdf = async (
       document.title = prevParentTitle
       iframe.remove()
     }
-    win.addEventListener('afterprint', cleanup, { once: true })
-    window.addEventListener('afterprint', cleanup, { once: true })
-    setTimeout(cleanup, 60000) // 安全網：afterprint 萬一未觸發
 
     // 在 print() 前一刻才設 title（消除 await 期間被重置的空窗）。
     // 瀏覽器以 iframe 列印時，預設檔名多取「父頁面」title，故兩者都設。
@@ -100,8 +97,38 @@ export const printHtmlPdf = async (
       document.title = filename
     }
 
-    win.focus()
-    win.print()
+    /**
+     * window.print() 在桌面會阻塞至對話框關閉，**行動瀏覽器則立即返回**。
+     * 若在此就 resolve，呼叫端會在列印面板尚未出現前就繼續往下跑
+     * （簽約精靈會直接跳到下一步），使用者等於完全沒印到這份文件。
+     * 因此必須等列印真正結束才 resolve。
+     */
+    await new Promise<void>((resolve) => {
+      let settled = false
+      const finish = () => {
+        if (settled) return
+        settled = true
+        cleanup()
+        resolve()
+      }
+      // 桌面：print() 返回後隨即觸發
+      win.addEventListener('afterprint', finish, { once: true })
+      window.addEventListener('afterprint', finish, { once: true })
+      // 行動瀏覽器多半不觸發 afterprint，改以「頁面重新取得焦點／可見」判定面板已關閉。
+      // 延後掛載，避免捕捉到 win.focus() 自身造成的焦點變化而立即結束。
+      setTimeout(() => {
+        if (settled) return
+        window.addEventListener('focus', finish, { once: true })
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') finish()
+        }, { once: true })
+      }, 1200)
+      // 最後防線：三種訊號皆未出現時不可讓呼叫端永久卡住
+      setTimeout(finish, 30000)
+
+      win.focus()
+      win.print()
+    })
   } catch (e) {
     document.title = prevParentTitle
     iframe.remove()

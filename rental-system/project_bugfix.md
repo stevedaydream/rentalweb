@@ -184,6 +184,34 @@
 
 ---
 
+## BF-010：手機上簽約精靈跳過合約、直接列印押金收據
+
+- **問題描述**：手機瀏覽器操作簽約精靈，在「確認簽署並產生合約」後畫面直接跳到 ③ 收押金，合約 PDF 從未出現；接著印出來的是押金收據。桌面瀏覽器完全正常。
+- **根本原因**：`printHtmlPdf` 呼叫 `win.print()` 後函式即結束，Promise 立刻 resolve。
+  ```js
+  win.focus()
+  win.print()
+  }          // ← Promise 在此 resolve
+  ```
+  **`window.print()` 在桌面會阻塞至列印對話框關閉，行動瀏覽器則立即返回**（列印面板為非同步開啟）。於是在手機上：
+  1. `printHtmlPdf` 立刻 resolve
+  2. `ContractForm.submitContract` 繼續往下：寫入 `signed_contracts` → `emit('saved')`
+  3. `OnboardingMode.onContractSaved` → `next()` → 畫面切到 ③ 收押金
+  4. 手機列印面板此時才要出現，但頁面已被換掉
+
+  桌面測不出來，因為 `print()` 會擋住整個流程。
+- **最終解法**：`printHtmlPdf` 改為等列印真正結束才 resolve，依序監聽三種訊號：
+  1. `afterprint`（桌面；iframe 與父視窗都掛）
+  2. 頁面重新取得焦點 / `visibilitychange` 轉為 visible（行動瀏覽器多半不觸發 `afterprint`）—— 延後 1.2 秒掛載，避免捕捉到 `win.focus()` 自身造成的焦點變化而立即結束
+  3. 30 秒最後防線，避免三種訊號皆未出現時呼叫端永久卡住
+
+  清理（還原 `document.title`、移除 iframe）與 resolve 綁在同一個 `finish()`，不再各自計時。
+- **牽扯檔案**：`src/utils/contractRender.ts`（`printHtmlPdf`）。共 8 處呼叫端一體受惠：合約、押金收據、退租結清單／點交清單、繳費通知單、收據。
+
+> **通用避坑**：`window.print()` 的阻塞行為在桌面與行動端不同，**不可假設它返回時列印已完成**。任何「列印後接著切換畫面／導頁」的流程都必須等 `afterprint`（並為行動端補上 focus／visibilitychange 備援）。同理，這類跨平台差異在桌面開發時測不出來。
+
+---
+
 ## BF 範本
 
 ### BF-XXX：標題
