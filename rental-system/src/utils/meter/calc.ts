@@ -235,7 +235,10 @@ export const calculateElectricity = (
     }
   }
 
-  const minRate = s.tieredConfig.minRate ?? 0
+  // 保底單價的用意是「每位租客至少分攤到基本度數費」，對象是人。
+  // 公共電表（走廊燈等）不是租客，且通常低用量，套用每度下限會被拉抬數倍，
+  // 憑空放大要分攤給租客的總額，故一律不適用。
+  const minRate = room.meterType === 'public' ? 0 : (s.tieredConfig.minRate ?? 0)
   const isCycleSecond = s.tieredConfig.cycle === 'bimonthly'
     && getCycleIndex(s, month) === 2
     && room.cycleFirstUsage != null

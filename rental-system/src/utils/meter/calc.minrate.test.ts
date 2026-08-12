@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { applyMinRate, calculateTieredLogic, type TieredResult } from './calc'
+import { applyMinRate, calculateElectricity, calculateTieredLogic, type TieredResult } from './calc'
 import {
   defaultSettings,
   normalizeSettings,
@@ -112,6 +112,32 @@ describe('串接累進計算', () => {
     const tiered = calculateTieredLogic(253, room(), GROUP, s)
     expect(tiered.raw / 253).toBeGreaterThan(5)
     expect(applyMinRate(tiered, 253, 5).cost).toBe(tiered.cost)
+  })
+
+  // 保底的對象是租客，公共電表（走廊燈等）不是租客且多為低用量，
+  // 套用每度下限會被拉抬數倍，憑空放大要分攤給租客的總額。
+  describe('公共電表不適用保底單價', () => {
+    const pub = (usage: number): MeterEntry => room({
+      roomId: 'pm', name: '4樓走廊', tenantName: '', status: 'public',
+      meterType: 'public', currentReading: usage,
+    })
+
+    it.each([12, 30, 60, 120])('公共電表用電 %i 度時不觸發保底', (usage) => {
+      const s = avgSettings()
+      const withFloor = normalizeSettings(
+        { ...s, tieredConfig: { ...s.tieredConfig, minRate: 0 } } as Partial<Settings>, defaultSettings)
+      // 設定有保底 5 元，但公共電表結果應與「保底停用」完全相同
+      expect(calculateElectricity(pub(usage), s, GROUP, '2026-08').cost)
+        .toBe(calculateElectricity(pub(usage), withFloor, GROUP, '2026-08').cost)
+    })
+
+    it('同樣用電量下，房間會觸發保底、公共電表不會', () => {
+      const s = avgSettings()
+      const asRoom = calculateElectricity(room({ currentReading: 12 }), s, GROUP, '2026-08').cost
+      const asPublic = calculateElectricity(pub(12), s, GROUP, '2026-08').cost
+      expect(asRoom).toBe(60)          // 12 度 × 保底 5 元
+      expect(asPublic).toBeLessThan(asRoom)
+    })
   })
 
   it('保底單價越高，金額不得下降', () => {
