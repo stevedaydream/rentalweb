@@ -86,7 +86,9 @@ export const printHtmlPdf = async (
     const cleanup = () => {
       if (cleaned) return
       cleaned = true
-      document.title = prevParentTitle
+      // 只在 title 仍是本次設定的值時才還原：若另一份文件已接著開始列印，
+      // 貿然還原會把對方的預設檔名蓋成網站標題。
+      if (!filename || document.title === filename) document.title = prevParentTitle
       iframe.remove()
     }
 
@@ -104,26 +106,34 @@ export const printHtmlPdf = async (
      * 因此必須等列印真正結束才 resolve。
      */
     await new Promise<void>((resolve) => {
+      const ac = new AbortController()
+      const opts = { signal: ac.signal }
       let settled = false
       const finish = () => {
         if (settled) return
         settled = true
+        ac.abort()
         cleanup()
         resolve()
       }
+
       // 桌面：print() 返回後隨即觸發
-      win.addEventListener('afterprint', finish, { once: true })
-      window.addEventListener('afterprint', finish, { once: true })
-      // 行動瀏覽器多半不觸發 afterprint，改以「頁面重新取得焦點／可見」判定面板已關閉。
-      // 延後掛載，避免捕捉到 win.focus() 自身造成的焦點變化而立即結束。
-      setTimeout(() => {
-        if (settled) return
-        window.addEventListener('focus', finish, { once: true })
-        document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible') finish()
-        }, { once: true })
-      }, 1200)
-      // 最後防線：三種訊號皆未出現時不可讓呼叫端永久卡住
+      win.addEventListener('afterprint', finish, opts)
+      window.addEventListener('afterprint', finish, opts)
+
+      // 行動瀏覽器多半不觸發 afterprint。列印／分享面板開啟時頁面會失焦或轉為
+      // 隱藏，關閉後再回來——必須先確認「確實離開過」才把回頁視為列印結束，
+      // 否則單純點一下頁面就會提早還原 title，檔名跟著跑掉。
+      let leftPage = false
+      const markLeft = () => { leftPage = true }
+      window.addEventListener('blur', markLeft, opts)
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') markLeft()
+        else if (leftPage) finish()
+      }, opts)
+      window.addEventListener('focus', () => { if (leftPage) finish() }, opts)
+
+      // 最後防線：上述訊號皆未出現時不可讓呼叫端永久卡住
       setTimeout(finish, 30000)
 
       win.focus()
