@@ -478,6 +478,19 @@ import MeterReadingImport from '../../components/meter/MeterReadingImport.vue';
 import { defaultSettings, normalizeSettings, settingsFingerprint, UNGROUPED_ID, type Settings, type MeterGroup, type MeterEntry, type MeterGroupDoc, type PublicMeterDoc } from '../../components/meter/types';
 import { getMeterGroups } from '../../services/meterGroupService';
 import { getPublicMeters, updatePublicMeter } from '../../services/publicMeterService';
+import {
+  calculateUsage, calculateElectricity as calcElectricity,
+  calculateGroupAvgRate, getCycleIndex as calcCycleIndex,
+} from '../../utils/meter/calc';
+import {
+  buildSubGroupIndex, resolveGroupId as resolveGroupIdOf, buildMeterGroups,
+  buildGroupSettingsMap, resolveRoomSettings, resolveRoomGroup,
+} from '../../utils/meter/groups';
+import {
+  buildSections, groupProgress, pendingSaveRooms as pendingSaveRoomsOf,
+  validateReading, isOccupied, isVacant, isPublic, isBillable,
+  type DisplaySection,
+} from '../../utils/meter/sections';
 
 const toast = useToastStore();
 const authStore = useAuthStore();
@@ -618,15 +631,9 @@ const loadData = async () => {
 
   // subGroupId → groupId 反查表。rooms 只存 subGroupId，靠這張表回推所屬總表，
   // 因此不需要為 rooms 新增 groupId 欄位、也不需要資料遷移。
-  // 若有重複的群組文件共用同一組子群組 id，以先出現者為準，避免歸屬跳動
-  const subGroupToGroup = new Map<string, string>();
-  groups.forEach(g => (g.subGroups ?? []).forEach(sg => {
-    if (!subGroupToGroup.has(sg.id)) subGroupToGroup.set(sg.id, g.id);
-  }));
-  const resolveGroupId = (subGroupId?: string, explicitGroupId?: string) => {
-    if (explicitGroupId && groups.some(g => g.id === explicitGroupId)) return explicitGroupId;
-    return (subGroupId && subGroupToGroup.get(subGroupId)) || UNGROUPED_ID;
-  };
+  const subGroupIndex = buildSubGroupIndex(groups);
+  const resolveGroupId = (subGroupId?: string, explicitGroupId?: string) =>
+    resolveGroupIdOf(groups, subGroupIndex, subGroupId, explicitGroupId);
 
   // 本月最新抄表紀錄 (by roomId)
   const thisMonthMap = new Map<string, any>();
@@ -701,34 +708,7 @@ const loadData = async () => {
 
   meterData.value = [...roomEntries, ...publicEntries];
 
-  // 每顆台電總表各自一組級距分母 = 該群組內電表總數（房間 + 公共表，含空房）。
-  // 未歸屬任何群組的電表自成一組，不會撐大其他棟的分母。
-  const countIn = (groupId: string) => meterData.value.filter(m => m.groupId === groupId).length;
-
-  const built: MeterGroup[] = groups.map(g => ({
-    id: g.id,
-    name: g.name || '未命名總表',
-    officialMetersCount: g.officialMetersCount ?? 1,
-    roomCount: Math.max(1, countIn(g.id)),
-    masterLastReading: 0,
-    masterCurrentReading: undefined,
-    masterBillAmount: undefined,
-  }));
-
-  const ungroupedCount = countIn(UNGROUPED_ID);
-  if (ungroupedCount > 0 || built.length === 0) {
-    built.push({
-      // 尚未建立任何群組時，全部電表視為同一顆總表（維持舊行為）
-      id: UNGROUPED_ID,
-      name: built.length === 0 ? '本棟總表' : '未分組',
-      officialMetersCount: 1,
-      roomCount: Math.max(1, ungroupedCount),
-      masterLastReading: 0,
-      masterCurrentReading: undefined,
-      masterBillAmount: undefined,
-    });
-  }
-  meterGroups.value = built;
+  meterGroups.value = buildMeterGroups(groups, meterData.value);
 };
 
 const reloadData = async () => {
@@ -753,231 +733,22 @@ watch(selectedMonth, async () => {
   }
 });
 
-// --- 計算邏輯 ---
-const getDaysDiff = (start: string, end: string) => {
-  const diffTime = Math.abs(new Date(end).getTime() - new Date(start).getTime());
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-};
-
-// 一個「完整計費月」的天數：自 start 起算滿一個月（含頭尾）
-// 例：8/1 起算 → 31 天（8/1~8/31）；2/1 起算 → 28 天
-const getFullMonthDays = (start: string) => {
-  const [y, m, d] = start.split('-').map(Number);
-  if (!y || !m || !d) return 30;
-  const diff = new Date(y, m, d).getTime() - new Date(y, m - 1, d).getTime();
-  return Math.round(diff / 86400000);
-};
-
-const countSummerDays = (start: string, end: string) => {
-  let count = 0;
-  let current = new Date(start);
-  const endDate = new Date(end);
-  while (current <= endDate) {
-    const m = current.getMonth();
-    if (m >= 5 && m <= 8) count++;
-    current.setDate(current.getDate() + 1);
-  }
-  return count;
-};
-
-const calculateGroupAvgRate = (group: MeterGroup) => {
-  if (!group.masterCurrentReading || !group.masterBillAmount) return 0;
-  const usage = Math.max(0, group.masterCurrentReading - (group.masterLastReading || 0));
-  return usage === 0 ? 0 : group.masterBillAmount / usage;
-};
-
-// 群組層設定（已補齊新欄位），未設則為 null
-const groupSettingsMap = computed(() => {
-  const map = new Map<string, Settings>();
-  meterGroupDocs.value.forEach(g => {
-    if (g.electricitySettings) map.set(g.id, normalizeSettings(g.electricitySettings, defaultSettings));
-  });
-  return map;
-});
+// --- 計算邏輯（實作於 src/utils/meter/*，此處僅注入元件狀態） ---
+// 群組層設定（已補齊新欄位），未設則不入 map
+const groupSettingsMap = computed(() => buildGroupSettingsMap(meterGroupDocs.value));
 
 // 設定優先序：房間個別 > 所屬總表 > 全域
 const getRoomSettings = (room: MeterEntry): Settings =>
-  room.electricitySettings
-  ?? (room.groupId ? groupSettingsMap.value.get(room.groupId) : undefined)
-  ?? settings.value
+  resolveRoomSettings(room, groupSettingsMap.value, settings.value);
 
 // 取得此電表所屬的總表；找不到時退回第一組，避免計算中斷
 const getRoomGroup = (room: MeterEntry): MeterGroup | undefined =>
-  meterGroups.value.find(g => g.id === room.groupId) ?? meterGroups.value[0]
+  resolveRoomGroup(room, meterGroups.value);
 
-// 選定月份在台電雙月帳期中的序位（1 = 單月/預估，2 = 雙月/結算）
-// 帳期設定可能因群組而異，故依傳入的 settings 判定
-const getCycleIndex = (s: Settings): 1 | 2 => {
-  const cfg = s.tieredConfig;
-  if (cfg.cycle !== 'bimonthly') return 1;
-  const month = Number(selectedMonth.value.split('-')[1]);
-  const isFirst = cfg.cycleAnchor === 'even' ? month % 2 === 0 : month % 2 === 1;
-  return isFirst ? 1 : 2;
-};
+const getCycleIndex = (s: Settings) => calcCycleIndex(s, selectedMonth.value);
 
-const calculateTieredLogic = (usage: number, room: MeterEntry, group: MeterGroup, s?: Settings) => {
-  const activeSettings = s ?? getRoomSettings(room)
-  let totalCost = 0;
-  let log = '';
-  const days = getDaysDiff(room.lastReadingDate, room.currentReadingDate);
-  const summerDays = countSummerDays(room.lastReadingDate, room.currentReadingDate);
-
-  let usageSummer = 0;
-  let usageNonSummer = 0;
-  let useAverageRate = false;
-  // 各季節段分到的級距額度比例：跨季期間須依天數拆分，否則兩段都拿到整期額度
-  let summerShare = 1;
-  let nonSummerShare = 1;
-
-  // tiered_avg 模式：不分夏/非夏，直接用平均費率
-  const isAvgMode = activeSettings.mode === 'tiered_avg'
-
-  if (isAvgMode || activeSettings.tieredConfig.season === 'average') {
-    useAverageRate = true;
-    log += isAvgMode ? `模式: 平均費率（不分夏/非夏）\n` : `季節判定: 採用平均費率 (夏月+非夏月)/2\n`;
-  } else if (activeSettings.tieredConfig.season === 'summer') {
-    usageSummer = usage;
-  } else if (activeSettings.tieredConfig.season === 'non-summer') {
-    usageNonSummer = usage;
-  } else {
-    const summerRatio = summerDays / days;
-    usageSummer = usage * summerRatio;
-    usageNonSummer = usage * (1 - summerRatio);
-    summerShare = summerRatio;
-    nonSummerShare = 1 - summerRatio;
-    log += `季節判定 (共${days}天): 夏月${summerDays}天 / 非夏月${days - summerDays}天\n`;
-    log += `用量拆分: 夏月 ${usageSummer.toFixed(1)}度 / 非夏月 ${usageNonSummer.toFixed(1)}度\n`;
-    if (summerDays > 0 && summerDays < days) {
-      log += `級距額度亦依天數拆分: 夏月 ${(summerShare * 100).toFixed(1)}% / 非夏月 ${(nonSummerShare * 100).toFixed(1)}%\n`;
-    }
-    log += `\n`;
-  }
-
-  const dayScaling = activeSettings.tieredConfig.dayScaling ?? 'full-month';
-  let scaleFactor = 1;
-  if (dayScaling === 'legacy') {
-    scaleFactor = days / 30;
-    log += `天數比例: ${days}天 / 30 = ${scaleFactor.toFixed(3)}\n`;
-  } else if (dayScaling === 'full-month') {
-    const fullDays = getFullMonthDays(room.lastReadingDate);
-    scaleFactor = days / fullDays;
-    log += scaleFactor === 1
-      ? `天數比例: 完整月 (${days}天)，不縮放\n`
-      : `天數比例: ${days}天 / 完整月${fullDays}天 = ${scaleFactor.toFixed(3)}\n`;
-  }
-  if (activeSettings.tieredConfig.strategy === 'split') {
-    scaleFactor *= (group.officialMetersCount / group.roomCount);
-    log += `級距策略: 資本拆分 (總表${group.officialMetersCount} / 電表數${group.roomCount})\n`;
-  } else {
-    scaleFactor *= group.officialMetersCount;
-    log += `級距策略: 標準台電 (總表${group.officialMetersCount})\n`;
-  }
-  log += `級距調整係數: ${scaleFactor.toFixed(4)}\n`;
-
-  const calcPart = (amount: number, type: 'summer' | 'non-summer' | 'average', share = 1) => {
-    const partScale = scaleFactor * share;
-    let remaining = amount;
-    let cost = 0;
-    let prevLimit = 0;
-    let partLog = type === 'summer' ? '--- [夏月計算] ---\n' : type === 'non-summer' ? '--- [非夏月計算] ---\n' : '--- [平均費率計算] ---\n';
-    if (share !== 1) partLog += `本段級距係數: ${partScale.toFixed(4)}\n`;
-    for (const tier of activeSettings.tiers) {
-      if (remaining <= 0) break;
-      const scaledLimit = (tier.limit === 99999) ? 99999 : tier.limit * partScale;
-      const gap = scaledLimit - (prevLimit * partScale);
-      const inTier = Math.min(remaining, gap);
-      if (inTier > 0) {
-        const rate = type === 'summer' ? tier.summerRate : type === 'non-summer' ? tier.nonSummerRate : (tier.summerRate + tier.nonSummerRate) / 2;
-        const tierCost = inTier * rate;
-        cost += tierCost;
-        partLog += `級距${tier.limit}: ${inTier.toFixed(1)}度 x $${rate.toFixed(3)} = $${tierCost.toFixed(1)}\n`;
-        remaining -= inTier;
-      }
-      prevLimit = tier.limit;
-    }
-    return { cost, log: partLog };
-  };
-
-  if (useAverageRate) {
-    const res = calcPart(usage, 'average');
-    totalCost += res.cost;
-    log += res.log;
-  } else {
-    if (usageSummer > 0) { const res = calcPart(usageSummer, 'summer', summerShare); totalCost += res.cost; log += res.log; }
-    if (usageNonSummer > 0) { const res = calcPart(usageNonSummer, 'non-summer', nonSummerShare); totalCost += res.cost; log += res.log; }
-  }
-  return { cost: Math.round(totalCost), raw: totalCost, log };
-};
-
-// 保底單價：算出的平均單價低於 minRate 時，改用 minRate 計費
-const applyMinRate = (
-  res: { cost: number; raw: number; log: string },
-  usage: number,
-  minRate: number,
-) => {
-  if (!(minRate > 0) || usage <= 0) return res;
-  const avg = res.raw / usage;
-  if (avg >= minRate) return res;
-  const cost = Math.round(usage * minRate);
-  return {
-    cost,
-    raw: usage * minRate,
-    log: `${res.log}\n平均單價 $${avg.toFixed(3)} < 保底 $${minRate} → 改用保底: ${usage}度 x $${minRate} = $${cost}`,
-  };
-};
-
-const calculateElectricity = (room: MeterEntry) => {
-  const s = getRoomSettings(room)
-  const usage = Math.max(0, (room.currentReading || 0) - room.lastReading);
-  if (usage === 0) return { cost: 0, log: '無用量' };
-  if (s.mode === 'fixed') {
-    const cost = Math.round(usage * s.fixedRate);
-    return { cost, log: `固定費率: ${usage}度 x $${s.fixedRate} = $${cost}` };
-  }
-  const group = getRoomGroup(room);
-  if (!group) return { cost: 0, log: '錯誤: 無群組設定' };
-  if (s.mode === 'bill_share') {
-    const rate = calculateGroupAvgRate(group);
-    const cost = Math.round(usage * rate);
-    return { cost, log: `帳單分攤: ${usage}度 x 平均單價$${rate.toFixed(4)} = $${cost}` };
-  }
-
-  // 'tiered' 和 'tiered_avg' 皆走此路徑
-  const minRate = s.tieredConfig.minRate ?? 0;
-  const isCycleSecond = s.tieredConfig.cycle === 'bimonthly'
-    && getCycleIndex(s) === 2
-    && room.cycleFirstUsage != null
-    && room.cycleFirstCost != null;
-
-  if (!isCycleSecond) {
-    return applyMinRate(calculateTieredLogic(usage, room, group, s), usage, minRate);
-  }
-
-  // 雙月帳期第 2 月：以「帳期累積度數」跑累進，再扣掉第 1 月已收金額
-  const firstUsage = room.cycleFirstUsage!;
-  const firstCost = room.cycleFirstCost!;
-  const cumUsage = firstUsage + usage;
-  const res = calculateTieredLogic(cumUsage, room, group, s);
-  const header = `【雙月帳期第 2 月】\n帳期累積: 第1月 ${firstUsage}度 + 本期 ${usage}度 = ${cumUsage}度\n`;
-  const cumAvg = res.raw / cumUsage;
-
-  if (minRate > 0 && cumAvg < minRate) {
-    const cost = Math.round(usage * minRate);
-    return {
-      cost,
-      log: `${header}${res.log}\n累積平均單價 $${cumAvg.toFixed(3)} < 保底 $${minRate}`
-        + `\n→ 本期 = ${usage}度 x $${minRate} = $${cost}`,
-    };
-  }
-
-  const diff = res.raw - firstCost;
-  const cost = Math.round(Math.max(0, diff));
-  return {
-    cost,
-    log: `${header}${res.log}\n累積金額 $${res.raw.toFixed(2)} − 第1月已收 $${firstCost.toFixed(2)} = $${cost}`
-      + (diff < 0 ? `\n※ 第1月已收超過累積金額（第1月觸發保底），本期歸零` : ''),
-  };
-};
+const calculateElectricity = (room: MeterEntry) =>
+  calcElectricity(room, getRoomSettings(room), getRoomGroup(room), selectedMonth.value);
 
 // --- Computed ---
 const currentModeLabel = computed(() => {
@@ -997,22 +768,17 @@ const activeSettings = computed(() =>
   groupSettingsMap.value.get(activeGroupId.value) ?? settings.value);
 
 const scopedData = computed(() => meterData.value.filter(r => r.groupId === activeGroupId.value));
-const occupiedRooms = computed(() => scopedData.value.filter(r => r.meterType !== 'public' && (r.tenantName || r.status === 'occupied')));
-const vacantRooms = computed(() => scopedData.value.filter(r => r.meterType !== 'public' && !r.tenantName && r.status !== 'occupied'));
-const publicEntries = computed(() => scopedData.value.filter(r => r.meterType === 'public'));
+const occupiedRooms = computed(() => scopedData.value.filter(isOccupied));
+const vacantRooms = computed(() => scopedData.value.filter(isVacant));
+const publicEntries = computed(() => scopedData.value.filter(isPublic));
 const billableEntries = computed(() => [...occupiedRooms.value, ...publicEntries.value]);
 const filledCount = computed(() => billableEntries.value.filter(r => r.currentReading !== undefined).length);
 
 // 警示橫幅需跨所有總表，不受頁籤限縮
-const allBillableEntries = computed(() =>
-  meterData.value.filter(r => r.meterType === 'public' || r.tenantName || r.status === 'occupied'));
+const allBillableEntries = computed(() => meterData.value.filter(isBillable));
 
 // 各頁籤的未填筆數，讓使用者不必逐頁點開才知道哪裡還沒抄
-const groupPending = (groupId: string) => {
-  const list = meterData.value.filter(r =>
-    r.groupId === groupId && (r.meterType === 'public' || r.tenantName || r.status === 'occupied'));
-  return { total: list.length, filled: list.filter(r => r.currentReading !== undefined).length };
-};
+const groupPending = (groupId: string) => groupProgress(meterData.value, groupId);
 
 // 群組載入或異動後，確保選取的頁籤仍然存在
 watch(meterGroups, (gs) => {
@@ -1028,51 +794,10 @@ const ungroupedMeters = computed(() => {
   );
 });
 
-// 依子群組分區塊：房間在前、公共表在後；未分組房間歸入最後一個 section
-interface DisplaySection {
-  id: string;
-  name: string;
-  entries: MeterEntry[];
-  totalUsage: number;
-  totalCost: number;
-  publicShare: number; // 公共電費 ÷ 群組房數（不含房東負擔的表）
-}
-const sections = computed<DisplaySection[]>(() => {
-  const result: DisplaySection[] = [];
-  const usedIds = new Set<string>();
+const sections = computed<DisplaySection[]>(() =>
+  buildSections(scopedData.value, activeGroupDoc.value?.subGroups ?? [], r => calculateResult(r).cost));
 
-  const buildSection = (id: string, name: string, rooms: MeterEntry[], pubs: MeterEntry[], allRoomCount: number): DisplaySection => {
-    const entries = [...rooms, ...pubs];
-    entries.forEach(e => usedIds.add(e.roomId));
-    const totalUsage = entries.reduce((sum, r) => sum + (r.currentReading ? calculateUsage(r) : 0), 0);
-    const totalCost = entries.reduce((sum, r) => sum + (r.currentReading ? calculateResult(r).cost : 0), 0);
-    const publicCost = pubs.filter(p => !p.landlordPays)
-      .reduce((sum, p) => sum + (p.currentReading ? calculateResult(p).cost : 0), 0);
-    const publicShare = allRoomCount > 0 ? Math.round(publicCost / allRoomCount) : 0;
-    return { id, name, entries, totalUsage: Math.round(totalUsage), totalCost, publicShare };
-  };
-
-  // 只走目前頁籤所屬總表的子群組；重複的群組文件可能共用同一組 id，故再去重一次
-  const seenSubGroups = new Set<string>();
-  for (const sg of activeGroupDoc.value?.subGroups ?? []) {
-    if (seenSubGroups.has(sg.id)) continue;
-    seenSubGroups.add(sg.id);
-    const rooms = occupiedRooms.value.filter(r => r.subGroupId === sg.id);
-    const pubs = publicEntries.value.filter(r => r.subGroupId === sg.id);
-    // 分攤基數 = 子群組內全部房間數（含空房），空房份額房東吸收
-    const allRoomCount = scopedData.value.filter(r => r.meterType !== 'public' && r.subGroupId === sg.id).length;
-    if (rooms.length || pubs.length) result.push(buildSection(sg.id, sg.name, rooms, pubs, allRoomCount));
-  }
-
-  const restRooms = occupiedRooms.value.filter(r => !usedIds.has(r.roomId));
-  const restPubs = publicEntries.value.filter(r => !usedIds.has(r.roomId));
-  if (restRooms.length || restPubs.length) {
-    const restRoomCount = scopedData.value.filter(r => r.meterType !== 'public' && !usedIds.has(r.roomId)).length;
-    result.push(buildSection('rest', result.length > 0 ? '未指定樓層' : '', restRooms, restPubs, restRoomCount));
-  }
-  return result;
-});
-const pendingSaveRooms = computed(() => meterData.value.filter(r => !r.isLocked && r.currentReading !== undefined && r.currentReading >= r.lastReading));
+const pendingSaveRooms = computed(() => pendingSaveRoomsOf(meterData.value));
 const pendingSaveCount = computed(() => pendingSaveRooms.value.length);
 
 const formatShortDate = (dateStr: string) => {
@@ -1108,9 +833,7 @@ const onReadingKeydown = (e: KeyboardEvent) => {
   el.focus();
   el.select();
 };
-const calculateUsage = (room: MeterEntry) => Math.max(0, (room.currentReading || 0) - room.lastReading);
 const calculateResult = (room: MeterEntry) => calculateElectricity(room);
-const validateReading = (room: MeterEntry) => !((room.currentReading || 0) < room.lastReading && room.currentReading !== undefined);
 const totalEstimatedCost = computed(() => scopedData.value.reduce((sum, r) => sum + calculateResult(r).cost, 0));
 
 const hasValidChanges = computed(() => pendingSaveCount.value > 0);
