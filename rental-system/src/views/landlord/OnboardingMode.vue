@@ -228,6 +228,8 @@
       </footer>
     </div>
 
+    <TenantCredentialModal :credential="createdCredential" @close="createdCredential = null" />
+
     <MoveInInspectionModal
       v-if="showInspection && tenantId"
       :tenant="inspectionTenant"
@@ -241,7 +243,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { db } from '../../firebase/config';
+import { db, functions } from '../../firebase/config';
+import { httpsCallable } from 'firebase/functions';
 import { useAuthStore } from '../../stores/auth';
 import { roomMonthlyRent } from '../../utils/room';
 import { useToastStore } from '../../stores/toast';
@@ -252,6 +255,7 @@ import { ONBOARDING_STEPS, type OnboardingStepKey, type OnboardingState } from '
 import ContractForm from '../../components/ContractForm.vue';
 import DepositReceiptForm from '../../components/DepositReceiptForm.vue';
 import MoveInInspectionModal from '../../components/MoveInInspectionModal.vue';
+import TenantCredentialModal from '../../components/TenantCredentialModal.vue';
 import type { InspectionItem } from '../../utils/inventory';
 
 const route = useRoute();
@@ -265,6 +269,7 @@ const tenantId = ref<string>((route.params.tenantId as string) || '');
 const saving = ref(false);
 const availableRooms = ref<{ name: string; rent: number; address: string }[]>([]);
 const skipped = ref<OnboardingStepKey[]>([]);
+const createdCredential = ref<{ phone: string; idNumber: string } | null>(null);
 const completedKeys = ref<Record<string, boolean>>({});
 
 const form = ref<any>({
@@ -457,6 +462,21 @@ const saveProfile = async (): Promise<boolean> => {
       ...profile, paymentStatus: 'normal', createdAt: serverTimestamp(),
     });
     tenantId.value = docRef.id;
+    // 建檔已強制收證件號碼，正是建立登入帳號所需，順勢一併建立；
+    // 否則精靈產生的租客永遠沒有帳號，且清單也沒有補建入口。
+    // 失敗不阻斷上線流程，租客清單抽屜仍可補建。
+    try {
+      const createAccount = httpsCallable(functions, 'createTenantAccount');
+      await createAccount({
+        phone: form.value.phone,
+        idNumber: form.value.idNumber,
+        tenantDocId: docRef.id,
+        name: form.value.name,
+      });
+      createdCredential.value = { phone: form.value.phone, idNumber: form.value.idNumber };
+    } catch (e: any) {
+      toast.warning('租客已建檔，但登入帳號建立失敗：' + (e?.message || '可稍後於租客清單補建'));
+    }
   }
   completedKeys.value.profile = true;
   return true;

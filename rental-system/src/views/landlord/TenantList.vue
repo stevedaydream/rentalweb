@@ -294,36 +294,7 @@
       </div>
     </div>
 
-    <!-- ===== 建立帳號成功 — 憑證提示 Modal ===== -->
-    <div v-if="showCredentialModal" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
-      <div class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-            <span class="material-symbols-outlined text-green-600">check_circle</span>
-          </div>
-          <div>
-            <h3 class="font-bold text-text-primary-light dark:text-text-primary-dark">租客帳號已建立</h3>
-            <p class="text-xs text-text-secondary-light">請將以下資訊告知租客</p>
-          </div>
-        </div>
-        <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 space-y-3 font-mono text-sm">
-          <div class="flex justify-between items-center">
-            <span class="text-text-secondary-light text-xs">手機號碼（帳號）</span>
-            <span class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ createdCredential?.phone }}</span>
-          </div>
-          <div class="flex justify-between items-center border-t border-gray-200 dark:border-gray-700 pt-3">
-            <span class="text-text-secondary-light text-xs">身分證號（密碼）</span>
-            <span class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ createdCredential?.idNumber }}</span>
-          </div>
-        </div>
-        <p class="text-xs text-text-secondary-light text-center">租客在登入頁選擇「租客身分證登入」即可使用上述帳密</p>
-        <button
-          @click="showCredentialModal = false; createdCredential = null"
-          class="w-full py-2.5 rounded-xl bg-gold-500 text-white font-bold hover:bg-gold-600 transition-colors"
-        >知道了</button>
-      </div>
-    </div>
+    <TenantCredentialModal :credential="createdCredential" @close="createdCredential = null" />
 
     <!-- ===== 新增租客 Modal (只用於手動新增) ===== -->
     <div v-if="showModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -699,6 +670,16 @@
                     <span class="material-symbols-outlined text-[18px]">play_arrow</span>繼續上線（第 {{ drawerTenant.onboarding.step }} 步）
                   </button>
                   <button
+                    v-if="canCreateAccount(drawerTenant)"
+                    @click="createAccountForTenant(drawerTenant!)"
+                    :disabled="isCreatingAccount"
+                    class="w-full py-2.5 border border-purple-200 dark:border-purple-700 rounded-xl text-sm font-medium text-purple-600 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    title="以手機號碼為帳號、證件號碼為密碼建立登入帳號"
+                  >
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">key</span>
+                    {{ isCreatingAccount ? '建立中…' : '建立租客登入帳號' }}
+                  </button>
+                  <button
                     @click="enterDrawerEdit"
                     class="w-full py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center gap-2 transition-colors"
                   >
@@ -1060,6 +1041,7 @@ import { auth, db, functions } from '../../firebase/config';
 import { httpsCallable } from 'firebase/functions';
 import { useAuthStore } from '../../stores/auth';
 import { roomMonthlyRent } from '../../utils/room';
+import TenantCredentialModal from '../../components/TenantCredentialModal.vue';
 import { useToastStore } from '../../stores/toast';
 import MoveOutWizard from '../../components/MoveOutWizard.vue';
 import MoveInInspectionModal from '../../components/MoveInInspectionModal.vue';
@@ -1528,7 +1510,6 @@ const saveTenant = async () => {
           name: form.value.name,
         });
         createdCredential.value = { phone: form.value.phone, idNumber: form.value.idNumber };
-        showCredentialModal.value = true;
       } catch (e: any) {
         toast.warning('租客已新增，但建立登入帳號失敗：' + (e.message || '請稍後重試'));
       }
@@ -1635,7 +1616,6 @@ const form = ref<Partial<Tenant>>({
 });
 
 // 建立帳號後顯示給房東的登入憑證
-const showCredentialModal = ref(false);
 const createdCredential = ref<{ phone: string; idNumber: string } | null>(null);
 
 watch(
@@ -2399,6 +2379,34 @@ const unbindRoom = async (tenant: Tenant) => {
     toast.error('解除綁定失敗，請稍後再試');
   } finally {
     isUnbinding.value = false;
+  }
+};
+
+// 為既有租客補建登入帳號。精靈建檔與早期資料都沒有帳號，
+// 而 saveTenant 只在「新增」時建立，編輯既有租客不會補。
+const isCreatingAccount = ref(false);
+const canCreateAccount = (t: Tenant | null) =>
+  !!t && !t.uid && !!t.phone && !!t.idNumber;
+
+const createAccountForTenant = async (tenant: Tenant) => {
+  if (!tenant.phone || !tenant.idNumber) {
+    toast.warning('需要手機號碼與證件號碼才能建立帳號，請先補齊租客資料');
+    return;
+  }
+  isCreatingAccount.value = true;
+  try {
+    const createAccount = httpsCallable(functions, 'createTenantAccount');
+    await createAccount({
+      phone: tenant.phone,
+      idNumber: tenant.idNumber,
+      tenantDocId: tenant.id,
+      name: tenant.name,
+    });
+    createdCredential.value = { phone: tenant.phone, idNumber: tenant.idNumber };
+  } catch (e: any) {
+    toast.error('建立登入帳號失敗：' + (e?.message || '請稍後重試'));
+  } finally {
+    isCreatingAccount.value = false;
   }
 };
 

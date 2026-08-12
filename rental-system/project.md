@@ -140,6 +140,7 @@ rental-system/
   - 套用於合約表單與押金收據表單；設定頁改為加密儲存並顯示「已加密儲存」狀態
   - **安全界線**：PIN 保護的是「簽名被再利用」（下載原圖、蓋到其他單據、資料庫外洩），**不是「被看見」** —— 租客簽署時該份文件上本來就會顯示房東簽名
 - 解除房間綁定後無法直接刪除租客修正（2026-08-12）：`drawerTenant` 是開啟抽屜當下的淺複本（`{ ...tenant }`），`unbindRoom` 的註解「drawerTenant 會透過 onSnapshot 自動更新」與事實不符 —— 沒有任何程式碼在同步它。解除綁定後 Firestore 的 `room` 已清空、列表也更新，抽屜內卻仍是舊房號，`:disabled="!!drawerTenant?.room"` 與 `deleteTenant` 的早退判斷雙雙成立，必須關閉抽屜再開才刪得掉。修法：新增 `watch(tenants)` 以 id 對回最新資料同步 `drawerTenant`（置於其宣告之後，避免日後加 `immediate` 觸發 TDZ）
+- 精靈租客可建立登入帳號（2026-08-12）：`createTenantAccount` 原本只有兩個呼叫點 —— `TenantList.saveTenant`（且限 `!isEditing`，即只在手動新增當下）與 Excel 匯入。精靈的 `saveProfile` 完全沒有呼叫，且租客清單沒有「為既有租客補建帳號」入口，導致精靈產生的租客**永遠無法登入**，唯一辦法是刪除重建（連帶失去合約、收據、點交紀錄）。諷刺的是精靈 `:441` 強制要求填證件號碼，那正是建帳號所需欄位。修法：(a) 精靈建檔新增租客時一併呼叫 `createTenantAccount`，失敗僅警告不阻斷上線流程；(b) 租客抽屜新增「建立租客登入帳號」按鈕，條件為 `!uid && phone && idNumber`，用於補救既有資料。憑證提示 Modal 抽為共用元件 `TenantCredentialModal.vue`，兩處共用
 - 報修管理（查看/處理租客報修申請）
 - 公告發布
 - 合約管理（自訂範本、PDF 匯出、電子簽名、排程續約：續約後目前租期維持到期滿、新租期存 pendingRenewal 到期自動接續+通知租客+導向重簽；房東「標記不續約」註記）
