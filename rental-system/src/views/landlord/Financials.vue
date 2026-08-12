@@ -244,9 +244,88 @@
             {{ tab.label }}
             <span v-if="tab.count > 0" class="ml-1 text-xs bg-ink-100 dark:bg-ink-700 px-1.5 py-0.5 rounded-full">{{ tab.count }}</span>
           </button>
+
+          <button
+            @click="groupByTenant = !groupByTenant"
+            class="ml-auto shrink-0 my-1 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors flex items-center gap-1"
+            :class="groupByTenant
+              ? 'border-gold-400 bg-gold-50 text-gold-700 dark:bg-gold-900/20 dark:text-gold-300'
+              : 'border-ink-200 dark:border-ink-700 text-text-secondary-light hover:bg-surface-light dark:hover:bg-surface-dark'"
+            :aria-pressed="groupByTenant"
+          >
+            <span class="material-symbols-outlined text-[15px]" aria-hidden="true">
+              {{ groupByTenant ? 'check_circle' : 'group' }}
+            </span>
+            依租客
+          </button>
         </div>
 
-        <div class="overflow-x-auto min-h-[300px]">
+        <!-- 依租客分組檢視 -->
+        <div v-if="groupByTenant" class="min-h-[300px] divide-y divide-ink-100 dark:divide-ink-800">
+          <div v-for="g in tenantGroups" :key="g.key">
+            <div
+              class="flex items-center gap-3 px-6 py-3.5 hover:bg-surface-light dark:hover:bg-surface-dark transition-colors cursor-pointer"
+              role="button" tabindex="0" :aria-expanded="expandedGroups.has(g.key)"
+              @click="toggleGroup(g.key)" @keydown.enter="toggleGroup(g.key)" @keydown.space.prevent="toggleGroup(g.key)"
+            >
+              <span class="material-symbols-outlined text-[18px] text-ink-400 shrink-0" aria-hidden="true">
+                {{ expandedGroups.has(g.key) ? 'expand_more' : 'chevron_right' }}
+              </span>
+              <span class="font-bold text-sm truncate flex-1 min-w-0">{{ g.label }}</span>
+              <span class="text-xs text-text-secondary-light shrink-0 whitespace-nowrap">{{ g.items.length }} 筆</span>
+              <span class="text-sm font-bold shrink-0 w-24 text-right"
+                :class="g.total >= 0 ? 'text-green-600' : 'text-red-500'">
+                {{ g.total.toLocaleString() }}
+              </span>
+              <span class="shrink-0 w-32 text-right">
+                <span v-if="g.key === OTHER_GROUP" class="text-xs text-ink-300">—</span>
+                <span v-else-if="g.allCollected" class="text-xs font-bold text-green-600 inline-flex items-center gap-0.5">
+                  <span class="material-symbols-outlined text-[14px]" aria-hidden="true">check_circle</span>已收
+                </span>
+                <span v-else class="text-xs font-bold text-orange-600">待收 {{ g.unpaid.toLocaleString() }}</span>
+              </span>
+              <button
+                v-if="!g.allCollected && g.key !== OTHER_GROUP"
+                @click.stop="markGroupPaid(g)"
+                :disabled="markingGroupKey === g.key"
+                class="shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-orange-100 text-orange-700 hover:bg-green-100 hover:text-green-700 transition-colors disabled:opacity-50"
+                :title="`一併標記 ${g.unpaidCount} 筆收款完成`"
+              >
+                <span class="material-symbols-outlined text-[14px] align-middle" aria-hidden="true">
+                  {{ markingGroupKey === g.key ? 'hourglass_empty' : 'payments' }}
+                </span>
+                收款 ({{ g.unpaidCount }})
+              </button>
+              <span v-else class="shrink-0 w-[86px]"></span>
+            </div>
+
+            <div v-if="expandedGroups.has(g.key)" class="bg-surface-light/50 dark:bg-surface-dark/30 px-6 pb-3">
+              <div v-for="item in g.items" :key="item.id"
+                class="flex items-center gap-3 py-2 pl-7 border-t border-ink-100/60 dark:border-ink-800/60">
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium shrink-0"
+                  :class="categoryBadge(item.category)">{{ item.category }}</span>
+                <span class="text-xs text-text-secondary-light shrink-0 font-mono">{{ item.date }}</span>
+                <span class="text-xs text-text-secondary-light truncate flex-1 min-w-0">{{ item.description }}</span>
+                <span class="text-sm font-bold shrink-0 w-24 text-right"
+                  :class="item.type === 'income' ? 'text-green-600' : 'text-red-500'">
+                  {{ item.type === 'income' ? '+' : '-' }} {{ item.amount.toLocaleString() }}
+                </span>
+                <span class="shrink-0 w-32 text-right">
+                  <button v-if="item.type === 'income' && !isCollected(item)"
+                    @click="markPaid(item)" :disabled="markingPaidId === item.id"
+                    class="px-2 py-1 rounded text-[11px] font-medium bg-orange-100 text-orange-700 hover:bg-green-100 hover:text-green-700 transition-colors disabled:opacity-50">
+                    標記已收
+                  </button>
+                  <span v-else-if="item.type === 'income'" class="text-[11px] text-green-600 font-bold">已收 ✓</span>
+                  <span v-else class="text-[11px] text-ink-300">支出</span>
+                </span>
+              </div>
+            </div>
+          </div>
+          <div v-if="tenantGroups.length === 0" class="py-16 text-center text-sm text-ink-300">本月尚無紀錄</div>
+        </div>
+
+        <div v-else class="overflow-x-auto min-h-[300px]">
           <table class="w-full min-w-[880px] text-sm text-left whitespace-nowrap">
             <thead class="text-xs text-text-secondary-light uppercase bg-surface-light dark:bg-surface-dark">
               <tr>
@@ -538,6 +617,10 @@ import {
   shouldGenerateBill, getBillingAmount, getBillingDescription, publicMeterShare,
 } from '../../utils/meter/billing'
 import {
+  buildTenantGroups, uncollectedIncome, isCollected, OTHER_GROUP,
+  type TenantGroup,
+} from '../../utils/financials/tenantGroups'
+import {
   statusLabels, statusStyles, statusIcons,
   type TransactionHistory, type TransactionForm, type TaipowerForm, type TaipowerBill,
   type ElectricityStats,
@@ -717,7 +800,6 @@ const monthlyTransactions = computed(() =>
   transactions.value.filter(t => t.date?.startsWith(currentMonth.value))
 )
 
-const isCollected = (t: Transaction) => t.status === 'completed' || (t.status as string) === 'paid'
 
 const stats = computed(() => {
   let income = 0, incomeCount = 0, pending = 0, pendingCount = 0, expense = 0, expenseCount = 0
@@ -825,6 +907,39 @@ const filteredTransactions = computed(() => {
     return t.category === currentTab.value
   })
 })
+
+// --- 依租客分組檢視（實作於 src/utils/financials/tenantGroups.ts） ---
+const groupByTenant = ref(false)
+const expandedGroups = ref<Set<string>>(new Set())
+const markingGroupKey = ref<string | null>(null)
+
+const toggleGroup = (key: string) => {
+  const next = new Set(expandedGroups.value)
+  if (next.has(key)) next.delete(key); else next.add(key)
+  expandedGroups.value = next
+}
+
+const tenantGroups = computed(() => buildTenantGroups(filteredTransactions.value))
+
+/** 一鍵收款：批次標記該租客所有未收的收入帳單 */
+const markGroupPaid = async (group: TenantGroup<Transaction>) => {
+  const targets = uncollectedIncome(group)
+  if (targets.length === 0) return
+  markingGroupKey.value = group.key
+  const today = new Date().toISOString().split('T')[0]
+  try {
+    await Promise.all(targets.map(t => updateDoc(doc(db, 'bills', t.id), {
+      status: 'completed',
+      paidAt: t.paymentDate || today,
+      updatedAt: serverTimestamp(),
+    })))
+    toast.success(`已標記「${group.label}」${targets.length} 筆收款完成`)
+  } catch {
+    toast.error('更新失敗，請稍後再試')
+  } finally {
+    markingGroupKey.value = null
+  }
+}
 
 // --- Category badge style ---
 const categoryBadge = (cat: string) => {
