@@ -535,6 +535,9 @@ import PrintBillsModal from '../../components/financials/PrintBillsModal.vue'
 import BillHistoryModal from '../../components/financials/BillHistoryModal.vue'
 import ElectricityStatsCard from '../../components/financials/ElectricityStatsCard.vue'
 import {
+  shouldGenerateBill, getBillingAmount, getBillingDescription, publicMeterShare,
+} from '../../utils/meter/billing'
+import {
   statusLabels, statusStyles, statusIcons,
   type TransactionHistory, type TransactionForm, type TaipowerForm, type TaipowerBill,
   type ElectricityStats,
@@ -860,50 +863,6 @@ const markPaid = async (item: Transaction) => {
   }
 }
 
-// --- Billing frequency helpers ---
-const shouldGenerateBill = (tenant: any, month: string): boolean => {
-  const freq = tenant.paymentFrequency || 'monthly'
-  if (freq === 'monthly') return true
-  if (!tenant.leaseStart) return false
-  const [cy, cm] = month.split('-').map(Number) as [number, number]
-  const [ly, lm] = tenant.leaseStart.substring(0, 7).split('-').map(Number) as [number, number]
-  const diff = (cy - ly) * 12 + (cm - lm)
-  if (diff < 0) return false
-  if (freq === 'quarterly') return diff % 3 === 0
-  if (freq === 'semiannual') return diff % 6 === 0
-  if (freq === 'yearly') return diff % 12 === 0
-  return true
-}
-
-const getBillingAmount = (tenant: any): number => {
-  const rent = Number(tenant.rent) || 0
-  const freq = tenant.paymentFrequency || 'monthly'
-  if (freq === 'quarterly') return rent * 3
-  if (freq === 'semiannual') return rent * 6
-  if (freq === 'yearly') return rent * 12
-  return rent
-}
-
-const getBillingDescription = (tenant: any, month: string): string => {
-  const freq = tenant.paymentFrequency || 'monthly'
-  if (freq === 'quarterly') {
-    const [y, m] = month.split('-').map(Number) as [number, number]
-    const endM = m + 2 > 12 ? m + 2 - 12 : m + 2
-    const endY = m + 2 > 12 ? y + 1 : y
-    return `${month}～${endY}-${String(endM).padStart(2, '0')} 季度房租`
-  }
-  if (freq === 'semiannual') {
-    const [y, m] = month.split('-').map(Number) as [number, number]
-    const endM = m + 5 > 12 ? m + 5 - 12 : m + 5
-    const endY = m + 5 > 12 ? y + 1 : y
-    return `${month}～${endY}-${String(endM).padStart(2, '0')} 半年度房租`
-  }
-  if (freq === 'yearly') {
-    return `${month.substring(0, 4)} 年度房租`
-  }
-  return `${month} 月份房租`
-}
-
 // --- Generate Monthly Bills ---
 const confirmGenerateBills = async () => {
   showGenerateConfirm.value = false
@@ -994,7 +953,7 @@ const generateMonthlyBills = async () => {
         warnings.push(`公共電表「${pm.name}」的子群組內沒有綁定房間，未生成分攤帳單`)
         return
       }
-      const share = Math.round(reading.cost / sgRooms.length)
+      const share = publicMeterShare(reading.cost, sgRooms.length)
       if (share <= 0) return
       sgRooms.forEach(room => {
         const matched: any = tenants.find((t: any) => t.room === room.name)

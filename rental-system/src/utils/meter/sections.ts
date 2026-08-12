@@ -7,6 +7,7 @@
  */
 import type { MeterEntry, SubGroup } from '../../components/meter/types'
 import { calculateUsage } from './calc'
+import { sumPublicShares } from './billing'
 
 export interface DisplaySection {
   id: string
@@ -47,9 +48,12 @@ export const buildSections = (
     sectionEntries.forEach(e => usedIds.add(e.roomId))
     const totalUsage = sectionEntries.reduce((sum, r) => sum + (r.currentReading ? calculateUsage(r) : 0), 0)
     const totalCost = sectionEntries.reduce((sum, r) => sum + (r.currentReading ? costOf(r) : 0), 0)
-    const publicCost = sectionPubs.filter(p => !p.landlordPays)
-      .reduce((sum, p) => sum + (p.currentReading ? costOf(p) : 0), 0)
-    const publicShare = allRoomCount > 0 ? Math.round(publicCost / allRoomCount) : 0
+    // 逐表各自除、各自取整，與帳單生成完全一致（每顆公共表各開一筆帳單）。
+    // 先加總再除會與實際帳單差 ±1 元／房，房東看到的預估就會對不上。
+    const publicShare = sumPublicShares(
+      sectionPubs.filter(p => !p.landlordPays).map(p => (p.currentReading ? costOf(p) : 0)),
+      allRoomCount,
+    )
     return { id, name, entries: sectionEntries, totalUsage: Math.round(totalUsage), totalCost, publicShare }
   }
 

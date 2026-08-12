@@ -129,6 +129,7 @@ rental-system/
   4. 帳單分攤制總表資料未持久化，重載後清空，重新儲存時電費靜默歸零
   5. `officialMetersCount` 用 `??` 攔不到 0，為 0 時 `scaleFactor` 歸零使所有級距失效，全部用電落到最高費率（300 度 925 → 2538 元）
   另有 1 項政策變更：公共電表不再套用保底單價（保底對象為租客，走廊燈等低用量表會被拉抬數倍）。既有帳目金額全部未受影響。
+- 出帳規則統一與測試（2026-08-12）：公共電費分攤原有兩份獨立實作 —— `sections.ts`（抄表頁預估）先加總再除、`Financials.vue`（實際出帳）逐表各自除，多顆公共表時每房差 ±1 元，房東看到的預估與實際帳單對不上。抽出 `src/utils/meter/billing.ts` 讓兩邊呼叫同一份 `publicMeterShare`／`sumPublicShares`，**統一採出帳側的逐表制**（不動任何已出帳金額、不動去重鍵 `readingId_roomId`、帳單維持每表一筆以保留明細）。同時把 `shouldGenerateBill`／`getBillingAmount`／`getBillingDescription` 三個租金週期函式從 `Financials.vue` 移入並補測試。測試 40 項，含一條跨層不變量：抄表頁顯示的分攤金額必須等於各表帳單金額之和
 - 報修管理（查看/處理租客報修申請）
 - 公告發布
 - 合約管理（自訂範本、PDF 匯出、電子簽名、排程續約：續約後目前租期維持到期滿、新租期存 pendingRenewal 到期自動接續+通知租客+導向重簽；房東「標記不續約」註記）
@@ -194,11 +195,7 @@ rental-system/
 
 - 手機 Google 登入（歷史 Bug，已解決）：須在 Google Cloud Console 手動加入 `web.app` 到已授權 JS 來源，詳見 DEV_GUIDE.md 第九節
 - Cloudflare Tunnel URL 每次重啟後變更，需手動更新 LINE Console Webhook URL
-- **公共電費分攤有兩份獨立實作，數字可能對不上（待統一）**：
-  - `sections.ts buildSections`（抄表頁預估）：同子群組多顆公共表**先加總再除**，取整只做一次；且依總表頁籤限縮
-  - `Financials.vue:997`（實際出帳）：`Math.round(reading.cost / sgRooms.length)`，**每顆表各自除、各自取整**，且不限縮總表
-  - 單顆公共表時兩者一致；多顆時取整時機不同會產生差異，抄表頁看到的預估分攤與實際開出的帳單金額可能不符
-  - 修法方向：把 `Financials` 的分攤改為呼叫 `sections.ts` 的同一份邏輯，並補上出帳路徑的單元測試（`billing.ts`）。此變更會改動實際出帳金額，需另行對帳驗收
+- ~~公共電費分攤有兩份獨立實作~~（2026-08-12 已解決，見「出帳規則統一」）
 
 ---
 
