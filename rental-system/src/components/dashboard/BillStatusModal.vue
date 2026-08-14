@@ -80,7 +80,8 @@ export type BillCategory = 'unpaid' | 'paid' | 'overdue';
 
 export interface BillLite {
   id: string;
-  tenantId: string;
+  /** 租客分組鍵（tenants 文件 ID 優先，非真實 tenantId） */
+  groupKey: string;
   tenantName: string;
   roomName: string;
   amount: number;
@@ -106,7 +107,7 @@ const totalAmount = computed(() => props.bills.reduce((sum, b) => sum + b.amount
 const groups = computed(() => {
   const map = new Map<string, { key: string; tenantName: string; roomName: string; subtotal: number; bills: BillLite[] }>();
   for (const bill of props.bills) {
-    const key = bill.tenantId || bill.tenantName || bill.id;
+    const key = bill.groupKey || bill.tenantName || bill.id;
     let group = map.get(key);
     if (!group) {
       group = { key, tenantName: bill.tenantName || '未知租客', roomName: bill.roomName, subtotal: 0, bills: [] };
