@@ -56,7 +56,8 @@
       "Bash(agent-browser screenshot *)",
       "Bash(agent-browser click *)",
       "Bash(agent-browser tab *)",
-      "Bash(agent-browser close *)"
+      "Bash(agent-browser close *)",
+      "PowerShell($c = Get-Command firebase -ErrorAction SilentlyContinue; if \\($c\\) { $c.Source; firebase --version } else { \"firebase not found in PATH\" })"
     ]
   }
 }

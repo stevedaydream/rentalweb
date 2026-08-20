@@ -71,7 +71,7 @@ rental-system/
 | `users` | uid, role('landlord'\|'tenant'\|'admin'), landlordId? |
 | `rooms` | id, name, status('occupied'\|'vacant'\|'maintenance'), landlordId, floor, rent, deposit, tenantId, tenantName, isPublic?, subGroupId?(電表子群組) |
 | `tenants` | id, uid, name, email, phone, landlordId, roomId, roomName, boundLandlordCode, status('active'\|'inactive'), moveInDate, paymentFrequency('monthly'\|'quarterly'\|'semiannual'\|'yearly') |
-| `bills` | id, tenantId, tenantName, landlordId, roomId, roomName, amount, status('pending'\|'waiting_confirmation'\|'completed'\|'overdue'), month, dueDate, paidAt, electricityFee, waterFee, managementFee, paymentProofUrl?, ecpayOrderId?, paymentMethod?, paymentGateway? |
+| `bills` | id, tenantId(租客 uid，手動建立的租客為 null), relatedTenantDocId(tenants 文件 ID), landlordId, target(`姓名 房號` 字串), date(YYYY-MM-DD), type('income'\|'expense'), category('租金收入'\|'電費'\|'公共電費'…), description, amount, status('pending'\|'waiting_confirmation'\|'completed'\|'overdue'), dueDate, paidAt, relatedUsageId?, history[], paymentProofUrl?, ecpayOrderId?, paymentMethod?, paymentGateway?　※**無 tenantName / roomName / month 欄位**，租客資訊須以 relatedTenantDocId / tenantId 反查 `tenants` |
 | `payment_proofs` | id, billId, tenantId, landlordId, imageUrl, uploadedAt, ocrRaw?(預留), matchResult?(預留), status('pending'\|'approved'\|'rejected') |
 | `repair_requests` | id, tenantId, tenantName, landlordId, roomId, type, description, status('pending'\|'processing'\|'resolved'), priority('low'\|'medium'\|'high'), imageUrl |
 | `meter_readings` | id, landlordId, roomId, roomName, reading, previousReading, usage, readingDate, meterType?('public'=公共表, roomId=public_meters id), subGroupId?, cycle?('monthly'/'bimonthly'), cycleIndex?(1/2) |
@@ -247,6 +247,7 @@ rental-system/
 | 2026-07-07 | TenantList 統計卡可點擊：在租人數/即將到期/逾期欠費三卡改為按鈕，點擊開啟 `TenantStatModal`（新元件 `components/tenants/`），列出該條件租客（到期卡顯示剩餘天數與已續約標記），點租客直接開抽屜；`stats` 重構為由 `statTenants` computed 派生，到期判斷統一走 `isExpiringSoon` |
 | 2026-07-07 | TenantList 合約到期顯示優化：「即將到期」badge 改顯示剩餘天數（`剩餘N日`）；已排程續約（`pendingRenewal`）時 badge 轉綠並標「（已續約）」，租期欄多顯示一行綠色「續: 新租期起迄」；抽屜到期 badge 同步此邏輯 |
 | 2026-07-07 | Dashboard 帳務概況卡可點擊：未繳費/已繳費/逾期欠費三卡改為按鈕，點擊開啟 `BillStatusModal`（新元件），依租客分組顯示該條件下帳單明細與小計，底部連往帳務管理；明細於 fetchDashboardData 掃 bills 時一併收集，無額外查詢 |
+| 2026-08-14 | 修正 Dashboard 帳務概況 `BillStatusModal` 全部顯示「未知租客」：`bills` 文件實際不存 `tenantName`/`roomName`/`month`（只有 `target`、`relatedTenantDocId`、`tenantId`、`date`），Dashboard 直讀 `data.tenantName` 必為 undefined，且分組鍵 `tenantId ‖ tenantName` 讓所有無 uid 的手動租客帳單併成同一組。改為以已抓取的 `tenantsSnap` 建 docId／uid 對照表反查姓名房號（fallback 拆 `target`），分組鍵改 `relatedTenantDocId ‖ tenantId ‖ target`，`month` 由 `date` 前七碼推導；`unpaidTenantCount` 同步改用新分組鍵，不再漏算無 uid 租客 |
 | 2026-06-24 | 真正根因修正：手機「直行」其實出自統計卡而非表格——MeterReading「統一抄表日」卡用 `flex justify-between` 把中文字與 date input 並排，手機卡片過窄將中文擠成一字一行。改為 `flex-col sm:flex-row` 手機堆疊 + 文字容器 `min-w-0` + 標籤 `whitespace-nowrap` |
 | 2026-08-21 | MeterReadingHistory 月份篩選改以「計費月份」歸月：原本用 `createdAt`（建立日期）切月，補登／匯入的歷史抄表全落在匯入當天，選任何過去月份都查無資料、也看不到個別房間度數。新增 `monthOf()` 取 `periodEnd.slice(0,7)`（缺 `periodEnd` 的舊資料才退回 `createdAt`），下拉選單與篩選共用，格式與「缺漏追蹤」分頁一致（`YYYY-MM`）|
 | 2026-08-21 | Financials「依租客」檢視手機版修正：分組列與展開明細列原為固定寬度單列（`w-24`／`w-32`／收款鈕），且該區塊無水平捲動（外層 `overflow-visible`），手機上租客姓名被壓到看不見、右側收款鈕被擠出螢幕又無法左右滑。改為 `flex-wrap`：手機時金額／狀態／收款鈕整組 `w-full` 換到第二行靠右，姓名獨佔第一行；`sm:` 以上維持原本單列固定寬度版面 |

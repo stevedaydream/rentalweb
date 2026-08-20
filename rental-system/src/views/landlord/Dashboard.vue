@@ -292,16 +292,32 @@ const fetchDashboardData = async () => {
     billDetails.overdue = [];
     const todayStr = new Date().toISOString().split('T')[0] || '';
     const unpaidTenantIds = new Set<string>();
+    // bills 文件不存 tenantName/roomName，需以 relatedTenantDocId / tenantId 反查 tenants
+    const tenantByDocId = new Map<string, { name: string; room: string }>();
+    const tenantByUid = new Map<string, { name: string; room: string }>();
+    tenantsSnap.forEach(d => {
+      const t = d.data();
+      const info = { name: t.name || '', room: t.room || '' };
+      tenantByDocId.set(d.id, info);
+      if (t.uid) tenantByUid.set(t.uid, info);
+    });
     billsSnap.forEach(d => {
       const data = d.data();
       const amount = Number(data.amount) || 0;
+      // 舊帳單或已刪除租客：退回 target（格式為「姓名 房號」）
+      const target = String(data.target || '').trim();
+      const lastSpace = target.lastIndexOf(' ');
+      const matched = (data.relatedTenantDocId && tenantByDocId.get(data.relatedTenantDocId))
+        || (data.tenantId && tenantByUid.get(data.tenantId))
+        || null;
       const billLite: BillLite = {
         id: d.id,
-        tenantId: data.tenantId || '',
-        tenantName: data.tenantName || '未知租客',
-        roomName: data.roomName || '',
+        // 優先租客文件 ID（手動建立的租客沒有 uid）
+        groupKey: data.relatedTenantDocId || data.tenantId || target || '',
+        tenantName: matched?.name || (lastSpace > 0 ? target.slice(0, lastSpace) : target) || '未知租客',
+        roomName: matched?.room || (lastSpace > 0 ? target.slice(lastSpace + 1) : ''),
         amount,
-        month: data.month || '',
+        month: data.month || String(data.date || '').slice(0, 7),
         dueDate: data.dueDate || ''
       };
       if (data.status === 'completed' || data.status === 'paid') {
@@ -311,12 +327,12 @@ const fetchDashboardData = async () => {
       } else if (data.dueDate && data.dueDate < todayStr) {
         financial.overdueCount++;
         financial.overdueAmount += amount;
-        if (data.tenantId) unpaidTenantIds.add(data.tenantId);
+        if (billLite.groupKey) unpaidTenantIds.add(billLite.groupKey);
         billDetails.overdue.push(billLite);
       } else {
         financial.unpaidCount++;
         financial.unpaidAmount += amount;
-        if (data.tenantId) unpaidTenantIds.add(data.tenantId);
+        if (billLite.groupKey) unpaidTenantIds.add(billLite.groupKey);
         billDetails.unpaid.push(billLite);
       }
     });
