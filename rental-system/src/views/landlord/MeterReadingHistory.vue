@@ -10,8 +10,8 @@
       </div>
 
       <div v-show="activeTab === 'history'" class="flex gap-3">
-        <select v-model="selectedMonth" aria-label="篩選月份" class="px-4 py-2 bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 rounded-lg outline-none text-sm">
-           <option value="all">所有月份</option>
+        <select v-model="selectedMonth" aria-label="篩選計費月份" class="px-4 py-2 bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 rounded-lg outline-none text-sm">
+           <option value="all">所有計費月份</option>
            <option v-for="m in uniqueMonths" :key="m" :value="m">{{ m }}</option>
         </select>
         <select v-model="selectedRoom" aria-label="篩選房間" class="px-4 py-2 bg-white dark:bg-card-dark border border-gray-200 dark:border-gray-700 rounded-lg outline-none text-sm">
@@ -290,14 +290,21 @@ onMounted(async () => {
 });
 
 // --- Computed ---
+// 以「計費月份」（periodEnd）歸月；舊資料若缺 periodEnd 才退回建立日期
+const monthOf = (item: MeterRecord): string => {
+  if (item.periodEnd && item.periodEnd.length >= 7) return item.periodEnd.slice(0, 7);
+  if (item.createdAt) {
+    const date = item.createdAt.toDate();
+    return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+  }
+  return '';
+};
+
 const uniqueMonths = computed(() => {
   const months = new Set<string>();
   list.value.forEach(item => {
-    if (item.createdAt) {
-      const date = item.createdAt.toDate();
-      const str = `${date.getFullYear()}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-      months.add(str);
-    }
+    const m = monthOf(item);
+    if (m) months.add(m);
   });
   return Array.from(months).sort().reverse();
 });
@@ -310,11 +317,7 @@ const uniqueRooms = computed(() => {
 
 const filteredList = computed(() => {
   const filtered = list.value.filter(item => {
-    if (selectedMonth.value !== 'all' && item.createdAt) {
-      const date = item.createdAt.toDate();
-      const str = `${date.getFullYear()}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-      if (str !== selectedMonth.value) return false;
-    }
+    if (selectedMonth.value !== 'all' && monthOf(item) !== selectedMonth.value) return false;
     if (selectedRoom.value !== 'all' && item.roomName !== selectedRoom.value) return false;
     return true;
   });

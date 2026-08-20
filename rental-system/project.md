@@ -248,3 +248,5 @@ rental-system/
 | 2026-07-07 | TenantList 合約到期顯示優化：「即將到期」badge 改顯示剩餘天數（`剩餘N日`）；已排程續約（`pendingRenewal`）時 badge 轉綠並標「（已續約）」，租期欄多顯示一行綠色「續: 新租期起迄」；抽屜到期 badge 同步此邏輯 |
 | 2026-07-07 | Dashboard 帳務概況卡可點擊：未繳費/已繳費/逾期欠費三卡改為按鈕，點擊開啟 `BillStatusModal`（新元件），依租客分組顯示該條件下帳單明細與小計，底部連往帳務管理；明細於 fetchDashboardData 掃 bills 時一併收集，無額外查詢 |
 | 2026-06-24 | 真正根因修正：手機「直行」其實出自統計卡而非表格——MeterReading「統一抄表日」卡用 `flex justify-between` 把中文字與 date input 並排，手機卡片過窄將中文擠成一字一行。改為 `flex-col sm:flex-row` 手機堆疊 + 文字容器 `min-w-0` + 標籤 `whitespace-nowrap` |
+| 2026-08-21 | MeterReadingHistory 月份篩選改以「計費月份」歸月：原本用 `createdAt`（建立日期）切月，補登／匯入的歷史抄表全落在匯入當天，選任何過去月份都查無資料、也看不到個別房間度數。新增 `monthOf()` 取 `periodEnd.slice(0,7)`（缺 `periodEnd` 的舊資料才退回 `createdAt`），下拉選單與篩選共用，格式與「缺漏追蹤」分頁一致（`YYYY-MM`）|
+| 2026-08-21 | Financials「依租客」檢視手機版修正：分組列與展開明細列原為固定寬度單列（`w-24`／`w-32`／收款鈕），且該區塊無水平捲動（外層 `overflow-visible`），手機上租客姓名被壓到看不見、右側收款鈕被擠出螢幕又無法左右滑。改為 `flex-wrap`：手機時金額／狀態／收款鈕整組 `w-full` 換到第二行靠右，姓名獨佔第一行；`sm:` 以上維持原本單列固定寬度版面 |

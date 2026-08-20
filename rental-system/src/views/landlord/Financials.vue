@@ -264,7 +264,7 @@
         <div v-if="groupByTenant" class="min-h-[300px] divide-y divide-ink-100 dark:divide-ink-800">
           <div v-for="g in tenantGroups" :key="g.key">
             <div
-              class="flex items-center gap-3 px-6 py-3.5 hover:bg-surface-light dark:hover:bg-surface-dark transition-colors cursor-pointer"
+              class="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 sm:px-6 py-3.5 hover:bg-surface-light dark:hover:bg-surface-dark transition-colors cursor-pointer"
               role="button" tabindex="0" :aria-expanded="expandedGroups.has(g.key)"
               @click="toggleGroup(g.key)" @keydown.enter="toggleGroup(g.key)" @keydown.space.prevent="toggleGroup(g.key)"
             >
@@ -273,52 +273,56 @@
               </span>
               <span class="font-bold text-sm truncate flex-1 min-w-0">{{ g.label }}</span>
               <span class="text-xs text-text-secondary-light shrink-0 whitespace-nowrap">{{ g.items.length }} 筆</span>
-              <span class="text-sm font-bold shrink-0 w-24 text-right"
+              <span class="text-sm font-bold shrink-0 sm:w-24 text-right whitespace-nowrap"
                 :class="g.total >= 0 ? 'text-green-600' : 'text-red-500'">
                 {{ g.total.toLocaleString() }}
               </span>
-              <span class="shrink-0 w-32 text-right">
-                <span v-if="g.key === OTHER_GROUP" class="text-xs text-ink-300">—</span>
-                <span v-else-if="g.allCollected" class="text-xs font-bold text-green-600 inline-flex items-center gap-0.5">
-                  <span class="material-symbols-outlined text-[14px]" aria-hidden="true">check_circle</span>已收
+              <div class="flex items-center justify-end gap-2 w-full sm:w-auto">
+                <span class="shrink-0 sm:w-32 text-right whitespace-nowrap">
+                  <span v-if="g.key === OTHER_GROUP" class="text-xs text-ink-300">—</span>
+                  <span v-else-if="g.allCollected" class="text-xs font-bold text-green-600 inline-flex items-center gap-0.5">
+                    <span class="material-symbols-outlined text-[14px]" aria-hidden="true">check_circle</span>已收
+                  </span>
+                  <span v-else class="text-xs font-bold text-orange-600">待收 {{ g.unpaid.toLocaleString() }}</span>
                 </span>
-                <span v-else class="text-xs font-bold text-orange-600">待收 {{ g.unpaid.toLocaleString() }}</span>
-              </span>
-              <button
-                v-if="!g.allCollected && g.key !== OTHER_GROUP"
-                @click.stop="markGroupPaid(g)"
-                :disabled="markingGroupKey === g.key"
-                class="shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-orange-100 text-orange-700 hover:bg-green-100 hover:text-green-700 transition-colors disabled:opacity-50"
-                :title="`一併標記 ${g.unpaidCount} 筆收款完成`"
-              >
-                <span class="material-symbols-outlined text-[14px] align-middle" aria-hidden="true">
-                  {{ markingGroupKey === g.key ? 'hourglass_empty' : 'payments' }}
-                </span>
-                收款 ({{ g.unpaidCount }})
-              </button>
-              <span v-else class="shrink-0 w-[86px]"></span>
+                <button
+                  v-if="!g.allCollected && g.key !== OTHER_GROUP"
+                  @click.stop="markGroupPaid(g)"
+                  :disabled="markingGroupKey === g.key"
+                  class="shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-orange-100 text-orange-700 hover:bg-green-100 hover:text-green-700 transition-colors disabled:opacity-50 whitespace-nowrap"
+                  :title="`一併標記 ${g.unpaidCount} 筆收款完成`"
+                >
+                  <span class="material-symbols-outlined text-[14px] align-middle" aria-hidden="true">
+                    {{ markingGroupKey === g.key ? 'hourglass_empty' : 'payments' }}
+                  </span>
+                  收款 ({{ g.unpaidCount }})
+                </button>
+                <span v-else class="hidden sm:block shrink-0 w-[86px]"></span>
+              </div>
             </div>
 
-            <div v-if="expandedGroups.has(g.key)" class="bg-surface-light/50 dark:bg-surface-dark/30 px-6 pb-3">
+            <div v-if="expandedGroups.has(g.key)" class="bg-surface-light/50 dark:bg-surface-dark/30 px-4 sm:px-6 pb-3">
               <div v-for="item in g.items" :key="item.id"
-                class="flex items-center gap-3 py-2 pl-7 border-t border-ink-100/60 dark:border-ink-800/60">
+                class="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2 sm:pl-7 border-t border-ink-100/60 dark:border-ink-800/60">
                 <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium shrink-0"
                   :class="categoryBadge(item.category)">{{ item.category }}</span>
                 <span class="text-xs text-text-secondary-light shrink-0 font-mono">{{ item.date }}</span>
                 <span class="text-xs text-text-secondary-light truncate flex-1 min-w-0">{{ item.description }}</span>
-                <span class="text-sm font-bold shrink-0 w-24 text-right"
-                  :class="item.type === 'income' ? 'text-green-600' : 'text-red-500'">
-                  {{ item.type === 'income' ? '+' : '-' }} {{ item.amount.toLocaleString() }}
-                </span>
-                <span class="shrink-0 w-32 text-right">
-                  <button v-if="item.type === 'income' && !isCollected(item)"
-                    @click="markPaid(item)" :disabled="markingPaidId === item.id"
-                    class="px-2 py-1 rounded text-[11px] font-medium bg-orange-100 text-orange-700 hover:bg-green-100 hover:text-green-700 transition-colors disabled:opacity-50">
-                    標記已收
-                  </button>
-                  <span v-else-if="item.type === 'income'" class="text-[11px] text-green-600 font-bold">已收 ✓</span>
-                  <span v-else class="text-[11px] text-ink-300">支出</span>
-                </span>
+                <div class="flex items-center justify-end gap-3 w-full sm:w-auto">
+                  <span class="text-sm font-bold shrink-0 sm:w-24 text-right whitespace-nowrap"
+                    :class="item.type === 'income' ? 'text-green-600' : 'text-red-500'">
+                    {{ item.type === 'income' ? '+' : '-' }} {{ item.amount.toLocaleString() }}
+                  </span>
+                  <span class="shrink-0 sm:w-32 text-right whitespace-nowrap">
+                    <button v-if="item.type === 'income' && !isCollected(item)"
+                      @click="markPaid(item)" :disabled="markingPaidId === item.id"
+                      class="px-2 py-1 rounded text-[11px] font-medium bg-orange-100 text-orange-700 hover:bg-green-100 hover:text-green-700 transition-colors disabled:opacity-50">
+                      標記已收
+                    </button>
+                    <span v-else-if="item.type === 'income'" class="text-[11px] text-green-600 font-bold">已收 ✓</span>
+                    <span v-else class="text-[11px] text-ink-300">支出</span>
+                  </span>
+                </div>
               </div>
             </div>
           </div>
