@@ -223,6 +223,36 @@
 
 ---
 
+## BF-011：`firebase deploy --only functions` 失敗 `Cannot determine backend specification. Timeout after 10000`
+
+- **問題描述**：dev.bat「[8] Deploy all」的 Step 2/2 部署 functions 時中斷。log 已印出 `Serving at port 8129`，隨即拋 `User code failed to load. Cannot determine backend specification. Timeout after 10000`。訊息看起來像 `functions/index.js` 有語法錯或頂層卡住，實際上程式碼完全正常。
+- **嘗試過程**：逐項排除「使用者程式碼」的可能性 ——
+  1. 逐一 `require()` 各依賴計時：`firebase-functions` 243ms、`puppeteer-core` 139ms、`@line/bot-sdk` 149ms、`@sparticuz/chromium` 12ms，合計 544ms
+  2. 補上 `FIREBASE_CONFIG` / `GCLOUD_PROJECT` 後整份 `index.js` 載入僅 **764ms**，且 `process._getActiveHandles()` 為空（沒有殘留 timer／socket 卡住 event loop）
+  3. 直接跑 discovery：`FUNCTIONS_MANIFEST_OUTPUT_PATH=... node node_modules/firebase-functions/lib/bin/firebase-functions.js .` → 秒回，**18 個 endpoint** 全數解析成功
+  4. 手動起 discovery server 再 curl `http://127.0.0.1:PORT/__/functions.yaml` → **HTTP 200、4ms、6628 bytes**
+
+  四項都證明程式碼健康，問題不在 `index.js`。
+- **根本原因**：`firebase deploy` 是 fork 一個子行程載入 `functions/index.js`、起 HTTP server，再由 CLI 去 GET `/__/functions.yaml`，而這個等待**寫死 10 秒**（`firebase-tools/lib/deploy/functions/runtimes/discovery/index.js`，`detectFromPort(..., timeout = 10000)`）。
+
+  在 Windows 上這 10 秒並不寬裕：dev.bat 的 `npm run build` 剛寫完整個 `dist/`，Defender 正在忙著即時掃描；緊接著要冷啟動 node、冷讀 `functions/node_modules`（含 `puppeteer-core`、`@sparticuz/chromium` 這類大套件）。暖快取下 764ms 的載入，冷啟動＋防毒掃描＋磁碟競爭下衝破 10 秒是完全合理的。**這是環境時序問題，不是程式碼問題**，所以它會時好時壞。
+- **最終解法**：`firebase-tools` 有官方逃生門 `FUNCTIONS_DISCOVERY_TIMEOUT`（**單位為秒**，內部 `× 1000`；為 0／未設定時才回退預設 10000ms）。在 dev.bat 開頭 `cd /d "%~dp0"` 之後統一設定，所有 deploy 分支共用：
+
+  ```bat
+  set FUNCTIONS_DISCOVERY_TIMEOUT=120
+  ```
+
+  這只是**上限而非固定等待** —— discovery 一準備好就立刻返回，正常情況下完全不會變慢。以 `firebase deploy --only functions --dry-run` 驗證通過（discovery 成功、打包 41.76 KB）。
+- **牽扯檔案**：`dev.bat`（新增 `set FUNCTIONS_DISCOVERY_TIMEOUT=120`）。`functions/index.js` **未修改**。
+
+> **通用避坑**：
+> 1. `Cannot determine backend specification` 的字面意思是「你的程式碼載不起來」，但它同樣會由**單純的逾時**觸發。判斷前先看有沒有印出 `Serving at port N` —— 有印出就代表子行程活著、程式碼跑得動，該懷疑的是時間而非語法
+> 2. 要獨立驗證 functions 程式碼是否健康，用 `FUNCTIONS_MANIFEST_OUTPUT_PATH=<path> node functions/node_modules/firebase-functions/lib/bin/firebase-functions.js .`，可完全繞開 HTTP discovery 直接產出 manifest
+> 3. 本機手動測 `index.js` 載入時，記得補 `FIREBASE_CONFIG` 與 `GCLOUD_PROJECT`，否則會被 `onObjectFinalized` 的 `Missing bucket name` 擋下，誤判成真的有 bug
+> 4. Windows ＋ 防毒即時掃描會讓所有「短逾時」的工具鏈變得脆弱，尤其是在剛寫完大量檔案（build）之後緊接著執行的步驟
+
+---
+
 ## BF 範本
 
 ### BF-XXX：標題

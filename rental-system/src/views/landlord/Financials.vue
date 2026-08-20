@@ -865,24 +865,32 @@ const categoryStats = computed(() => {
 
 const pendingCount = computed(() => monthlyTransactions.value.filter(t => !isCollected(t) && t.type === 'income').length)
 
-// 電費盈虧分析：期間 = 當月＋前一月，錨定該月登錄的台電帳單；收入含電費與公共電費
+// 電費盈虧分析：台電為雙月結算，期間**錨定台電帳單的迄月**而非檢視月份。
+// 取「迄月 ≤ 檢視月份」中最近的一張帳單，期間即為（迄月-1 ~ 迄月），收入側照同一區間統計。
+// 這樣同一期不論從迄月或下一個月看都得到相同數字，不會把下一期的電費提前算進來、也不會把同一個月結算兩次。
+// 尚無任何台電帳單時退回以檢視月份為準，維持原本的「等待帳單」狀態。
 const electricityStats = computed<ElectricityStats>(() => {
-  const currentStr = currentMonth.value
-  const [y, m] = currentStr.split('-').map(Number) as [number, number]
+  const viewMonth = currentMonth.value
+  // 不倚賴 Firestore 回傳順序，直接取符合條件者中迄月最大的一張
+  const bill = taipowerBills.value
+    .filter(b => b.month && b.month <= viewMonth)
+    .reduce<TaipowerBill | undefined>((best, b) => (!best || b.month > best.month ? b : best), undefined)
+
+  const anchor = bill?.month ?? viewMonth
+  const [y, m] = anchor.split('-').map(Number) as [number, number]
   const prevDate = new Date(y, m - 2, 1)
   const prevStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`
 
   const elecTrans = transactions.value.filter(t =>
     t.type === 'income' &&
     (t.category === '電費' || t.category === '公共電費') &&
-    (t.date?.startsWith(currentStr) || t.date?.startsWith(prevStr))
+    (t.date?.startsWith(anchor) || t.date?.startsWith(prevStr))
   )
   const estimated = elecTrans.reduce((s, t) => s + t.amount, 0)
   const collected = elecTrans.filter(isCollected).reduce((s, t) => s + t.amount, 0)
-  const bill = taipowerBills.value.find(b => b.month === currentStr)
 
   return {
-    periodStr: `${prevStr} ~ ${currentStr}`,
+    periodStr: `${prevStr} ~ ${anchor}${anchor !== viewMonth ? '（最近一期）' : ''}`,
     estimated,
     collected,
     collectionRate: estimated > 0 ? Math.round((collected / estimated) * 100) : 0,

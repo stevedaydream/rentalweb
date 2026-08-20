@@ -5,6 +5,13 @@ title Rental System - Dev Tools
 :: otherwise run npm/firebase in the wrong place.
 cd /d "%~dp0"
 
+:: firebase deploy loads functions/index.js in a child process and gives it only
+:: 10s to answer the discovery request. On a cold Windows run (Defender scanning
+:: functions/node_modules right after "npm run build" wrote dist/) that can be
+:: exceeded, failing with "Cannot determine backend specification". Value is in
+:: seconds and is only a ceiling -- discovery still returns as soon as it is ready.
+set FUNCTIONS_DISCOVERY_TIMEOUT=120
+
 :menu
 cls
 echo.
