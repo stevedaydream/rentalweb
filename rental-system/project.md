@@ -69,7 +69,8 @@ rental-system/
 | Collection | 主要欄位 |
 |------------|---------|
 | `users` | uid, role('landlord'\|'tenant'\|'admin'), landlordId? |
-| `rooms` | id, name, status('occupied'\|'vacant'\|'maintenance'), landlordId, floor, rent, deposit, tenantId, tenantName, isPublic?, subGroupId?(電表子群組) |
+| `rooms` | id, name, status('occupied'\|'vacant'\|'maintenance'), landlordId, floor, rent, deposit, tenantId, tenantName, isPublic?, subGroupId?(電表子群組), **propertyId?(所屬建物)** |
+| `properties` | id, landlordId, name, address?, houseTaxNo?(房屋稅籍), landNos?[](地號，一棟可多筆), fireInsurance?{insurer,policyNo,startDate,endDate,amount}, publicWelfare?[{year,houseTax,landTax,incomeTax,docNo,validFrom,validTo}], seededFromGroupId?(遷移冪等標記)　※**建物＝稅／險／公益出租人的歸屬單位，與 `meter_groups`（台電總表）是兩個獨立維度**：台電按電號寄帳單，一棟可能兩個電號、公共電表也可能跨棟 |
 | `tenants` | id, uid, name, email, phone, landlordId, roomId, roomName, boundLandlordCode, status('active'\|'inactive'), moveInDate, paymentFrequency('monthly'\|'quarterly'\|'semiannual'\|'yearly') |
 | `bills` | id, tenantId(租客 uid，手動建立的租客為 null), relatedTenantDocId(tenants 文件 ID), landlordId, target(`姓名 房號` 字串), date(YYYY-MM-DD), type('income'\|'expense'), category('租金收入'\|'電費'\|'公共電費'…), description, amount, status('pending'\|'waiting_confirmation'\|'completed'\|'overdue'), dueDate, paidAt, relatedUsageId?, history[], paymentProofUrl?, ecpayOrderId?, paymentMethod?, paymentGateway?　※**無 tenantName / roomName / month 欄位**，租客資訊須以 relatedTenantDocId / tenantId 反查 `tenants` |
 | `payment_proofs` | id, billId, tenantId, landlordId, imageUrl, uploadedAt, ocrRaw?(預留), matchResult?(預留), status('pending'\|'approved'\|'rejected') |
@@ -86,7 +87,7 @@ rental-system/
 | `line_bindings` | 綁定碼，uid, expiry |
 | `reviews` | id, landlordId, rating(1-5), isVisible, landlordReply |
 | `public_profiles` | doc ID = uid，公開資訊（lineBotId 等） |
-| `taipower_bills` | 台電帳單記錄，landlordId |
+| `taipower_bills` | 台電帳單記錄，landlordId, month(迄月), amount, usage, groupId(所屬台電總表) |
 | `settings` | 全域系統設定（房東可讀寫） |
 | `bill_generate_logs` | 帳單生成紀錄，landlordId, month, generatedAt, billCount, items[] |
 | `maintenance` | 舊版報修（已被 repair_requests 取代，規則仍保留） |
@@ -254,3 +255,4 @@ rental-system/
 | 2026-08-21 | 修正 `firebase deploy --only functions` 偶發失敗 `Cannot determine backend specification. Timeout after 10000`：非程式碼問題，而是 firebase-tools 對 functions discovery 寫死 10 秒逾時，在 Windows 冷啟動＋Defender 掃描（緊接 `npm run build` 之後）下不夠用。dev.bat 開頭加 `set FUNCTIONS_DISCOVERY_TIMEOUT=120`（單位秒，僅為上限不影響正常速度），詳見 BF-011 |
 | 2026-08-21 | 修正電費盈虧分析漏掉已登錄的台電帳單：原本收入側取「檢視月份＋前一月」兩個月，支出側卻只認 `taipowerBills.find(b => b.month === 當月)`。台電為雙月結算、迄月固定落在單月或雙月，因此在非迄月的那個月檢視時，卡片標題已寫出區間（如 `2026-07 ~ 2026-08`）、收入也照該區間算了，登錄在 07 迄月的帳單卻找不到，右下角恆顯示「等待帳單」。改為**錨定台電帳單迄月**：取「迄月 ≤ 檢視月份」中最近一張，區間＝（迄月-1 ~ 迄月），收入側照同一區間統計，非當月時 periodStr 標註「（最近一期）」。同一期從迄月或次月檢視得到相同數字，不會提前計入下一期電費、也不會把同一個月結算兩次；尚無帳單時退回檢視月份維持原「等待帳單」行為 |
 | 2026-08-21 | **稅務／保險整併 階段 0**：修正電費盈虧的「建物盲」。`taipower_bills.groupId` 欄位早已存在（`meter/groups.ts` 的 `applyMasterBills` 會用），但 `TaipowerModal` 沒有選棟欄位、`saveTaipowerBill` 也沒寫入，於是多棟房東看到的是「甲棟的台電帳單 vs 全棟的電費收入」。改動：Modal 多棟時顯示總表選擇器；`saveTaipowerBill` 雙寫皆帶 `groupId`（描述加註棟名）；生成帳單時電費寫 `roomGroupId(reading.roomId)`、公共電費寫 `pm.groupId`；卡片改為逐總表各一張。規則抽至 `src/utils/financials/electricity.ts`（23 項測試），涵蓋錨定迄月、逐棟結算、舊資料經 `租客→房號→subGroupId→總表` 回溯、單一總表時無 groupId 視為屬於它、無總表時單卡、groupId 指向已刪總表時退回而非消失 |
+| 2026-08-22 | **稅務／保險整併 階段 1**：新增 `properties`（建物）實體。房屋稅按稅籍、地價稅按地號、火險按標的物、公益出租人按門牌 —— 這些的歸屬單位系統原本都不存在（只有 `rooms` 平表）。新增 `properties` collection＋`rooms.propertyId`（一層反查，「哪一棟賺多少」才算得出來），與 `meter_groups` 刻意保持獨立維度（台電按電號寄帳單，一棟可能兩個電號、公共電表可能跨棟）。房源管理加「建物」分頁：建物 CRUD（地址／稅籍／多筆地號／火險保單／公益出租人逐年度分稅目核定）、房間指派、未指派房間清單與計數 badge。遷移採「從 meter_groups 自動種子」：每個總表建一筆建物，房間經 `subGroupId → groupId` 回填；以 `seededFromGroupId` 保證冪等，已手動指派過的房間不覆寫。決策邏輯抽為 `planRoomAssignments` 純函式（8 項測試）。**順帶修正** `RoomManagement.vue` 的 `subGroupOptions` 原本只讀 `groups[0]` 的子群組，多棟房東的非第一棟房間根本選不到自己的子群組（電費與建物歸屬都會跟著錯）；改為列出全部總表並在多棟時冠上總表名稱 |

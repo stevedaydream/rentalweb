@@ -262,6 +262,14 @@ service cloud.firestore {
       allow delete: if isAdmin() || isLandlordData();
     }
 
+    // 建物 (properties) — 房屋稅／地價稅／火險與公益出租人的歸屬單位
+    // 與 meter_groups 各自獨立：台電按電號寄帳單，一棟可能有兩個電號
+    match /properties/{propertyId} {
+      allow read: if isLandlordData() || isAdmin();
+      allow create: if isCreatingAsLandlord() || isAdmin();
+      allow update, delete: if isLandlordData() || isAdmin();
+    }
+
     // 電表群組 (meter_groups) — 最上層 = 台電計費電表，內含樓層子群組
     match /meter_groups/{groupId} {
       allow read: if isLandlordData() || isAdmin();

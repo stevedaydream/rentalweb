@@ -8,7 +8,7 @@
         </h1>
         <p class="text-text-secondary-light">管理您的所有出租物業與房間狀態</p>
       </div>
-      <div class="flex gap-3">
+      <div v-if="activeTab === 'rooms'" class="flex gap-3">
         <button 
           @click="openModal(undefined, 'create')"
           class="px-4 py-2 bg-gold-500 text-white rounded-lg shadow-sm hover:bg-gold-600 transition-colors text-sm font-medium flex items-center"
@@ -19,6 +19,27 @@
       </div>
     </div>
 
+    <!-- 分頁切換 -->
+    <div class="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit">
+      <button @click="activeTab = 'rooms'"
+        class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+        :class="activeTab === 'rooms' ? 'bg-white dark:bg-card-dark shadow text-text-primary-light dark:text-white' : 'text-text-secondary-light hover:text-text-primary-light dark:hover:text-white'">
+        <span class="material-symbols-outlined text-[16px]" aria-hidden="true">bedroom_parent</span>房間
+      </button>
+      <button @click="activeTab = 'properties'"
+        class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+        :class="activeTab === 'properties' ? 'bg-white dark:bg-card-dark shadow text-text-primary-light dark:text-white' : 'text-text-secondary-light hover:text-text-primary-light dark:hover:text-white'">
+        <span class="material-symbols-outlined text-[16px]" aria-hidden="true">apartment</span>建物
+        <span v-if="unassignedRoomCount > 0"
+          class="ml-1 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 text-[11px] font-bold px-1.5 py-0.5 rounded-full leading-none"
+          :title="`${unassignedRoomCount} 間房尚未指派建物`"
+        >{{ unassignedRoomCount }}</span>
+      </button>
+    </div>
+
+    <PropertyTab v-if="activeTab === 'properties'" :rooms="rooms" />
+
+    <template v-else>
     <div class="bg-white dark:bg-card-dark rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col md:flex-row gap-4 items-center justify-between">
       <div class="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
         <button 
@@ -193,6 +214,7 @@
       <h3 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">找不到相符的房源</h3>
       <p class="text-text-secondary-light mt-1">請嘗試調整搜尋條件或新增房源</p>
     </div>
+    </template>
 
     <div v-if="showModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showModal = false"></div>
@@ -650,6 +672,7 @@ import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
 import { useRoute } from 'vue-router';
 import { getMeterGroups } from '../../services/meterGroupService';
+import PropertyTab from '../../components/rooms/PropertyTab.vue';
 import { 
   collection, 
   onSnapshot, 
@@ -684,6 +707,8 @@ interface Room {
   isPublic?: boolean;
   purchaseCost?: number;
   subGroupId?: string;
+  /** 所屬建物；指派於「建物」分頁，房源表單不動它 */
+  propertyId?: string;
 }
 
 // --- State ---
@@ -692,6 +717,8 @@ const toast = useToastStore();
 const route = useRoute();
 const rooms = ref<Room[]>([]);
 const loading = ref(true);
+const activeTab = ref<'rooms' | 'properties'>('rooms');
+const unassignedRoomCount = computed(() => rooms.value.filter(r => !r.propertyId).length);
 
 // Default placeholder
 const defaultImage = 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1470&q=80'; 
@@ -844,11 +871,20 @@ const form = ref<Partial<Room>>({
 });
 
 // 電表子群組選項（僅供顯示所屬群組下拉；CRUD 在抄表頁「計算參數設定」）
+// 多棟房東有多顆總表，必須列出全部總表的子群組——原本只取 groups[0]，
+// 導致非第一棟的房間根本選不到自己的子群組，電費與建物歸屬都會跟著錯。
 const subGroupOptions = ref<{ id: string; name: string }[]>([]);
 onMounted(async () => {
   try {
     const groups = await getMeterGroups(authStore.effectiveUid);
-    subGroupOptions.value = groups[0]?.subGroups ?? [];
+    const multi = groups.length > 1;
+    subGroupOptions.value = groups.flatMap(g =>
+      (g.subGroups ?? []).map(sg => ({
+        id: sg.id,
+        // 多顆總表時冠上總表名稱，否則各棟同名的「4樓」無從分辨
+        name: multi ? `${g.name}／${sg.name}` : sg.name,
+      })),
+    );
   } catch (e) {
     console.error('load meter groups error:', e);
   }
