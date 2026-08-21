@@ -21,6 +21,14 @@
           <p>通常台電為雙月抄表。請輸入帳單上的「計費期間」與「應繳總金額」。</p>
         </div>
 
+        <div v-if="groups.length > 1">
+          <label for="taipower-group" class="block text-sm font-medium text-text-secondary-light mb-1">所屬總表</label>
+          <select id="taipower-group" v-model="local.groupId" class="form-input">
+            <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
+          </select>
+          <p class="text-xs text-text-secondary-light mt-1">台電按電號寄帳單，選錯棟會讓該棟的電費盈虧算錯。</p>
+        </div>
+
         <div>
           <label for="taipower-month" class="block text-sm font-medium text-text-secondary-light mb-1">計費月份 (迄月)</label>
           <input id="taipower-month" v-model="local.month" type="month" class="form-input">
@@ -55,6 +63,8 @@ import type { TaipowerForm } from './types'
 const props = defineProps<{
   show: boolean
   modelValue: TaipowerForm
+  /** 台電總表（棟）。只有一顆時不顯示選擇器，由呼叫端預先帶入 */
+  groups: { id: string; name: string }[]
 }>()
 
 const emit = defineEmits<{

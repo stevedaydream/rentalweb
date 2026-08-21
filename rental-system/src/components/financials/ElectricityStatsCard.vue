@@ -4,9 +4,12 @@
       <div>
         <h3 class="font-bold text-lg text-ink-800 dark:text-ink-100 flex items-center gap-2">
           <span class="material-symbols-outlined text-gold-600" aria-hidden="true">analytics</span>
-          電費盈虧分析 ({{ stats.periodStr }})
+          電費盈虧分析
+          <span class="text-sm font-medium text-ink-500 dark:text-ink-300">· {{ stats.groupName }}</span>
         </h3>
-        <p class="text-sm text-ink-500 dark:text-ink-300 opacity-80">雙月結算：比對台電帳單與租客實收金額</p>
+        <p class="text-sm text-ink-500 dark:text-ink-300 opacity-80">
+          {{ stats.periodStr }}　雙月結算：比對台電帳單與租客實收金額
+        </p>
       </div>
       <span class="px-3 py-1 bg-white dark:bg-ink-800 text-gold-700 dark:text-gold-300 rounded-full text-xs font-bold shadow-sm border border-gold-100 dark:border-gold-800/30">
         {{ stats.statusLabel }}
@@ -34,7 +37,7 @@
         </div>
         <div v-else class="flex flex-col h-full justify-center">
           <p class="text-sm text-ink-300 italic">尚未登錄帳單</p>
-          <button @click="$emit('open-taipower')" class="text-xs text-gold-600 hover:underline focus-visible:ring-2 focus-visible:ring-gold-500 mt-1">立即登錄</button>
+          <button @click="$emit('open-taipower', stats.groupId)" class="text-xs text-gold-600 hover:underline focus-visible:ring-2 focus-visible:ring-gold-500 mt-1">立即登錄</button>
         </div>
       </div>
 
@@ -62,5 +65,5 @@
 import type { ElectricityStats } from './types'
 
 defineProps<{ stats: ElectricityStats }>()
-defineEmits<{ 'open-taipower': [] }>()
+defineEmits<{ 'open-taipower': [groupId: string] }>()
 </script>

@@ -225,8 +225,11 @@
         </button>
       </div>
 
-      <!-- 電費盈虧分析（當月＋前月，錨定台電帳單） -->
-      <ElectricityStatsCard :stats="electricityStats" @open-taipower="openTaipowerModal" />
+      <!-- 電費盈虧分析：逐台電總表（棟）各一張，期間錨定該棟台電帳單迄月 -->
+      <ElectricityStatsCard
+        v-for="es in electricityStatsList" :key="es.groupId"
+        :stats="es" @open-taipower="openTaipowerModal"
+      />
 
       <!-- Transaction Table -->
       <div class="bg-white dark:bg-card-dark rounded-2xl border border-ink-100 dark:border-ink-800 shadow-sm overflow-visible">
@@ -440,7 +443,7 @@
     </template>
 
     <BillTransactionModal v-model:show="showModal" v-model="form" :is-editing="isEditing" :tenants="tenantsList" @save="saveTransaction" />
-    <TaipowerModal v-model:show="showTaipowerModal" v-model="taipowerForm" @save="saveTaipowerBill" />
+    <TaipowerModal v-model:show="showTaipowerModal" v-model="taipowerForm" :groups="taipowerGroupOptions" @save="saveTaipowerBill" />
     <PrintBillsModal v-model:show="showPrintBillsModal" :month="currentMonth" />
     <BillHistoryModal v-model:show="showHistoryModal" :history="selectedHistory" />
 
@@ -630,6 +633,12 @@ import {
   type ElectricityStats,
 } from '../../components/financials/types'
 import { getPublicMeters } from '../../services/publicMeterService'
+import { getMeterGroups } from '../../services/meterGroupService'
+import { getRooms } from '../../services/roomService'
+import { buildSubGroupIndex } from '../../utils/meter/groups'
+import { buildElectricityStatsList } from '../../utils/financials/electricity'
+import { UNGROUPED_ID, type MeterGroupDoc } from '../../components/meter/types'
+import type { Room } from '../../types/index'
 
 interface Transaction {
   id: string
@@ -646,6 +655,8 @@ interface Transaction {
   paymentProofUrl?: string
   relatedUsageId?: string
   relatedTenantDocId?: string
+  /** 所屬台電總表（棟）；電費／公共電費帳單於生成時寫入，舊資料沒有 */
+  groupId?: string
   relatedContractId?: string
   dueDate?: string
   paidAt?: string
@@ -658,6 +669,8 @@ const toast = useToastStore()
 const transactions = ref<Transaction[]>([])
 const taipowerBills = ref<TaipowerBill[]>([])
 const tenantsList = ref<{ id: string; name: string; room: string }[]>([])
+const meterGroups = ref<MeterGroupDoc[]>([])
+const roomsList = ref<Room[]>([])
 const loading = ref(true)
 const markingPaidId = ref<string | null>(null)
 const sendingLine = ref(false)
@@ -734,7 +747,7 @@ const form = ref<TransactionForm>({
   type: 'income', amount: undefined, date: '',
   category: '租金收入', target: '', description: '', status: 'pending',
 })
-const taipowerForm = ref<TaipowerForm>({ month: currentMonth.value, amount: undefined, usage: undefined })
+const taipowerForm = ref<TaipowerForm>({ month: currentMonth.value, amount: undefined, usage: undefined, groupId: '' })
 
 // --- Firestore ---
 const initDataListeners = (uid: string) => {
@@ -749,6 +762,15 @@ const initDataListeners = (uid: string) => {
       return { id: d.id, name: data.name || '', room: data.room || '', uid: data.uid || null }
     })
   })
+
+  // 一次性讀取總表與房間：電費盈虧須逐台電總表（棟）各自結算，
+  // 且舊帳單沒有 groupId，需靠 房號 → subGroupId → 總表 回溯歸屬
+  getMeterGroups(uid)
+    .then(gs => { meterGroups.value = gs })
+    .catch(e => console.error('讀取電表群組失敗:', e))
+  getRooms(uid)
+    .then(rs => { roomsList.value = rs })
+    .catch(e => console.error('讀取房間失敗:', e))
 
   unsubscribeBills = onSnapshot(
     query(collection(db, 'bills'), where('landlordId', '==', uid), orderBy('date', 'desc'), limit(200)),
@@ -865,41 +887,31 @@ const categoryStats = computed(() => {
 
 const pendingCount = computed(() => monthlyTransactions.value.filter(t => !isCollected(t) && t.type === 'income').length)
 
-// 電費盈虧分析：台電為雙月結算，期間**錨定台電帳單的迄月**而非檢視月份。
-// 取「迄月 ≤ 檢視月份」中最近的一張帳單，期間即為（迄月-1 ~ 迄月），收入側照同一區間統計。
-// 這樣同一期不論從迄月或下一個月看都得到相同數字，不會把下一期的電費提前算進來、也不會把同一個月結算兩次。
-// 尚無任何台電帳單時退回以檢視月份為準，維持原本的「等待帳單」狀態。
-const electricityStats = computed<ElectricityStats>(() => {
-  const viewMonth = currentMonth.value
-  // 不倚賴 Firestore 回傳順序，直接取符合條件者中迄月最大的一張
-  const bill = taipowerBills.value
-    .filter(b => b.month && b.month <= viewMonth)
-    .reduce<TaipowerBill | undefined>((best, b) => (!best || b.month > best.month ? b : best), undefined)
+// --- 電費盈虧分析（規則實作於 src/utils/financials/electricity.ts）---
+const subGroupIndex = computed(() => buildSubGroupIndex(meterGroups.value))
+const tenantRoomIndex = computed(() =>
+  new Map(tenantsList.value.map(t => [t.id, t.room]))
+)
+const roomSubGroupIndex = computed(() =>
+  new Map(roomsList.value.map(r => [r.name, r.subGroupId ?? '']))
+)
 
-  const anchor = bill?.month ?? viewMonth
-  const [y, m] = anchor.split('-').map(Number) as [number, number]
-  const prevDate = new Date(y, m - 2, 1)
-  const prevStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`
+/** 台電帳單登錄用的總表選項；為空時 Modal 隱藏選擇器，視同單棟 */
+const taipowerGroupOptions = computed(() =>
+  meterGroups.value.map(g => ({ id: g.id, name: g.name }))
+)
 
-  const elecTrans = transactions.value.filter(t =>
-    t.type === 'income' &&
-    (t.category === '電費' || t.category === '公共電費') &&
-    (t.date?.startsWith(anchor) || t.date?.startsWith(prevStr))
-  )
-  const estimated = elecTrans.reduce((s, t) => s + t.amount, 0)
-  const collected = elecTrans.filter(isCollected).reduce((s, t) => s + t.amount, 0)
-
-  return {
-    periodStr: `${prevStr} ~ ${anchor}${anchor !== viewMonth ? '（最近一期）' : ''}`,
-    estimated,
-    collected,
-    collectionRate: estimated > 0 ? Math.round((collected / estimated) * 100) : 0,
-    taipowerBill: bill,
-    profit: bill ? collected - bill.amount : 0,
-    billCount: elecTrans.length,
-    statusLabel: bill ? '已結算' : '等待帳單',
-  }
-})
+const electricityStatsList = computed<ElectricityStats[]>(() =>
+  buildElectricityStatsList({
+    viewMonth: currentMonth.value,
+    groups: taipowerGroupOptions.value,
+    taipowerBills: taipowerBills.value,
+    bills: transactions.value,
+    tenantRoom: tenantRoomIndex.value,
+    roomSubGroup: roomSubGroupIndex.value,
+    subGroupToGroup: subGroupIndex.value,
+  })
+)
 
 const tabs = computed(() => [
   { label: '全部', value: 'all', count: 0 },
@@ -1017,6 +1029,14 @@ const generateMonthlyBills = async () => {
     const allTenants = tenantsSnap.docs.map(d => ({ id: d.id, ...d.data() as any }))
     const tenants = allTenants.filter((t: any) => !t.leaseEnd || t.leaseEnd >= `${currentMonth.value}-01`)
     const readings = readingsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    const roomDocs = roomsSnap.docs.map(d => ({ id: d.id, ...d.data() as any }))
+    // 電費帳單歸屬的台電總表（棟）：房間 → subGroupId → 總表。
+    // 生成時就寫死，免得日後房間改綁子群組時舊帳單跟著跑掉。
+    const sgIndex = buildSubGroupIndex(meterGroups.value)
+    const roomGroupId = (roomId: string) => {
+      const room = roomDocs.find(r => r.id === roomId)
+      return (room?.subGroupId && sgIndex.get(room.subGroupId)) || UNGROUPED_ID
+    }
     let count = 0
     const batch: Promise<any>[] = []
     const newItems: GeneratedBillItem[] = []
@@ -1056,6 +1076,7 @@ const generateMonthlyBills = async () => {
         batch.push(addDoc(collection(db, 'bills'), {
           tenantId: matched.uid || null, relatedTenantDocId: matched.id,
           relatedUsageId: reading.id, landlordId: uid,
+          groupId: roomGroupId(reading.roomId),
           date: reading.periodEnd, type: 'income', category: '電費',
           target: `${matched.name} ${reading.roomName}`,
           description: desc,
@@ -1066,7 +1087,6 @@ const generateMonthlyBills = async () => {
     })
 
     // 公共電費分攤：每顆公共表費用 ÷ 子群組全部房間數（含空房，空房份額房東吸收）
-    const roomDocs = roomsSnap.docs.map(d => ({ id: d.id, ...d.data() as any }))
     const warnings: string[] = []
     pubMeters.forEach(pm => {
       if (pm.landlordPays) return // 房東負擔，不出帳
@@ -1094,6 +1114,7 @@ const generateMonthlyBills = async () => {
         batch.push(addDoc(collection(db, 'bills'), {
           tenantId: matched.uid || null, relatedTenantDocId: matched.id,
           relatedUsageId: dedupKey, landlordId: uid,
+          groupId: pm.groupId || UNGROUPED_ID,
           date: reading.periodEnd, type: 'income', category: '公共電費',
           target: `${matched.name} ${room.name}`,
           description: desc,
@@ -1196,10 +1217,14 @@ const saveTaipowerBill = async () => {
   if (!authStore.user) return
   if (!taipowerForm.value.amount) { toast.warning('請輸入金額'); return }
   try {
-    await addDoc(collection(db, 'taipower_bills'), { ...taipowerForm.value, landlordId: authStore.effectiveUid, createdAt: serverTimestamp() })
+    const groupId = taipowerForm.value.groupId || meterGroups.value[0]?.id || ''
+    const groupName = meterGroups.value.find(g => g.id === groupId)?.name
+    const suffix = meterGroups.value.length > 1 && groupName ? `（${groupName}）` : ''
+    await addDoc(collection(db, 'taipower_bills'), { ...taipowerForm.value, groupId, landlordId: authStore.effectiveUid, createdAt: serverTimestamp() })
     await addDoc(collection(db, 'bills'), {
       date: `${taipowerForm.value.month}-15`, type: 'expense', category: '台電帳單',
-      target: '台灣電力公司', description: `${taipowerForm.value.month} 電費帳單`,
+      target: '台灣電力公司', description: `${taipowerForm.value.month} 電費帳單${suffix}`,
+      groupId,
       amount: taipowerForm.value.amount, landlordId: authStore.effectiveUid,
       status: 'completed', history: [], createdAt: serverTimestamp(),
     })
@@ -1222,7 +1247,12 @@ const handleEdit = (item: Transaction) => {
   form.value = { ...item } as TransactionForm; showModal.value = true
 }
 const openHistory = (item: Transaction) => { closeDropdown(); selectedHistory.value = item.history || []; showHistoryModal.value = true }
-const openTaipowerModal = () => { taipowerForm.value.month = currentMonth.value; showTaipowerModal.value = true }
+const openTaipowerModal = (groupId?: string) => {
+  taipowerForm.value.month = currentMonth.value
+  taipowerForm.value.groupId =
+    (groupId && groupId !== UNGROUPED_ID ? groupId : '') || meterGroups.value[0]?.id || ''
+  showTaipowerModal.value = true
+}
 </script>
 
 <style scoped>

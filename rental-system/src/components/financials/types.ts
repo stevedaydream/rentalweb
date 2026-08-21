@@ -4,9 +4,13 @@ export interface TaipowerBill {
   amount: number
   usage: number
   landlordId?: string
+  /** 所屬台電總表（棟）。台電按電號寄帳單，故逐總表歸屬；舊資料可能沒有 */
+  groupId?: string
 }
 
 export interface ElectricityStats {
+  groupId: string
+  groupName: string
   periodStr: string
   estimated: number
   collected: number
@@ -39,6 +43,7 @@ export interface TaipowerForm {
   month: string
   amount: number | undefined
   usage: number | undefined
+  groupId: string
 }
 
 export const statusLabels: Record<string, string> = {
