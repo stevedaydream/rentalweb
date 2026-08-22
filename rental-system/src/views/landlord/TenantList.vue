@@ -109,6 +109,38 @@
       @select="onStatSelect"
     />
 
+    <!-- 登入帳號概況 -->
+    <div class="bg-white dark:bg-card-dark rounded-xl px-4 py-3 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-wrap items-center gap-x-4 gap-y-2">
+      <span class="text-sm font-bold text-text-primary-light dark:text-text-primary-dark flex items-center gap-1.5">
+        <span class="material-symbols-outlined text-[18px] text-ink-400" aria-hidden="true">key</span>登入帳號
+      </span>
+      <span v-if="accountSummary.loading > 0" class="text-xs text-text-secondary-light">查詢中…</span>
+      <template v-else>
+        <span v-if="accountSummary.active" class="text-xs font-medium text-green-700 dark:text-green-300">
+          已啟用 {{ accountSummary.active }}
+        </span>
+        <span v-if="accountSummary.pending" class="text-xs font-medium text-amber-700 dark:text-amber-300">
+          已建立未登入 {{ accountSummary.pending }}
+        </span>
+        <span v-if="accountSummary.none" class="text-xs font-medium text-ink-400">
+          未建立 {{ accountSummary.none }}
+        </span>
+        <span v-if="accountSummary.disabled" class="text-xs font-medium text-red-600">
+          已停用 {{ accountSummary.disabled }}
+        </span>
+        <span v-if="accountSummary.orphan" class="text-xs font-medium text-red-600" title="租客資料指向已刪除的登入帳號">
+          帳號已不存在 {{ accountSummary.orphan }}
+        </span>
+      </template>
+      <button
+        @click="loadAccountStatuses" :disabled="isLoadingAccounts"
+        class="ml-auto text-xs text-gold-600 hover:underline disabled:opacity-50 flex items-center gap-1"
+      >
+        <span class="material-symbols-outlined text-[14px]" :class="{ 'animate-spin': isLoadingAccounts }" aria-hidden="true">refresh</span>
+        重新查詢
+      </button>
+    </div>
+
     <!-- Filter bar -->
     <div class="bg-white dark:bg-card-dark rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col md:flex-row gap-4 items-center justify-between">
       <div class="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
@@ -166,7 +198,25 @@
                   <div>
                     <div class="flex items-center gap-2">
                       <p class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ tenant.name }}</p>
-                      <span v-if="tenant.isOnlineUser && !tenant.isHistorical" class="bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5 rounded-full font-medium">已綁定帳號</span>
+                      <span
+                        v-if="!tenant.isHistorical"
+                        class="text-[10px] px-1.5 py-0.5 rounded-full font-medium inline-flex items-center gap-0.5"
+                        :class="ACCOUNT_BADGE[accountStateOf(tenant, accountStatuses).key]"
+                        :title="accountTooltip(tenant)"
+                      >
+                        {{ accountStateOf(tenant, accountStatuses).label }}
+                        <span
+                          v-if="accountStateOf(tenant, accountStatuses).lastSignInDate"
+                          class="opacity-70"
+                        >· {{ accountStateOf(tenant, accountStatuses).lastSignInDate }}</span>
+                      </span>
+                      <span
+                        v-if="!tenant.isHistorical && accountStateOf(tenant, accountStatuses).lineBound"
+                        class="text-[#06C755]" title="已綁定 LINE"
+                      >
+                        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/></svg>
+                        <span class="sr-only">已綁定 LINE</span>
+                      </span>
                       <span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium" :class="LIFECYCLE_BADGE[tenantLifecycle(tenant).key]">{{ tenantLifecycle(tenant).label }}</span>
                     </div>
                     <p class="text-xs text-text-secondary-light mt-0.5">{{ tenant.phone }}</p>
@@ -453,7 +503,12 @@
               <div class="flex items-center gap-2 flex-wrap">
                 <h2 class="font-bold text-lg text-text-primary-light dark:text-text-primary-dark truncate">{{ drawerTenant?.name }}</h2>
                 <span v-if="drawerTenant?.isHistorical" class="bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0">歷史租客</span>
-                <span v-else-if="drawerTenant?.isOnlineUser" class="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0">已綁定帳號</span>
+                <span
+                  v-else
+                  class="text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0"
+                  :class="ACCOUNT_BADGE[accountStateOf(drawerTenant || {}, accountStatuses).key]"
+                  :title="drawerTenant ? accountTooltip(drawerTenant) : ''"
+                >{{ accountStateOf(drawerTenant || {}, accountStatuses).label }}</span>
                 <span v-if="!drawerTenant?.isHistorical"
                   class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium"
                   :class="paymentStatusStyles[drawerTenant?.paymentStatus || 'pending']"
@@ -1072,6 +1127,10 @@ import {
 } from 'firebase/firestore';
 import RentSubsidyFields from '../../components/tenants/RentSubsidyFields.vue';
 import type { RentSubsidy } from '../../types/index';
+import {
+  accountStateOf, summarizeAccounts, ACCOUNT_BADGE,
+  type AccountStatus,
+} from '../../utils/tenantAccount';
 
 // --- Type Definitions ---
 interface DepositItem {
@@ -1277,6 +1336,8 @@ const startListeners = () => {
   const myCode = authStore.userProfile?.landlordCode;
 
   fetchRooms();
+  // 非阻斷：查不回只是徽章停在「查詢中」，不影響租客列表本身
+  loadAccountStatuses();
 
   const qTenants = query(collection(db, 'tenants'), where('landlordId', '==', uid));
   unsubscribeTenants = onSnapshot(qTenants, async (snapshot) => {
@@ -2392,6 +2453,40 @@ const unbindRoom = async (tenant: Tenant) => {
 
 // 為既有租客補建登入帳號。精靈建檔與早期資料都沒有帳號，
 // 而 saveTenant 只在「新增」時建立，編輯既有租客不會補。
+// --- 帳號狀態（登入紀錄只有 Firebase Auth 有，必須經 CF 取回）---
+// null = 尚未查回；查回後才分得出「沒帳號」與「帳號已被刪除」
+const accountStatuses = ref<Record<string, AccountStatus> | null>(null);
+const isLoadingAccounts = ref(false);
+
+const loadAccountStatuses = async () => {
+  if (!authStore.user) return;
+  isLoadingAccounts.value = true;
+  try {
+    const fn = httpsCallable(functions, 'getTenantAccountStatus');
+    const res: any = await fn({});
+    accountStatuses.value = res.data?.statuses ?? {};
+  } catch (e) {
+    console.error('load account statuses error:', e);
+    // 查不到就維持 loading 樣式，不要謊報成「未建立帳號」
+  } finally {
+    isLoadingAccounts.value = false;
+  }
+};
+
+const accountSummary = computed(() => summarizeAccounts(
+  tenants.value.filter(t => !t.isHistorical),
+  accountStatuses.value,
+));
+
+const accountTooltip = (t: Tenant) => {
+  const s = accountStateOf(t, accountStatuses.value);
+  const parts = [s.label];
+  if (s.lastSignInDate) parts.push(`最後登入 ${s.lastSignInDate}`);
+  if (s.key === 'orphan') parts.push('租客資料仍指向已刪除的登入帳號，請重新建立');
+  if (s.lineBound) parts.push('已綁定 LINE');
+  return parts.join('\n');
+};
+
 const isCreatingAccount = ref(false);
 const canCreateAccount = (t: Tenant | null) =>
   !!t && !t.uid && !!t.phone && !!t.idNumber;
@@ -2411,6 +2506,7 @@ const createAccountForTenant = async (tenant: Tenant) => {
       name: tenant.name,
     });
     createdCredential.value = { phone: tenant.phone, idNumber: tenant.idNumber };
+    await loadAccountStatuses();
   } catch (e: any) {
     toast.error('建立登入帳號失敗：' + (e?.message || '請稍後重試'));
   } finally {

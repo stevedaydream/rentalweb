@@ -1843,6 +1843,72 @@ exports.createTenantAccount = onCall({ region: 'asia-east1' }, async (request) =
   }
 });
 
+// ─── getTenantAccountStatus ────────────────────────────────────────────────
+// 房東查詢自己所有租客的登入帳號狀態。
+//
+// 刻意**不接受前端傳入 uid** —— 由伺服端自行撈出呼叫者名下的租客，
+// 否則房東可以塞任意 uid 進來探測他人帳號是否存在、何時登入。
+//
+// 登入時間只有 Firebase Auth 有（前端拿不到），故必須走 Admin SDK；
+// 這也讓既有帳號的歷史狀態能被追溯，不必等他們下次登入才有資料。
+exports.getTenantAccountStatus = onCall({ region: 'asia-east1' }, async (request) => {
+  const { HttpsError } = require('firebase-functions/v2/https');
+  if (!request.auth) throw new HttpsError('unauthenticated', '請先登入');
+
+  const db = getFirestore();
+  const callerUid = request.auth.uid;
+  const callerDoc = await db.collection('users').doc(callerUid).get();
+  const callerRole = callerDoc.exists ? callerDoc.data().role : null;
+  if (callerRole !== 'landlord' && callerRole !== 'admin') {
+    throw new HttpsError('permission-denied', '僅房東可查詢');
+  }
+
+  const tenantsSnap = await db.collection('tenants')
+    .where('landlordId', '==', callerUid)
+    .get();
+
+  const uids = [...new Set(
+    tenantsSnap.docs.map(d => d.data().uid).filter(Boolean)
+  )];
+  if (uids.length === 0) return { statuses: {} };
+
+  const statuses = {};
+
+  // getUsers 單次上限 100 筆
+  for (let i = 0; i < uids.length; i += 100) {
+    const chunk = uids.slice(i, i + 100);
+    const result = await getAuth().getUsers(chunk.map(uid => ({ uid })));
+
+    result.users.forEach(u => {
+      statuses[u.uid] = {
+        exists: true,
+        // 從未登入時 Auth 回空字串，統一轉 null 讓前端只需判斷有無
+        lastSignInAt: u.metadata.lastSignInTime || null,
+        createdAt: u.metadata.creationTime || null,
+        disabled: !!u.disabled,
+        lineBound: false,
+      };
+    });
+    // 找不到的代表 tenants.uid 指向已刪除的 Auth 帳號（孤兒）
+    result.notFound.forEach(id => {
+      statuses[id.uid] = {
+        exists: false, lastSignInAt: null, createdAt: null, disabled: false, lineBound: false,
+      };
+    });
+  }
+
+  // LINE 綁定狀態存在 users 文件，與 Auth 無關，另外補上
+  const userDocs = await Promise.all(
+    uids.map(uid => db.collection('users').doc(uid).get())
+  );
+  userDocs.forEach(d => {
+    if (d.exists && statuses[d.id]) statuses[d.id].lineBound = !!d.data().lineUserId;
+  });
+
+  logger.info('getTenantAccountStatus', { callerUid, count: uids.length });
+  return { statuses };
+});
+
 // ─── resetTenantPassword ───────────────────────────────────────────────────
 // 由 Admin 呼叫：強制重設指定租客的密碼
 exports.resetTenantPassword = onCall({ region: 'asia-east1' }, async (request) => {
