@@ -7,7 +7,7 @@
         <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">帳務管理</h1>
         <p class="text-text-secondary-light">收支紀錄、帳單生成與電費盈虧</p>
       </div>
-      <div class="flex gap-2 flex-wrap items-center">
+      <div v-if="activeTab === 'month'" class="flex gap-2 flex-wrap items-center">
         <MonthPicker v-model="currentMonth" />
         <div class="flex items-center gap-1">
           <button @click="showGenerateConfirm = true" :disabled="loading"
@@ -67,6 +67,26 @@
       </div>
     </div>
 
+    <!-- 分頁切換 -->
+    <div class="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit">
+      <button @click="activeTab = 'month'"
+        class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+        :class="activeTab === 'month' ? 'bg-white dark:bg-card-dark shadow text-text-primary-light dark:text-white' : 'text-text-secondary-light hover:text-text-primary-light dark:hover:text-white'">
+        <span class="material-symbols-outlined text-[16px]" aria-hidden="true">calendar_month</span>月度
+      </button>
+      <button @click="activeTab = 'annual'"
+        class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+        :class="activeTab === 'annual' ? 'bg-white dark:bg-card-dark shadow text-text-primary-light dark:text-white' : 'text-text-secondary-light hover:text-text-primary-light dark:hover:text-white'">
+        <span class="material-symbols-outlined text-[16px]" aria-hidden="true">calculate</span>年度
+      </button>
+    </div>
+
+    <AnnualSummary
+      v-if="activeTab === 'annual'"
+      :properties="propertiesList" :rooms="roomsList" :tenants="tenantsList"
+    />
+
+    <template v-else>
     <div v-if="loading" class="flex justify-center py-12">
       <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-gold-500"></div>
     </div>
@@ -446,6 +466,7 @@
         </div>
       </div>
     </template>
+    </template>
 
     <BillTransactionModal v-model:show="showModal" v-model="form" :is-editing="isEditing" :tenants="tenantsList" @save="saveTransaction" />
     <TaipowerModal v-model:show="showTaipowerModal" v-model="taipowerForm" :groups="taipowerGroupOptions" @save="saveTaipowerBill" />
@@ -627,6 +648,7 @@ import PrintBillsModal from '../../components/financials/PrintBillsModal.vue'
 import BillHistoryModal from '../../components/financials/BillHistoryModal.vue'
 import ElectricityStatsCard from '../../components/financials/ElectricityStatsCard.vue'
 import PropertyCostsModal from '../../components/financials/PropertyCostsModal.vue'
+import AnnualSummary from '../../components/financials/AnnualSummary.vue'
 import {
   shouldGenerateBill, getBillingAmount, getBillingDescription, publicMeterShare,
 } from '../../utils/meter/billing'
@@ -686,6 +708,7 @@ const markingPaidId = ref<string | null>(null)
 const sendingLine = ref(false)
 
 const currentMonth = ref(new Date().toISOString().slice(0, 7))
+const activeTab = ref<'month' | 'annual'>('month')
 const currentTab = ref('all')
 const showModal = ref(false)
 const showTaipowerModal = ref(false)

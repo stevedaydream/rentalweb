@@ -217,6 +217,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { db } from '../../firebase/config'
 import { collection, query, where, getDocs } from 'firebase/firestore'
+import { progressiveTax, getMarginalRate, RENTAL_EXPENSE_RATE } from '../../utils/financials/incomeTax'
 
 interface Room {
   id: string
@@ -242,15 +243,6 @@ const params = ref({
   otherAnnualIncome: 0,
   years: 5
 })
-
-// Taiwan progressive tax brackets (綜合所得稅率)
-const TAX_BRACKETS = [
-  { limit: 560000,  rate: 0.05 },
-  { limit: 1260000, rate: 0.12 },
-  { limit: 2520000, rate: 0.20 },
-  { limit: 4720000, rate: 0.30 },
-  { limit: Infinity, rate: 0.40 },
-]
 
 const selectedRoom = computed(() => rooms.value.find(r => r.id === selectedRoomId.value) ?? null)
 
@@ -289,8 +281,7 @@ const netYield = computed(() => {
 
 // Taiwan tax calculation for a given rental income
 function calcTax(rentalIncome: number, otherIncome: number): number {
-  const DEDUCTION_RATE = 0.43
-  const rentalNetIncome = Math.round(rentalIncome * (1 - DEDUCTION_RATE))
+  const rentalNetIncome = Math.round(rentalIncome * (1 - RENTAL_EXPENSE_RATE))
   const totalIncome = otherIncome + rentalNetIncome
   if (totalIncome <= 0) return 0
 
@@ -300,31 +291,10 @@ function calcTax(rentalIncome: number, otherIncome: number): number {
   return Math.max(0, Math.round(taxOnTotal - taxOnOther))
 }
 
-function progressiveTax(income: number): number {
-  let tax = 0
-  let prev = 0
-  for (const bracket of TAX_BRACKETS) {
-    if (income <= prev) break
-    const taxable = Math.min(income, bracket.limit) - prev
-    tax += taxable * bracket.rate
-    prev = bracket.limit
-    if (income <= bracket.limit) break
-  }
-  return Math.round(tax)
-}
-
-function getMarginalRate(income: number): number {
-  for (const bracket of TAX_BRACKETS) {
-    if (income <= bracket.limit) return bracket.rate
-  }
-  return 0.40
-}
-
 // Year 1 tax detail
 const tax = computed(() => {
   const rentalIncome = effectiveAnnualRent.value
-  const DEDUCTION_RATE = 0.43
-  const deduction = Math.round(rentalIncome * DEDUCTION_RATE)
+  const deduction = Math.round(rentalIncome * RENTAL_EXPENSE_RATE)
   const rentalNetIncome = rentalIncome - deduction
   const totalIncome = params.value.otherAnnualIncome + rentalNetIncome
   const taxAmount = calcTax(rentalIncome, params.value.otherAnnualIncome)
