@@ -33,7 +33,10 @@
           <p class="text-sm font-medium text-text-primary-light dark:text-text-primary-dark">{{ r.title }}</p>
           <p class="text-xs text-text-secondary-light">{{ r.detail }}</p>
         </div>
-        <span class="text-xs font-bold shrink-0 whitespace-nowrap" :class="iconClass(r.severity)">
+        <span
+          v-if="r.kind !== 'welfare_unclaimed' && r.kind !== 'welfare_stale'"
+          class="text-xs font-bold shrink-0 whitespace-nowrap" :class="iconClass(r.severity)"
+        >
           {{ dayLabel(r.days) }}
         </span>
       </li>
@@ -50,13 +53,18 @@ const props = defineProps<{ reminders: Reminder[] }>()
 
 const hasDanger = computed(() => props.reminders.some(r => r.severity === 'danger'))
 
-const icon = (kind: ReminderKind) => ({
+const ICONS: Record<ReminderKind, string> = {
   cost_missing: 'assignment_late',
   cost_due: 'schedule',
   cost_overdue: 'warning',
   fire_expiring: 'local_fire_department',
   fire_expired: 'local_fire_department',
-}[kind] || 'info')
+  subsidy_expiring: 'volunteer_activism',
+  welfare_unclaimed: 'lightbulb',
+  welfare_stale: 'help',
+}
+
+const icon = (kind: ReminderKind) => ICONS[kind] ?? 'info'
 
 const iconClass = (severity: ReminderSeverity) =>
   severity === 'danger' ? 'text-red-500' : severity === 'warning' ? 'text-amber-500' : 'text-ink-400'

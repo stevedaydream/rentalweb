@@ -369,6 +369,7 @@
               <span class="material-symbols-outlined text-[16px] text-blue-400">event_available</span>
               繳費截止日：每月 <span class="font-semibold text-blue-700 dark:text-blue-300">{{ authStore.userProfile?.settings?.paymentDay ?? 5 }}</span> 號（依房東設定）
             </div>
+            <RentSubsidyFields v-model="form.rentSubsidy" id-prefix="modal" />
             <div class="grid grid-cols-2 gap-4 mt-3">
               <div>
                 <label for="modal-rent" class="block text-sm font-medium text-text-secondary-light mb-1">每月租金 (NT$)</label>
@@ -776,6 +777,7 @@
                     <span class="material-symbols-outlined text-[16px] text-blue-400">event_available</span>
                     繳費截止日：每月 <span class="font-semibold text-blue-700 dark:text-blue-300">{{ authStore.userProfile?.settings?.paymentDay ?? 5 }}</span> 號（依房東設定）
                   </div>
+                  <RentSubsidyFields v-model="form.rentSubsidy" id-prefix="drawer" />
                   <div class="grid grid-cols-2 gap-4 mt-3">
                     <div>
                       <label for="drawer-rent" class="block text-sm font-medium text-text-secondary-light mb-1">每月租金 (NT$)</label>
@@ -1068,6 +1070,8 @@ import {
   limit,
   deleteField,
 } from 'firebase/firestore';
+import RentSubsidyFields from '../../components/tenants/RentSubsidyFields.vue';
+import type { RentSubsidy } from '../../types/index';
 
 // --- Type Definitions ---
 interface DepositItem {
@@ -1105,6 +1109,8 @@ interface Tenant {
   moveOutSummary?: any;
   moveInInspection?: { inspectedAt?: any; items?: InspectionItem[] };
   onboarding?: OnboardingState;
+  /** 政府租金補貼；公益出租人資格的事實來源 */
+  rentSubsidy?: RentSubsidy;
   createdAt?: any;
 }
 
@@ -1611,6 +1617,7 @@ const isEditing = ref(false);
 const form = ref<Partial<Tenant>>({
   name: '', room: '', phone: '', email: '', idNumber: '',
   leaseStart: todayStr(), leaseEnd: calcLeaseEnd(todayStr(), 1),
+  rentSubsidy: { hasSubsidy: false, from: '', to: '', docNo: '' },
   leaseDuration: 1, rent: 0, depositMonths: 2,
   paymentStatus: 'normal', emergencyContact: '', note: ''
 });
@@ -1643,6 +1650,7 @@ const openNewTenantModal = () => {
   form.value = {
     name: '', room: '', phone: '', email: '',
     leaseStart: today, leaseEnd: calcLeaseEnd(today, 1),
+    rentSubsidy: { hasSubsidy: false, from: '', to: '', docNo: '' },
     leaseDuration: 1, rent: 0, depositMonths: 2,
     paymentFrequency: 'monthly',
     paymentStatus: 'normal', emergencyContact: '', note: ''

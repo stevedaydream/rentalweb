@@ -6,7 +6,7 @@
  *   2. 已登錄但還沒繳，期限逼近或已逾期 → 去繳
  * 火險則是保單迄日前要續保。
  */
-import { PropertyCostType, type Property, type PropertyCost } from '../../types/index'
+import { PropertyCostType, type Property, type PropertyCost, type RentSubsidy } from '../../types/index'
 
 export type ReminderSeverity = 'info' | 'warning' | 'danger'
 
@@ -16,6 +16,9 @@ export type ReminderKind =
   | 'cost_overdue'
   | 'fire_expiring'
   | 'fire_expired'
+  | 'subsidy_expiring'
+  | 'welfare_unclaimed'
+  | 'welfare_stale'
 
 export interface Reminder {
   /** 穩定識別，供列表 key 與推播去重 */
@@ -40,6 +43,8 @@ export const LEVY_LEAD_DAYS = 7
 export const DUE_WINDOW_DAYS = 14
 /** 火險到期前幾天開始提醒續保 */
 export const FIRE_LEAD_DAYS = 30
+/** 租金補貼到期前幾天開始提醒（補貼一斷，公益出租人資格跟著沒了） */
+export const SUBSIDY_LEAD_DAYS = 30
 
 const toDate = (s: string) => new Date(`${s}T00:00:00`)
 
@@ -64,11 +69,31 @@ export const dayLabel = (days: number): string => {
   return `剩 ${days} 天`
 }
 
+/** 提醒只看得懂的租客欄位 */
+export interface ReminderTenant {
+  id: string
+  name: string
+  room: string
+  status?: string
+  rentSubsidy?: RentSubsidy
+}
+
 export interface ReminderInput {
   /** 今天 YYYY-MM-DD */
   today: string
   costs: PropertyCost[]
   properties: Property[]
+  tenants?: ReminderTenant[]
+  /** 房號 → propertyId，用來把租客歸到門牌 */
+  roomProperty?: Map<string, string>
+}
+
+/** 補貼在該日仍有效：有勾選，且今天落在起訖之間（未填起訖視為不設限） */
+export const subsidyActiveOn = (today: string, s?: RentSubsidy): boolean => {
+  if (!s?.hasSubsidy) return false
+  if (s.from && today < s.from) return false
+  if (s.to && today > s.to) return false
+  return true
 }
 
 /**
@@ -162,6 +187,64 @@ export const buildReminders = (input: ReminderInput): Reminder[] => {
         detail: `保單迄日 ${end}（${dayLabel(days)}）`,
         days,
       })
+    }
+  }
+
+  // --- 租金補貼與公益出租人資格落差 ---
+  const tenants = (input.tenants ?? []).filter(t => t.status !== 'inactive')
+  const roomProperty = input.roomProperty ?? new Map<string, string>()
+
+  // 補貼快到期：資格是跟著補貼走的，補貼一斷公益出租人身分就沒了
+  for (const t of tenants) {
+    const to = t.rentSubsidy?.to
+    if (!t.rentSubsidy?.hasSubsidy || !to) continue
+    const days = daysBetween(today, to)
+    if (Number.isNaN(days) || days < 0 || days > SUBSIDY_LEAD_DAYS) continue
+
+    out.push({
+      id: `subsidy:${t.id}`,
+      kind: 'subsidy_expiring',
+      severity: days <= 7 ? 'danger' : 'warning',
+      title: `${t.name} 的租金補貼即將到期`,
+      detail: `補貼迄日 ${to}（${dayLabel(days)}）。補貼中斷後，該門牌可能失去公益出租人資格。`,
+      days,
+    })
+  }
+
+  // 逐棟比對「實際有補貼中的租客」與「已登錄的核定年度」
+  const withActiveSubsidy = new Set<string>()
+  for (const t of tenants) {
+    if (!subsidyActiveOn(today, t.rentSubsidy)) continue
+    const propertyId = roomProperty.get(t.room)
+    if (propertyId) withActiveSubsidy.add(propertyId)
+  }
+
+  if (tenants.length > 0) {
+    for (const p of properties) {
+      const declared = p.publicWelfare?.some(
+        w => w.year === thisYear && (w.houseTax || w.landTax || w.incomeTax),
+      ) ?? false
+      const actual = withActiveSubsidy.has(p.id)
+
+      if (actual && !declared) {
+        out.push({
+          id: `welfare-unclaimed:${p.id}:${thisYear}`,
+          kind: 'welfare_unclaimed',
+          severity: 'info',
+          title: `${p.name} 可能符合公益出租人`,
+          detail: `該門牌有補貼中的租客，但尚未登錄 ${thisYear} 年度核定。可享綜所稅每屋每月 15,000 元免稅額、房屋稅自住稅率與地價稅自用住宅稅率。`,
+          days: 0,
+        })
+      } else if (declared && !actual) {
+        out.push({
+          id: `welfare-stale:${p.id}:${thisYear}`,
+          kind: 'welfare_stale',
+          severity: 'warning',
+          title: `${p.name} 的公益出租人資格待確認`,
+          detail: `已登錄 ${thisYear} 年度核定，但目前沒有補貼中的租客。請確認資格是否仍有效。`,
+          days: 0,
+        })
+      }
     }
   }
 

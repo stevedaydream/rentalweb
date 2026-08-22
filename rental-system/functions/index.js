@@ -1171,8 +1171,8 @@ exports.notifyAnnouncementCreated = onDocumentCreated(
  *   - Contracts expiring in 90 days (first notice → sets renewalStatus: 'pending')
  *   - Contracts expiring in 60 days (second notice)
  *   - Contracts expiring in 30 days (final notice)
- *   - 房東端：稅費繳納期限（14/7/3/1 天前與當天）、逾期（每 7 天一次）、
- *     火險續保（30/14/7/1 天前與當天）
+ *   - 房東端：稅費繳納期限（14/7/3/1 天前與當天）、逾期（每 7 天一次，
+ *     最多兩個月）、火險續保與租金補貼到期（30/14/7/1 天前與當天）
  */
 exports.scheduledReminderDaily = onSchedule(
   { schedule: '0 9 * * *', timeZone: 'Asia/Taipei', region: 'asia-east1' },
@@ -1193,8 +1193,10 @@ exports.scheduledReminderDaily = onSchedule(
     const daysAhead = (n) => { const d = new Date(today); d.setDate(d.getDate() + n); return fmt(d); };
     const COST_DUE_MILESTONES = [14, 7, 3, 1, 0];
     const FIRE_MILESTONES = [30, 14, 7, 1, 0];
+    const SUBSIDY_MILESTONES = [30, 14, 7, 1, 0];
     const costDueDates = COST_DUE_MILESTONES.map(daysAhead);
     const fireEndDates = FIRE_MILESTONES.map(daysAhead);
+    const subsidyEndDates = SUBSIDY_MILESTONES.map(daysAhead);
     const expiry30 = fmt(in30);
     const expiry60 = fmt(in60);
     const expiry90 = fmt(in90);
@@ -1414,6 +1416,35 @@ exports.scheduledReminderDaily = onSchedule(
           }
         } catch (e) {
           logger.warn('scheduledReminderDaily: properties query failed', { landlordId, error: e.message });
+        }
+
+        // 租金補貼到期：補貼一斷，該門牌的公益出租人資格跟著沒了
+        try {
+          const tenantsSnap = await db.collection('tenants')
+            .where('landlordId', '==', landlordId)
+            .get();
+
+          for (const tDoc of tenantsSnap.docs) {
+            const t = tDoc.data();
+            if (t.status === 'inactive') continue;
+            const sub = t.rentSubsidy;
+            if (!sub || !sub.hasSubsidy || !sub.to) continue;
+            if (!subsidyEndDates.includes(sub.to)) continue;
+
+            const text =
+              `🏠 租金補貼即將到期
+━━━━━━━━━━
+租客：${t.name || ''}${t.room ? `（${t.room}）` : ''}
+` +
+              `補貼迄日：${sub.to}（${dayWord(sub.to)}）
+` +
+              `━━━━━━━━━━
+補貼中斷後，該門牌可能失去公益出租人資格，連帶影響綜所稅免稅額與房屋稅、地價稅稅率。`;
+
+            await pushToOwner(text, `subsidy:${tDoc.id}`);
+          }
+        } catch (e) {
+          logger.warn('scheduledReminderDaily: tenants subsidy query failed', { landlordId, error: e.message });
         }
       }
 

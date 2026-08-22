@@ -118,6 +118,7 @@ import InviteTenantModal from '../../components/InviteTenantModal.vue';
 import TaxReminderCard from '../../components/dashboard/TaxReminderCard.vue';
 import { getProperties } from '../../services/propertyService';
 import { getPropertyCosts } from '../../services/propertyCostService';
+import { getRooms } from '../../services/roomService';
 import { buildReminders, type Reminder } from '../../utils/financials/reminders';
 
 const authStore = useAuthStore();
@@ -219,13 +220,24 @@ const fetchDashboardData = async () => {
 
   isLoading.value = true;
 
-  // 稅費與火險待辦：獨立於主流程，失敗只是少一張卡，不該讓整個儀表板掛掉
-  Promise.all([getProperties(uid), getPropertyCosts(uid)])
-    .then(([properties, costs]) => {
+  // 稅費、火險與公益出租人待辦：獨立於主流程，失敗只是少一張卡，不該讓整個儀表板掛掉
+  Promise.all([
+    getProperties(uid),
+    getPropertyCosts(uid),
+    getRooms(uid),
+    getDocs(query(collection(db, 'tenants'), where('landlordId', '==', uid))),
+  ])
+    .then(([properties, costs, roomList, tenantSnap]) => {
       taxReminders.value = buildReminders({
         today: new Date().toISOString().slice(0, 10),
         costs,
         properties,
+        tenants: tenantSnap.docs.map(d => {
+          const t = d.data();
+          return { id: d.id, name: t.name || '', room: t.room || '', status: t.status, rentSubsidy: t.rentSubsidy };
+        }),
+        // 租客靠房號歸到門牌
+        roomProperty: new Map(roomList.map(r => [r.name, r.propertyId ?? ''])),
       });
     })
     .catch(e => console.error('load tax reminders error:', e));

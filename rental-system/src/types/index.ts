@@ -160,9 +160,27 @@ export interface PropertyCost {
   createdAt?: any;
 }
 
+/**
+ * 租客的政府租金補貼。
+ *
+ * 公益出租人資格的**事實來源**：該門牌下只要有任一租客領有補貼，房東即
+ * 自動取得該門牌的資格。與 `Property.publicWelfare`（稅捐處實際核定的
+ * 年度）分開存——取得資格與被核定是兩道手續，兩者不一致時要能看出落差。
+ */
+export interface RentSubsidy {
+  hasSubsidy: boolean;
+  /** 補貼期間起日 YYYY-MM-DD */
+  from?: string;
+  /** 補貼期間迄日；到期即可能失去公益出租人資格 */
+  to?: string;
+  /** 核定函字號 */
+  docNo?: string;
+}
+
 export interface Tenant {
   id: string;
   uid?: string;
+  rentSubsidy?: RentSubsidy;
   name: string;
   email?: string;
   phone?: string;

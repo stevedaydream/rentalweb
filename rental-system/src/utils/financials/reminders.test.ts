@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { PropertyCostType, type Property, type PropertyCost } from '../../types/index'
-import { buildReminders, daysBetween, dayLabel } from './reminders'
+import { buildReminders, daysBetween, dayLabel, subsidyActiveOn, type ReminderTenant } from './reminders'
 
 const cost = (over: Partial<PropertyCost> = {}): PropertyCost => ({
   id: 'c1',
@@ -20,6 +20,18 @@ const prop = (over: Partial<Property> = {}): Property => ({
 
 const run = (today: string, costs: PropertyCost[] = [], properties: Property[] = []) =>
   buildReminders({ today, costs, properties })
+
+const roomProperty = new Map([['401', 'pA'], ['501', 'pA'], ['201', 'pB']])
+
+const tenant = (over: Partial<ReminderTenant> = {}): ReminderTenant => ({
+  id: 't1', name: '小明', room: '401', status: 'active', ...over,
+})
+
+const runT = (
+  today: string,
+  tenants: ReminderTenant[],
+  properties: Property[] = [prop()],
+) => buildReminders({ today, costs: [], properties, tenants, roomProperty })
 
 describe('daysBetween / dayLabel', () => {
   it('計算天數差，跨月正確', () => {
@@ -147,5 +159,92 @@ describe('排序', () => {
 
   it('無事可辦時回傳空陣列', () => {
     expect(run('2026-03-15')).toEqual([])
+  })
+})
+
+describe('subsidyActiveOn', () => {
+  it('未勾選補貼一律無效', () => {
+    expect(subsidyActiveOn('2026-06-01', { hasSubsidy: false, from: '2026-01-01', to: '2026-12-31' })).toBe(false)
+  })
+
+  it('落在起訖之間才有效', () => {
+    const s = { hasSubsidy: true, from: '2026-01-01', to: '2026-12-31' }
+    expect(subsidyActiveOn('2025-12-31', s)).toBe(false)
+    expect(subsidyActiveOn('2026-01-01', s)).toBe(true)
+    expect(subsidyActiveOn('2026-12-31', s)).toBe(true)
+    expect(subsidyActiveOn('2027-01-01', s)).toBe(false)
+  })
+
+  it('未填起訖視為不設限', () => {
+    expect(subsidyActiveOn('2026-06-01', { hasSubsidy: true })).toBe(true)
+  })
+})
+
+describe('租金補貼到期提醒', () => {
+  const subsidised = (to: string) => tenant({ rentSubsidy: { hasSubsidy: true, from: '2025-01-01', to } })
+
+  it('到期前 30 天起提醒', () => {
+    expect(runT('2026-05-31', [subsidised('2026-07-01')]).some(r => r.kind === 'subsidy_expiring')).toBe(false)
+    expect(runT('2026-06-01', [subsidised('2026-07-01')]).some(r => r.kind === 'subsidy_expiring')).toBe(true)
+  })
+
+  it('剩 7 天內升為最高等級，內容說明資格會受影響', () => {
+    const r = runT('2026-06-28', [subsidised('2026-07-01')]).find(x => x.kind === 'subsidy_expiring')!
+    expect(r.severity).toBe('danger')
+    expect(r.detail).toContain('公益出租人')
+  })
+
+  it('已過期就不再提醒到期（改由資格落差接手）', () => {
+    expect(runT('2026-07-10', [subsidised('2026-07-01')]).some(r => r.kind === 'subsidy_expiring')).toBe(false)
+  })
+
+  it('已退租的租客不提醒', () => {
+    const inactive = tenant({ status: 'inactive', rentSubsidy: { hasSubsidy: true, to: '2026-07-01' } })
+    expect(runT('2026-06-20', [inactive]).some(r => r.kind === 'subsidy_expiring')).toBe(false)
+  })
+
+  it('沒填補貼迄日的不提醒', () => {
+    expect(runT('2026-06-20', [tenant({ rentSubsidy: { hasSubsidy: true } })])
+      .some(r => r.kind === 'subsidy_expiring')).toBe(false)
+  })
+})
+
+describe('公益出租人資格落差', () => {
+  const active = tenant({ rentSubsidy: { hasSubsidy: true, from: '2026-01-01', to: '2026-12-31' } })
+  const declared = prop({
+    publicWelfare: [{ year: 2026, houseTax: true, landTax: false, incomeTax: true }],
+  })
+
+  it('有補貼租客但未登錄核定時提示可申請', () => {
+    const r = runT('2026-06-01', [active], [prop()]).find(x => x.kind === 'welfare_unclaimed')
+    expect(r).toBeDefined()
+    expect(r!.severity).toBe('info')
+    expect(r!.detail).toContain('15,000')
+  })
+
+  it('已登錄核定且有補貼租客時不提示', () => {
+    expect(runT('2026-06-01', [active], [declared])).toEqual([])
+  })
+
+  it('已登錄核定但補貼已失效時提示待確認', () => {
+    const expired = tenant({ rentSubsidy: { hasSubsidy: true, from: '2025-01-01', to: '2025-12-31' } })
+    const r = runT('2026-06-01', [expired], [declared]).find(x => x.kind === 'welfare_stale')
+    expect(r).toBeDefined()
+    expect(r!.severity).toBe('warning')
+  })
+
+  it('落差判斷逐棟獨立：甲棟有補貼不影響乙棟', () => {
+    const list = runT('2026-06-01', [active], [prop(), prop({ id: 'pB', name: '乙棟' })])
+    const ids = list.filter(r => r.kind === 'welfare_unclaimed').map(r => r.id)
+    expect(ids).toEqual(['welfare-unclaimed:pA:2026'])
+  })
+
+  it('租客房號未歸到建物時不會誤判成有資格', () => {
+    const orphan = tenant({ room: '999', rentSubsidy: { hasSubsidy: true, to: '2026-12-31' } })
+    expect(runT('2026-06-01', [orphan], [prop()]).some(r => r.kind === 'welfare_unclaimed')).toBe(false)
+  })
+
+  it('完全沒有租客資料時不做落差判斷，避免誤報', () => {
+    expect(buildReminders({ today: '2026-06-01', costs: [], properties: [declared], tenants: [] })).toEqual([])
   })
 })
