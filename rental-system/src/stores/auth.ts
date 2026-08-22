@@ -8,6 +8,7 @@ import {
   onAuthStateChanged,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithCustomToken,
   linkWithPopup,
   type User
 } from 'firebase/auth';
@@ -117,6 +118,21 @@ export const useAuthStore = defineStore('auth', () => {
     await handleAuthSuccess(result.user);
   };
 
+  /**
+   * 以 Cloud Function 發的一次性 token 登入（租客啟用連結用）。
+   *
+   * 不走 handleAuthSuccess 的自動導向——啟用流程要先進引導頁設密碼與綁 LINE，
+   * 導向時機交給呼叫端決定。
+   */
+  const loginWithCustomToken = async (token: string) => {
+    const result = await signInWithCustomToken(auth, token);
+    user.value = result.user;
+    setRole('tenant');
+    const snap = await getDoc(doc(db, 'users', result.user.uid));
+    if (snap.exists()) userProfile.value = snap.data();
+    return result.user;
+  };
+
   const registerEmail = async (email: string, pass: string) => {
     const result = await createUserWithEmailAndPassword(auth, email, pass);
     await handleAuthSuccess(result.user);
@@ -174,6 +190,7 @@ export const useAuthStore = defineStore('auth', () => {
     setRole,
     loginWithGoogle,
     loginEmail,
+    loginWithCustomToken,
     registerEmail,
     logout,
     startImpersonation,

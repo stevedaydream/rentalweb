@@ -344,7 +344,13 @@
       </div>
     </div>
 
-    <TenantCredentialModal :credential="createdCredential" @close="createdCredential = null" />
+    <TenantCredentialModal
+      :credential="createdCredential"
+      :activation-link="activationLink"
+      :link-error="activationError"
+      :expire-days="activationExpireDays"
+      @close="closeCredentialModal"
+    />
 
     <!-- ===== 新增租客 Modal (只用於手動新增) ===== -->
     <div v-if="showModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -724,6 +730,16 @@
                     class="w-full py-2.5 rounded-xl bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 flex items-center justify-center gap-2 transition-colors"
                   >
                     <span class="material-symbols-outlined text-[18px]">play_arrow</span>繼續上線（第 {{ drawerTenant.onboarding.step }} 步）
+                  </button>
+                  <button
+                    v-if="drawerTenant?.uid && drawerTenant?.idNumber && !drawerTenant?.isHistorical"
+                    @click="resendActivationLink(drawerTenant!)"
+                    :disabled="isCreatingAccount"
+                    class="w-full py-2.5 border border-gold-200 dark:border-gold-700 rounded-xl text-sm font-medium text-gold-700 dark:text-gold-300 hover:bg-gold-50 dark:hover:bg-gold-900/20 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    title="產生一次性啟用連結，傳給租客即可完成首次登入"
+                  >
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">link</span>
+                    {{ isCreatingAccount ? '產生中…' : '產生啟用連結' }}
                   </button>
                   <button
                     v-if="canCreateAccount(drawerTenant)"
@@ -1577,6 +1593,7 @@ const saveTenant = async () => {
           name: form.value.name,
         });
         createdCredential.value = { phone: form.value.phone, idNumber: form.value.idNumber };
+        if (form.value.id) await requestActivationLink(form.value.id);
       } catch (e: any) {
         toast.warning('租客已新增，但建立登入帳號失敗：' + (e.message || '請稍後重試'));
       }
@@ -1685,6 +1702,48 @@ const form = ref<Partial<Tenant>>({
 
 // 建立帳號後顯示給房東的登入憑證
 const createdCredential = ref<{ phone: string; idNumber: string } | null>(null);
+const activationLink = ref('');
+const activationError = ref('');
+const activationExpireDays = ref(7);
+
+const closeCredentialModal = () => {
+  createdCredential.value = null;
+  activationLink.value = '';
+  activationError.value = '';
+};
+
+/**
+ * 產生一次性啟用連結。
+ *
+ * 失敗時不擋住整個流程——帳號已經建好了，房東仍可退而用帳密告知租客，
+ * 所以只把錯誤顯示在 Modal 裡。
+ */
+const requestActivationLink = async (tenantDocId: string) => {
+  activationLink.value = '';
+  activationError.value = '';
+  try {
+    const fn = httpsCallable(functions, 'createActivationLink');
+    const res: any = await fn({ tenantDocId, origin: window.location.origin });
+    activationLink.value = res.data?.url || '';
+    activationExpireDays.value = res.data?.expireDays ?? 7;
+  } catch (e: any) {
+    const code = String(e?.code || '');
+    activationError.value = code.includes('failed-precondition')
+      ? '此租客缺少證件號碼，無法產生啟用連結（連結需以證件號碼驗證身分）'
+      : '產生啟用連結失敗，可改用下方帳號密碼告知租客';
+  }
+};
+
+/** 為已有帳號的租客重新產生連結；舊的未使用連結會在伺服端一併作廢 */
+const resendActivationLink = async (tenant: Tenant) => {
+  isCreatingAccount.value = true;
+  try {
+    createdCredential.value = { phone: tenant.phone || '', idNumber: tenant.idNumber || '' };
+    await requestActivationLink(tenant.id);
+  } finally {
+    isCreatingAccount.value = false;
+  }
+};
 
 watch(
   [() => form.value.leaseStart, () => form.value.leaseDuration],
@@ -2506,6 +2565,7 @@ const createAccountForTenant = async (tenant: Tenant) => {
       name: tenant.name,
     });
     createdCredential.value = { phone: tenant.phone, idNumber: tenant.idNumber };
+    await requestActivationLink(tenant.id);
     await loadAccountStatuses();
   } catch (e: any) {
     toast.error('建立登入帳號失敗：' + (e?.message || '請稍後重試'));

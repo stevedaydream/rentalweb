@@ -7,6 +7,7 @@ const { onMessagePublished } = require("firebase-functions/v2/pubsub");
 const logger = require("firebase-functions/logger");
 const puppeteer = require("puppeteer-core");
 const chromium = require("@sparticuz/chromium");
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const cors = require('cors');
@@ -55,6 +56,9 @@ function injectStyles(html) {
 }
 
 // --- 主程式 ---
+// 啟用連結有效天數。與既有的填表邀請連結（onboardingInvite）一致，少一個要記的規則。
+const ACTIVATION_TTL_DAYS = 7;
+
 // 範本版本：骨架改版時遞增。舊合約已凍存當時骨架（signed_contracts.templateHtml），不受影響。
 const TEMPLATE_VERSIONS = { Contract: 1, Guarantee: 1, Deposit: 1, MoveOutSummary: 1, BillStatement: 1 };
 
@@ -1831,6 +1835,9 @@ exports.createTenantAccount = onCall({ region: 'asia-east1' }, async (request) =
       name: name || '',
       phone,
       role: 'tenant',
+      // 租客端要靠這欄反查房東（聯絡資訊、LINE Bot ID）。原本未寫入，
+      // 只有走匯入流程的租客才被補上，從租客列表補建帳號的會缺。
+      landlordId: callerUid,
       isLandlordCreated: true,
       createdAt: FieldValue.serverTimestamp(),
     }, { merge: true });
@@ -1841,6 +1848,104 @@ exports.createTenantAccount = onCall({ region: 'asia-east1' }, async (request) =
     logger.error('createTenantAccount error', e);
     throw new Error(e.message);
   }
+});
+
+// ─── createActivationLink ──────────────────────────────────────────────────
+// 房東為某位租客產生一次性啟用連結。
+//
+// 連結本身不含帳密：只帶一組隨機碼，兌換時還要租客輸入身分證號確認身分。
+// 連結證明「這是房東發的」，身分證證明「你是本人」，兩者缺一不可。
+exports.createActivationLink = onCall({ region: 'asia-east1' }, async (request) => {
+  const { HttpsError } = require('firebase-functions/v2/https');
+  if (!request.auth) throw new HttpsError('unauthenticated', '請先登入');
+
+  const db = getFirestore();
+  const callerUid = request.auth.uid;
+  const callerDoc = await db.collection('users').doc(callerUid).get();
+  const callerRole = callerDoc.exists ? callerDoc.data().role : null;
+  if (callerRole !== 'landlord' && callerRole !== 'admin') {
+    throw new HttpsError('permission-denied', '僅房東可產生啟用連結');
+  }
+
+  const { tenantDocId, origin } = request.data || {};
+  if (!tenantDocId) throw new HttpsError('invalid-argument', '缺少租客');
+
+  const tenantSnap = await db.collection('tenants').doc(tenantDocId).get();
+  if (!tenantSnap.exists) throw new HttpsError('not-found', '租客不存在');
+  const tenant = tenantSnap.data();
+
+  // 租戶隔離：只能為自己的租客產生連結
+  if (tenant.landlordId !== callerUid && callerRole !== 'admin') {
+    throw new HttpsError('permission-denied', '無權操作此租客');
+  }
+  if (!tenant.uid) throw new HttpsError('failed-precondition', '此租客尚未建立登入帳號');
+  if (!tenant.idNumber) throw new HttpsError('failed-precondition', '此租客沒有證件號碼，無法驗證身分');
+
+  // 舊的未使用連結一律作廢，避免同時存在多把鑰匙
+  const oldSnap = await db.collection('tenant_activations')
+    .where('tenantDocId', '==', tenantDocId)
+    .where('usedAt', '==', null)
+    .get();
+  await Promise.all(oldSnap.docs.map(d => d.ref.delete()));
+
+  const code = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+  const expireAt = Date.now() + ACTIVATION_TTL_DAYS * 24 * 60 * 60 * 1000;
+
+  await db.collection('tenant_activations').doc(code).set({
+    tenantDocId,
+    uid: tenant.uid,
+    landlordId: tenant.landlordId,
+    expireAt,
+    usedAt: null,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  const base = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  logger.info('createActivationLink', { callerUid, tenantDocId });
+  return { code, url: `${base}/activate/${code}`, expireAt, expireDays: ACTIVATION_TTL_DAYS };
+});
+
+// ─── activateTenant ────────────────────────────────────────────────────────
+// 租客以連結 + 身分證號兌換登入。免登入呼叫（本來就是為了讓還沒登入的人進來）。
+//
+// 回傳 custom token 而非帳密：連結裡永遠不會出現密碼，租客也不必手動輸入帳號。
+exports.activateTenant = onCall({ region: 'asia-east1' }, async (request) => {
+  const { HttpsError } = require('firebase-functions/v2/https');
+  const db = getFirestore();
+
+  const { code, idNumber } = request.data || {};
+  if (!code) throw new HttpsError('invalid-argument', '缺少啟用碼');
+
+  const ref = db.collection('tenant_activations').doc(String(code));
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', '連結無效');
+
+  const act = snap.data();
+  if (act.usedAt) throw new HttpsError('failed-precondition', '此連結已使用過');
+  if (act.expireAt && Date.now() > act.expireAt) {
+    throw new HttpsError('deadline-exceeded', '連結已過期');
+  }
+
+  const tenantSnap = await db.collection('tenants').doc(act.tenantDocId).get();
+  if (!tenantSnap.exists) throw new HttpsError('not-found', '租客資料已不存在');
+  const tenant = tenantSnap.data();
+
+  // 只帶 code 時回傳姓名供畫面顯示「嗨 ○○○」，不洩漏其他個資
+  if (!idNumber) {
+    return { ok: true, needIdNumber: true, name: tenant.name || '' };
+  }
+
+  const expected = String(tenant.idNumber || '').trim().toUpperCase();
+  const given = String(idNumber).trim().toUpperCase();
+  if (!expected || expected !== given) {
+    throw new HttpsError('permission-denied', '證件號碼不符');
+  }
+
+  const token = await getAuth().createCustomToken(act.uid);
+  await ref.update({ usedAt: FieldValue.serverTimestamp() });
+
+  logger.info('activateTenant: success', { tenantDocId: act.tenantDocId, uid: act.uid });
+  return { ok: true, token, name: tenant.name || '' };
 });
 
 // ─── getTenantAccountStatus ────────────────────────────────────────────────

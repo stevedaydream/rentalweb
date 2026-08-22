@@ -7,6 +7,8 @@ import { doc, getDoc } from 'firebase/firestore';
 // 視圖組件導入
 const Identity = () => import('../views/auth/Identity.vue');
 const Login = () => import('../views/auth/Login.vue');
+const ActivateTenant = () => import('../views/auth/ActivateTenant.vue');
+const TenantWelcome = () => import('../views/tenant/Welcome.vue');
 const Register = () => import('../views/auth/Register.vue');
 const Onboarding = () => import('../views/auth/Onboarding.vue');
 const TenantOnboardForm = () => import('../views/auth/TenantOnboardForm.vue');
@@ -55,6 +57,7 @@ const routes = [
   { path: '/register', name: 'Register', component: Register },
   { path: '/onboarding', name: 'Onboarding', component: Onboarding, meta: { requiresAuth: true } },
   { path: '/onboard/:code', name: 'TenantOnboard', component: TenantOnboardForm }, // 公開填表（免登入）
+  { path: '/activate/:code', name: 'ActivateTenant', component: ActivateTenant }, // 帳號啟用（免登入）
   { path: '/explore', name: 'RoomExplore', component: RoomExplore },
   { path: '/explore/landlord/:landlordId', name: 'LandlordProfile', component: LandlordProfile },
   { path: '/admin/login', name: 'AdminLogin', component: AdminLogin },
@@ -105,6 +108,14 @@ const routes = [
       { path: 'building-info', name: 'TenantBuildingInfo', component: TenantBuildingInfo },
       { path: 'contract', name: 'TenantMyContract', component: TenantMyContract },
     ]
+  },
+  {
+    // 首次啟用後的引導頁。刻意不掛在 TenantLayout 下——引導流程不該出現
+    // 側邊選單，否則租客會直接點走而跳過綁定
+    path: '/tenant/welcome',
+    name: 'TenantWelcome',
+    component: TenantWelcome,
+    meta: { requiresAuth: true, role: 'tenant' },
   },
 
   // 管理員系統

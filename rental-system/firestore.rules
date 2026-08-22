@@ -262,6 +262,13 @@ service cloud.firestore {
       allow delete: if isAdmin() || isLandlordData();
     }
 
+    // 租客啟用連結 (tenant_activations) — 一次性登入憑證，等同鑰匙
+    // 前端一律不得讀寫：發放與兌換全由 Cloud Function（Admin SDK）處理，
+    // 否則任何登入者都能列舉連結碼，二次身分驗證就形同虛設
+    match /tenant_activations/{code} {
+      allow read, write: if false;
+    }
+
     // 建物年度費用 (property_costs) — 房屋稅／地價稅／火災險的稅單與保單主檔
     // 標記已繳時才依 allocations 落帳到 bills，維持 bills 為純現金流
     match /property_costs/{costId} {
