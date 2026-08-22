@@ -60,6 +60,8 @@
 
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6">
 
+      <TaxReminderCard :reminders="taxReminders" />
+
       <MonthlyTaskCard
         :landlord-id="authStore.effectiveUid"
         :pending-count="financial.unpaidTenantCount"
@@ -113,6 +115,10 @@ import RepairTicketCard, { type RepairTicket } from '../../components/dashboard/
 import MonthlyTaskCard from '../../components/dashboard/MonthlyTaskCard.vue';
 import BillStatusModal, { type BillCategory, type BillLite } from '../../components/dashboard/BillStatusModal.vue';
 import InviteTenantModal from '../../components/InviteTenantModal.vue';
+import TaxReminderCard from '../../components/dashboard/TaxReminderCard.vue';
+import { getProperties } from '../../services/propertyService';
+import { getPropertyCosts } from '../../services/propertyCostService';
+import { buildReminders, type Reminder } from '../../utils/financials/reminders';
 
 const authStore = useAuthStore();
 const isLoading = ref(true);
@@ -151,6 +157,7 @@ const meterUsage = ref<MeterUsageSummary>({
   totalUsage: 0, totalCost: 0, deltaPct: null, rows: [],
 });
 const repairTickets = ref<RepairTicket[]>([]);
+const taxReminders = ref<Reminder[]>([]);
 
 const billFilter = ref<BillCategory | null>(null);
 const billDetails = reactive<Record<BillCategory, BillLite[]>>({
@@ -211,6 +218,17 @@ const fetchDashboardData = async () => {
   const myLandlordCode = authStore.userProfile?.landlordCode;
 
   isLoading.value = true;
+
+  // 稅費與火險待辦：獨立於主流程，失敗只是少一張卡，不該讓整個儀表板掛掉
+  Promise.all([getProperties(uid), getPropertyCosts(uid)])
+    .then(([properties, costs]) => {
+      taxReminders.value = buildReminders({
+        today: new Date().toISOString().slice(0, 10),
+        costs,
+        properties,
+      });
+    })
+    .catch(e => console.error('load tax reminders error:', e));
 
   try {
     // 用電概況：本月與上月的抄表紀錄（沿用既有索引 landlordId + periodEnd）

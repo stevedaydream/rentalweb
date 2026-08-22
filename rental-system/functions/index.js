@@ -1171,6 +1171,8 @@ exports.notifyAnnouncementCreated = onDocumentCreated(
  *   - Contracts expiring in 90 days (first notice → sets renewalStatus: 'pending')
  *   - Contracts expiring in 60 days (second notice)
  *   - Contracts expiring in 30 days (final notice)
+ *   - 房東端：稅費繳納期限（14/7/3/1 天前與當天）、逾期（每 7 天一次）、
+ *     火險續保（30/14/7/1 天前與當天）
  */
 exports.scheduledReminderDaily = onSchedule(
   { schedule: '0 9 * * *', timeZone: 'Asia/Taipei', region: 'asia-east1' },
@@ -1186,6 +1188,13 @@ exports.scheduledReminderDaily = onSchedule(
     const in60 = new Date(today); in60.setDate(in60.getDate() + 60);
     const in90 = new Date(today); in90.setDate(in90.getDate() + 90);
     const due3     = fmt(in3);
+
+    // 房東端提醒只在里程碑日推送。每日排程若逐日推，14 天的到期窗會連轟 14 次。
+    const daysAhead = (n) => { const d = new Date(today); d.setDate(d.getDate() + n); return fmt(d); };
+    const COST_DUE_MILESTONES = [14, 7, 3, 1, 0];
+    const FIRE_MILESTONES = [30, 14, 7, 1, 0];
+    const costDueDates = COST_DUE_MILESTONES.map(daysAhead);
+    const fireEndDates = FIRE_MILESTONES.map(daysAhead);
     const expiry30 = fmt(in30);
     const expiry60 = fmt(in60);
     const expiry90 = fmt(in90);
@@ -1233,7 +1242,7 @@ exports.scheduledReminderDaily = onSchedule(
       return;
     }
 
-    let totalBills = 0, totalContracts = 0;
+    let totalBills = 0, totalContracts = 0, totalOwnerNotices = 0;
 
     // ── Helper: push LINE message to tenant ──────────────────
     const pushToTenant = async (client, tenantId, text, label) => {
@@ -1337,6 +1346,77 @@ exports.scheduledReminderDaily = onSchedule(
       await sendContractReminder(expiry60, '60 天', false);
       await sendContractReminder(expiry30, '30 天', false);
 
+      // ── 房東端：稅費與火險 ────────────────────────────────
+      const ownerLineUserId = configData.ownerLineUserId;
+      if (ownerLineUserId) {
+        const pushToOwner = async (text, label) => {
+          try {
+            await client.pushMessage({ to: ownerLineUserId, messages: [{ type: 'text', text }] });
+            totalOwnerNotices++;
+          } catch (e) {
+            logger.warn('scheduledReminderDaily: owner push failed', { landlordId, label, error: e.message });
+          }
+        };
+
+        const dayWord = (dateStr) => {
+          const n = Math.round((new Date(`${dateStr}T00:00:00`) - today) / 86400000);
+          return n === 0 ? '今天' : `${n} 天後`;
+        };
+
+        // 未繳的稅費：到期里程碑，以及逾期後每 7 天一次
+        try {
+          const costsSnap = await db.collection('property_costs')
+            .where('landlordId', '==', landlordId)
+            .get();
+
+          for (const cDoc of costsSnap.docs) {
+            const c = cDoc.data();
+            if (c.paidAt || !c.dueDate) continue;
+
+            const diff = Math.round((new Date(`${c.dueDate}T00:00:00`) - today) / 86400000);
+            const isMilestone = costDueDates.includes(c.dueDate);
+            // 逾期後每 7 天催一次，但最多催兩個月——再久就不是提醒能解決的事，
+            // 不該無限期每週轟炸下去
+            const isOverdueTick = diff < 0 && (-diff) % 7 === 0 && (-diff) <= 56;
+            if (!isMilestone && !isOverdueTick) continue;
+
+            const amount = Number(c.amount || 0);
+            const text = diff < 0
+              ? `⚠️ ${c.type}已逾期\n━━━━━━━━━━\n金額：NT$${amount.toLocaleString()}\n` +
+                `繳納期限：${c.dueDate}（已逾期 ${-diff} 天）\n━━━━━━━━━━\n請盡快繳納以免加徵滯納金。`
+              : `📄 ${c.type}繳納提醒\n━━━━━━━━━━\n金額：NT$${amount.toLocaleString()}\n` +
+                `繳納期限：${c.dueDate}（${dayWord(c.dueDate)}）\n━━━━━━━━━━\n繳納後請到「稅費與保險」標記已繳。`;
+
+            await pushToOwner(text, `cost:${cDoc.id}`);
+          }
+        } catch (e) {
+          logger.warn('scheduledReminderDaily: property_costs query failed', { landlordId, error: e.message });
+        }
+
+        // 火險續保
+        try {
+          const propsSnap = await db.collection('properties')
+            .where('landlordId', '==', landlordId)
+            .get();
+
+          for (const pDoc of propsSnap.docs) {
+            const prop = pDoc.data();
+            const endDate = prop.fireInsurance && prop.fireInsurance.endDate;
+            if (!endDate || !fireEndDates.includes(endDate)) continue;
+
+            const text =
+              `🔥 火災保險續保提醒\n━━━━━━━━━━\n建物：${prop.name || '未命名'}\n` +
+              `保單迄日：${endDate}（${dayWord(endDate)}）\n` +
+              (prop.fireInsurance.insurer ? `保險公司：${prop.fireInsurance.insurer}\n` : '') +
+              `━━━━━━━━━━\n續保後請到「房源管理 → 建物」更新保單日期。`;
+
+            await pushToOwner(text, `fire:${pDoc.id}`);
+          }
+        } catch (e) {
+          logger.warn('scheduledReminderDaily: properties query failed', { landlordId, error: e.message });
+        }
+      }
+
       logger.info('scheduledReminderDaily: landlord done', { landlordId, bills: billsSnap.size });
     }
 
@@ -1345,6 +1425,7 @@ exports.scheduledReminderDaily = onSchedule(
       landlords: configsSnap.size,
       billsSent: totalBills,
       contractsSent: totalContracts,
+      ownerNoticesSent: totalOwnerNotices,
       promotedRenewals,
     });
   }
