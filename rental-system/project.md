@@ -41,12 +41,17 @@ rental-system/
 │   │   ├── admin/         # 管理員頁面（共 5 頁）
 │   │   └── explore/       # 公開找房 / 房東 Profile
 │   ├── components/
-│   │   ├── dashboard/     # Dashboard 小元件（5 個）
-│   │   ├── financials/    # 帳單相關 Modal（5 個）
+│   │   ├── dashboard/     # Dashboard 小元件（6 個）
+│   │   ├── financials/    # 帳務元件（7 個：月份/帳單/台電/列印/歷史/稅費/年度）
+│   │   ├── rooms/         # 建物管理（PropertyTab, PropertyFormModal）
+│   │   ├── tenants/       # 租客元件（TenantStatModal, RentSubsidyFields）
 │   │   └── meter/         # 抄表元件（2 個）
 │   ├── stores/            # Pinia：auth, bill, notification, toast, user
-│   ├── services/          # Firestore CRUD：bill, meter, repair, room, tenant, announcement
-│   ├── utils/meter/       # 電費計算純函式 + 單元測試（calc / groups / sections）
+│   ├── services/          # Firestore CRUD：bill, meter, repair, room, tenant,
+│   │                      #   announcement, meterGroup, publicMeter, property, propertyCost
+│   ├── utils/meter/       # 電費計算純函式 + 單元測試（calc / groups / sections / billing）
+│   ├── utils/financials/  # 帳務純函式 + 單元測試（tenantGroups / electricity /
+│   │                      #   propertyCosts / incomeTax / annualSummary / reminders）
 │   ├── router/            # 路由設定（含角色守衛）
 │   ├── firebase/          # Firebase 初始化與模擬器自動切換
 │   ├── layouts/           # LandlordLayout, TenantLayout, SuperAdminLayout
@@ -110,7 +115,7 @@ rental-system/
 - 房間管理（新增/編輯/刪除房間，狀態追蹤）
 - 租客清單（新增/管理租客，綁定房間，解除房間綁定，刪除租客）
 - 財務管理（帳單建立、收款記錄、台電帳單、統計圖表）
-- 電費盈虧分析卡（2026-07-13 接回，Ver1.4 重構時意外斷線）：每月顯示，期間 = 當月＋前月；收入 = 電費＋公共電費帳單（實收依 isCollected）；錨定當月登錄的台電帳單，有 → 盈虧已結算、無 → 顯示「等待帳單」；位置在類別卡片與交易列表之間
+- 電費盈虧分析卡（2026-07-13 接回，Ver1.4 重構時意外斷線；2026-08-21 大改，見下方「稅務與保險整併」）：**逐台電總表各一張卡**，期間錨定該棟台電帳單的迄月而非檢視月份；收入 = 該棟的電費＋公共電費帳單（實收依 isCollected）。位置在類別卡片與交易列表之間
 - 繳費通知單列印（2026-07-13，未綁 LINE 租客的紙本過渡方案）：Financials「更多」→「列印帳單」Modal（月份＋房間勾選，預設全勾有帳單的房）；每房一頁 A4：本期項目（含已繳✓）、前期未繳紅字區、尚需繳納總額、電費計算標準區（方案/用電度數/平均每度/calcLog 計算過程）、繳費資訊（bankInfo）；範本 `src/templates/billStatement.html`（內嵌 PAGE 片段標記，前端逐房組頁）＋ functions 副本 `BillStatement` type；本地 printHtmlPdf 優先、伺服端 generatePdf fallback
 - 抄表記錄（手動輸入 + Excel 批次匯入）+ 抄表歷史
 - 電表群組計費（2026-07-12）：台電總表 → 樓層子群組 → 房間/公共電表三層結構；級距額度以群組內電表總數均分；公共電表電費 ÷ 子群組房數分攤（空房份額房東吸收、每表可設「房東負擔」）；生成帳單時自動產生獨立「公共電費」bill（防重複鍵 = 抄表id_roomId，缺抄表顯示警告）；抄表頁依樓層分區塊＋樓層小計；度數欄 Tab/Enter 直接跳下一欄、聚焦全選；未設群組自動 fallback 舊行為
@@ -132,6 +137,15 @@ rental-system/
   5. `officialMetersCount` 用 `??` 攔不到 0，為 0 時 `scaleFactor` 歸零使所有級距失效，全部用電落到最高費率（300 度 925 → 2538 元）
   另有 1 項政策變更：公共電表不再套用保底單價（保底對象為租客，走廊燈等低用量表會被拉抬數倍）。既有帳目金額全部未受影響。
 - 出帳規則統一與測試（2026-08-12）：公共電費分攤原有兩份獨立實作 —— `sections.ts`（抄表頁預估）先加總再除、`Financials.vue`（實際出帳）逐表各自除，多顆公共表時每房差 ±1 元，房東看到的預估與實際帳單對不上。抽出 `src/utils/meter/billing.ts` 讓兩邊呼叫同一份 `publicMeterShare`／`sumPublicShares`，**統一採出帳側的逐表制**（不動任何已出帳金額、不動去重鍵 `readingId_roomId`、帳單維持每表一筆以保留明細）。同時把 `shouldGenerateBill`／`getBillingAmount`／`getBillingDescription` 三個租金週期函式從 `Financials.vue` 移入並補測試。測試 40 項，含一條跨層不變量：抄表頁顯示的分攤金額必須等於各表帳單金額之和
+- 稅務與保險整併（2026-08-21～22，分六階段完成）：房屋稅按稅籍課、地價稅按地號課、火險按標的物保、公益出租人按門牌認定，而系統原本只有 `rooms` 平表，這四者的歸屬單位一個都不存在。新增 `properties`（建物）＋ `rooms.propertyId`，與 `meter_groups`（台電總表）刻意保持為**兩個獨立維度**——台電按電號寄帳單，一棟可能有兩個電號、公共電表也可能跨棟，硬綁遲早對不起來。
+  - **建物管理**：房源管理加「建物」分頁（地址／房屋稅籍／多筆地號／火險保單／公益出租人逐年度分稅目核定、房間指派、未指派清單與 badge）。遷移由 `meter_groups` 自動種子＋房間經 `subGroupId → groupId` 回填，以 `seededFromGroupId` 保證冪等、不覆寫手動指派過的房間
+  - **費用登錄**：`property_costs` 主檔（**所屬期間與繳款日分開**；跨棟稅單以 `allocations` 手動分攤並即時校驗加總，因地價稅按縣市合併開單可能涵蓋多棟的地）。入口在帳務管理「更多」→「稅費與保險」。**雙寫只在標記已繳時發生**——`stats.expense` 不看狀態、月內全算，未繳的稅單若先落帳會讓當月支出提前虛增；落帳依分攤一棟一筆（分棟損益才算得出來），取消已繳或刪除費用時依 `billIds` 回收
+  - **年度損益**：帳務管理加「年度」分頁，年度 × 棟別的收支明細、各棟損益比較、綜所稅試算。年度帳單**另發查詢**（沿用既有 `(landlordId, date ASC)` 索引），不用月度那份 `limit(200)` 的監聽以免整年被截斷；歸棟優先取 `bills.propertyId`，舊帳單退回 `租客 → 房號 → rooms.propertyId` 回溯，斷鏈者集中於「未指定建物」不被吞掉
+  - **提醒**：Dashboard `TaxReminderCard`（開徵未登錄／即將到期／逾期／火險到期／補貼到期／資格落差）＋ LINE 走既有 `scheduledReminderDaily`。房東端**只在里程碑日推**：稅費 14/7/3/1/0 天前、逾期每 7 天且最多兩個月、火險與補貼 30/14/7/1/0 天前——每日排程若逐日推，一個 14 天的窗會連轟 14 次、逾期更會無限期推下去
+  - **公益出租人**：資格跟**門牌**走，**整個門牌每月共用一個 15,000 元免稅額**（不因分租多間而變成多份）。`tenants.rentSubsidy` 為資格的事實來源、`properties.publicWelfare` 為稅捐處實際核定的年度，兩者不一致時提示落差（有補貼租客但未登錄 → 可申請；已登錄但無補貼租客 → 待確認）
+  - **綜所稅試算**：免稅額**先扣**、餘額再扣 43% 必要費用（順序影響甚鉅：收入 1,008,000、免稅額 180,000 時先扣得 471,960、後扣得 394,560）。電費是否計入租賃收入做成可切換（實報實銷代收代付 vs 定額收取），預設不計入
+  - 規則全數抽為 `src/utils/financials/` 純函式並補測試：`electricity`(23)／`propertyCosts`(22)／`incomeTax`(18)／`annualSummary`(15)／`reminders`(34)，另 `propertyService.planRoomAssignments`(8)。全案測試 351 → 451 項
+  - 順帶修正三處既有缺陷：①電費盈虧未依台電總表分棟（拿甲棟的帳單對全棟的電費收入，`taipower_bills.groupId` 早已存在但帳務頁從未寫入）②`RoomManagement.subGroupOptions` 只讀 `groups[0]` 的子群組（非第一棟的房間選不到自己的子群組，電費分攤與建物歸屬都會跟著錯）③稅率表在 `InvestmentCalculator` 與新模組各一份，改為共用 `incomeTax.ts`
 - 帳務管理「依租客」檢視（2026-08-12）：收款時關心的是「這位租客繳了沒」，但清單是逐筆帳單（7 房 × 租金＋電費 = 14 列，加公共電費 21 列），要用眼睛找同一租客的兩筆。分頁列右側新增切換鈕（**預設開啟**，逐筆清單留給稽核時手動切換），依租客摺疊：一列顯示筆數／合計／待收，並提供一鍵收款批次標記該租客全部未收帳單；點擊展開看明細，仍可逐筆標記。待收的租客排前面、「其他（支出・台電帳單）」置底。分組僅為顯示層，收款狀態仍逐筆儲存於各自的 bills 文件。歸戶鍵優先 `relatedTenantDocId`，退回 `tenantId`、再退回 `target` 字串（早期手動帳單只有這個）。邏輯抽於 `src/utils/financials/tenantGroups.ts`（26 項測試，含「每筆帳單恰好出現在一組」「各組合計相加等於總收支」等不變量），`isCollected` 一併移入共用
 - 簽約流程房源租金未帶入修正（2026-08-12）：`OnboardingMode.vue` 載入可選房源時讀 `r.rent`，但 `rooms` 文件的月租金欄位是 **`price`**（`RoomManagement` 表單以此建檔，模擬器實測三筆房源皆只有 `price`、無 `rent`），故選了房源租金恆為 0、押金也連帶算不出來。`TenantList` 用的是正確的 `r.price`，只有簽約流程寫錯。共用型別 `Room` 更是宣告了不存在的 `rent?` 卻沒有 `price`，等於在誤導後續開發。修法：新增 `src/utils/room.ts` 的 `roomMonthlyRent()` 作為唯一取值入口（依序嘗試 `price` → `rent`，以「正的有限數」為有效；新增房源時 `price` 預設 0 代表尚未設定而非租金為零，故不可用 `??` 判斷是否退回舊欄位），`OnboardingMode` 與 `TenantList` 兩處皆改走此函式；`Room` 型別補上 `price` 並將 `rent` 標為 `@deprecated`。測試 11 項
 - 精靈模式合約地址未帶入修正（2026-08-12）：`OnboardingMode` 的 `contractPrefill` 只帶 tenant／roomNo／rentfee／startDate／duration，缺 `address`，故精靈模式簽出的合約地址欄位為空（獨立簽約頁的 `ContractForm.onRoomSelect` 有正確帶入，`ContractForm` 的 prefill 也接得住，只有精靈模式漏傳）。根因與租金同源：`availableRooms` 當初只撈 `{ name, rent }`。修法：`availableRooms` 補 `address`，新增 `selectedRoom` computed 供 `onRoomSelect` 與 `contractPrefill` 共用，並讓營運用的 `contracts` 文件一併存入 `address`
@@ -210,6 +224,10 @@ rental-system/
 - Cloudflare Tunnel URL 每次重啟後變更，需手動更新 LINE Console Webhook URL
 - eslint 設定未宣告瀏覽器全域（`console`／`document`／`window`／`crypto`／`sessionStorage` 等一律報 `no-undef`），導致 lint 幾乎每個檔案都有錯誤、實質失去把關作用。修正方向：在 `eslint.config.js` 補上 browser globals
 - ~~公共電費分攤有兩份獨立實作~~（2026-08-12 已解決，見「出帳規則統一」）
+- `property_costs` → `bills` 為**單向同步**：若直接從帳務頁刪除自動落帳的支出，主檔仍顯示「已繳」。要清乾淨請用「稅費與保險」的「取消已繳」
+- 公益出租人免稅額一律以 12 個月計；年度中途取得或失去資格時，試算金額會偏高
+- 綜所稅試算未比較「43% 標準扣除 vs 列舉實額」，亦未含折舊與房貸利息等系統沒有的必要費用。房屋稅、地價稅、火險本身即為可列舉項目，列舉實額若高於 43% 改採列舉更有利
+- 綜所稅「免稅額先扣、再扣 43%」的順序未經稅務專業確認，僅依常識推定（「免納所得稅」意謂該部分不計入所得）。報稅前建議向會計師或國稅局查證
 
 ---
 
