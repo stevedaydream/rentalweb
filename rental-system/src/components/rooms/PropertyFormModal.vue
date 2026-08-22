@@ -140,6 +140,13 @@
             <span class="material-symbols-outlined text-[16px]" aria-hidden="true">add</span>新增核定年度
           </button>
         </section>
+
+        <section class="border-t border-ink-100 dark:border-ink-700 pt-5">
+          <label class="flex items-center gap-2 text-sm text-text-secondary-light">
+            <input id="prop-is-test" v-model="local.isTest" type="checkbox" class="rounded">
+            這是測試資料（可由租客列表的「清除測試資料」一次移除）
+          </label>
+        </section>
       </div>
 
       <div class="p-6 border-t border-ink-100 dark:border-ink-700 flex justify-end gap-3 shrink-0">
@@ -179,7 +186,7 @@ watch(() => props.show, (val) => {
   const p = props.property
   isEditing.value = !!p
   local.value = p
-    ? { name: p.name, address: p.address, houseTaxNo: p.houseTaxNo, seededFromGroupId: p.seededFromGroupId }
+    ? { name: p.name, address: p.address, houseTaxNo: p.houseTaxNo, seededFromGroupId: p.seededFromGroupId, isTest: p.isTest }
     : blank()
   landNoList.value = [...(p?.landNos ?? [])]
   fire.value = { ...(p?.fireInsurance ?? {}) }

@@ -44,6 +44,8 @@ export interface Room {
   subGroupId?: string;
   /** 所屬建物（properties 文件 id）。房屋稅／地價稅／火險與公益出租人皆以建物為單位 */
   propertyId?: string;
+  /** 測試資料標記。衍生資料（帳單、抄表等）不帶此旗標，清除時靠關聯反查 */
+  isTest?: boolean;
   createdAt?: any;
 }
 
@@ -110,6 +112,8 @@ export interface Property {
    * 不代表兩者語意上有從屬關係。
    */
   seededFromGroupId?: string;
+  /** 測試資料標記 */
+  isTest?: boolean;
   createdAt?: any;
 }
 
@@ -181,6 +185,8 @@ export interface Tenant {
   id: string;
   uid?: string;
   rentSubsidy?: RentSubsidy;
+  /** 測試資料標記 */
+  isTest?: boolean;
   name: string;
   email?: string;
   phone?: string;

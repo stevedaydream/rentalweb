@@ -2017,16 +2017,32 @@ exports.getTenantAccountStatus = onCall({ region: 'asia-east1' }, async (request
 // ─── resetTenantPassword ───────────────────────────────────────────────────
 // 由 Admin 呼叫：強制重設指定租客的密碼
 exports.resetTenantPassword = onCall({ region: 'asia-east1' }, async (request) => {
-  if (!request.auth) throw new Error('Unauthenticated');
+  const { HttpsError } = require('firebase-functions/v2/https');
+  if (!request.auth) throw new HttpsError('unauthenticated', '請先登入');
 
   const db = getFirestore();
   const callerUid = request.auth.uid;
   const callerDoc = await db.collection('users').doc(callerUid).get();
-  if (!callerDoc.exists || callerDoc.data().role !== 'admin') throw new Error('Permission denied: admin only');
+  const callerRole = callerDoc.exists ? callerDoc.data().role : null;
+  if (callerRole !== 'landlord' && callerRole !== 'admin') {
+    throw new HttpsError('permission-denied', '無權限');
+  }
 
-  const { uid, newPassword } = request.data;
-  if (!uid || !newPassword) throw new Error('Missing required fields');
-  if (newPassword.length < 6) throw new Error('密碼至少需要 6 個字元');
+  const { uid, newPassword } = request.data || {};
+  if (!uid || !newPassword) throw new HttpsError('invalid-argument', '缺少必要參數');
+  if (String(newPassword).length < 6) throw new HttpsError('invalid-argument', '密碼至少需要 6 個字元');
+
+  // 租戶隔離：房東只能重設自己租客的密碼。
+  // 原本僅檢查 role==='admin' 而完全沒有此驗證，一旦開放給房東，
+  // 任一房東都能重設任何人的密碼。
+  if (callerRole === 'landlord') {
+    const owned = await db.collection('tenants')
+      .where('landlordId', '==', callerUid)
+      .where('uid', '==', uid)
+      .limit(1)
+      .get();
+    if (owned.empty) throw new HttpsError('permission-denied', '此租客不屬於你');
+  }
 
   try {
     await getAuth().updateUser(uid, { password: newPassword });
@@ -2034,6 +2050,164 @@ exports.resetTenantPassword = onCall({ region: 'asia-east1' }, async (request) =
     return { success: true };
   } catch (e) {
     logger.error('resetTenantPassword error', e);
-    throw new Error(e.message);
+    throw new HttpsError('internal', e.message);
   }
+});
+
+// ─── setTenantAccountDisabled ──────────────────────────────────────────────
+// 停用／恢復租客登入帳號。退租後停用即可，資料全部保留。
+exports.setTenantAccountDisabled = onCall({ region: 'asia-east1' }, async (request) => {
+  const { HttpsError } = require('firebase-functions/v2/https');
+  if (!request.auth) throw new HttpsError('unauthenticated', '請先登入');
+
+  const db = getFirestore();
+  const callerUid = request.auth.uid;
+  const callerDoc = await db.collection('users').doc(callerUid).get();
+  const callerRole = callerDoc.exists ? callerDoc.data().role : null;
+  if (callerRole !== 'landlord' && callerRole !== 'admin') {
+    throw new HttpsError('permission-denied', '無權限');
+  }
+
+  const { uid, disabled } = request.data || {};
+  if (!uid || typeof disabled !== 'boolean') throw new HttpsError('invalid-argument', '缺少必要參數');
+
+  if (callerRole === 'landlord') {
+    const owned = await db.collection('tenants')
+      .where('landlordId', '==', callerUid)
+      .where('uid', '==', uid)
+      .limit(1)
+      .get();
+    if (owned.empty) throw new HttpsError('permission-denied', '此租客不屬於你');
+  }
+
+  await getAuth().updateUser(uid, { disabled });
+  logger.info('setTenantAccountDisabled', { targetUid: uid, disabled, callerUid });
+  return { success: true };
+});
+
+// ─── purgeData ─────────────────────────────────────────────────────────────
+// 級聯刪除：單一租客，或所有標記為測試的資料。
+//
+// preview 與 execute 跑同一段掃描，預覽數字才保證等於實際刪除量。
+// 刪除 Auth 帳號本來就只能走 Admin SDK，索性整個級聯都放伺服端，
+// 前端中途斷線也不會留下半殘狀態。
+exports.purgeData = onCall({ region: 'asia-east1' }, async (request) => {
+  const { HttpsError } = require('firebase-functions/v2/https');
+  if (!request.auth) throw new HttpsError('unauthenticated', '請先登入');
+
+  const db = getFirestore();
+  const callerUid = request.auth.uid;
+  const callerDoc = await db.collection('users').doc(callerUid).get();
+  const callerRole = callerDoc.exists ? callerDoc.data().role : null;
+  if (callerRole !== 'landlord' && callerRole !== 'admin') {
+    throw new HttpsError('permission-denied', '無權限');
+  }
+
+  const { mode, scope, tenantDocId } = request.data || {};
+  if (mode !== 'preview' && mode !== 'execute') {
+    throw new HttpsError('invalid-argument', 'mode 必須是 preview 或 execute');
+  }
+  if (scope !== 'tenant' && scope !== 'test') {
+    throw new HttpsError('invalid-argument', 'scope 必須是 tenant 或 test');
+  }
+
+  const plan = [];
+  const seen = new Set();
+  const add = (coll, id, why) => {
+    const key = `${coll}/${id}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    plan.push({ coll, id, why });
+  };
+
+  const scanEq = async (coll, field, values, why) => {
+    for (const v of values) {
+      if (!v) continue;
+      try {
+        const snap = await db.collection(coll).where(field, '==', v).get();
+        snap.forEach(d => add(coll, d.id, why));
+      } catch (e) {
+        logger.warn('purgeData scan failed', { coll, field, error: e.message });
+      }
+    }
+  };
+
+  // ── 決定目標 ──
+  const tenantDocs = [];
+  const roomDocs = [];
+  const propertyDocs = [];
+
+  const ownedBy = (data) => data.landlordId === callerUid || callerRole === 'admin';
+
+  if (scope === 'tenant') {
+    if (!tenantDocId) throw new HttpsError('invalid-argument', '缺少租客');
+    const d = await db.collection('tenants').doc(tenantDocId).get();
+    if (!d.exists) throw new HttpsError('not-found', '租客不存在');
+    if (!ownedBy(d.data())) throw new HttpsError('permission-denied', '此租客不屬於你');
+    tenantDocs.push(d);
+  } else {
+    const [t, r, pr] = await Promise.all([
+      db.collection('tenants').where('landlordId', '==', callerUid).where('isTest', '==', true).get(),
+      db.collection('rooms').where('landlordId', '==', callerUid).where('isTest', '==', true).get(),
+      db.collection('properties').where('landlordId', '==', callerUid).where('isTest', '==', true).get(),
+    ]);
+    t.forEach(d => tenantDocs.push(d));
+    r.forEach(d => roomDocs.push(d));
+    pr.forEach(d => propertyDocs.push(d));
+  }
+
+  const tenantIds = tenantDocs.map(d => d.id);
+  const tenantUids = tenantDocs.map(d => d.data().uid).filter(Boolean);
+  const roomIds = roomDocs.map(d => d.id);
+  const roomNames = roomDocs.map(d => d.data().name).filter(Boolean);
+
+  tenantDocs.forEach(d => add('tenants', d.id, `租客 ${d.data().name || ''}`));
+  roomDocs.forEach(d => add('rooms', d.id, `房間 ${d.data().name || ''}`));
+  propertyDocs.forEach(d => add('properties', d.id, `建物 ${d.data().name || ''}`));
+
+  // ── 關聯資料 ──
+  await scanEq('bills', 'relatedTenantDocId', tenantIds, '帳單');
+  await scanEq('bills', 'tenantId', tenantUids, '帳單');
+  await scanEq('contracts', 'tenantDocId', tenantIds, '合約');
+  await scanEq('contracts', 'tenantId', tenantUids, '合約');
+  await scanEq('signed_contracts', 'tenantId', tenantUids, '簽署合約');
+  await scanEq('repair_requests', 'tenantId', tenantUids, '報修');
+  await scanEq('messages', 'tenantId', tenantUids, '訊息');
+  await scanEq('payment_proofs', 'tenantId', tenantUids, '付款證明');
+  await scanEq('reviews', 'tenantId', tenantUids, '評價');
+  await scanEq('meter_readings', 'roomId', roomIds, '抄表紀錄');
+  await scanEq('meter_readings', 'roomName', roomNames, '抄表紀錄');
+  await scanEq('tenant_activations', 'tenantDocId', tenantIds, '啟用連結');
+  await scanEq('line_bindings', 'uid', tenantUids, 'LINE 綁定碼');
+  tenantUids.forEach(uid => add('users', uid, '租客帳號資料'));
+
+  const summary = plan.reduce((m, i) => { m[i.coll] = (m[i.coll] || 0) + 1; return m; }, {});
+
+  if (mode === 'preview') {
+    return {
+      mode: 'preview',
+      items: plan,
+      summary,
+      authAccounts: tenantUids.length,
+      total: plan.length,
+    };
+  }
+
+  // ── 執行 ──
+  let deleted = 0;
+  for (let i = 0; i < plan.length; i += 400) {
+    const batch = db.batch();
+    plan.slice(i, i + 400).forEach(x => batch.delete(db.collection(x.coll).doc(x.id)));
+    await batch.commit();
+    deleted += Math.min(400, plan.length - i);
+  }
+
+  let authDeleted = 0;
+  for (const uid of tenantUids) {
+    try { await getAuth().deleteUser(uid); authDeleted++; }
+    catch (e) { logger.warn('purgeData: delete auth failed', { uid, error: e.message }); }
+  }
+
+  logger.info('purgeData: executed', { callerUid, scope, deleted, authDeleted });
+  return { mode: 'execute', deleted, authDeleted, summary, total: plan.length };
 });

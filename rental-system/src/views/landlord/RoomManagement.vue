@@ -412,6 +412,11 @@
             </select>
           </div>
 
+          <label v-if="!isViewMode" class="flex items-center gap-2 text-sm text-text-secondary-light">
+            <input id="room-is-test" v-model="form.isTest" type="checkbox" class="rounded">
+            這是測試資料（可由租客列表的「清除測試資料」一次移除）
+          </label>
+
           <!-- 公開找房頁 toggle（僅空置時可用） -->
           <div
             v-if="!isViewMode"
@@ -709,6 +714,8 @@ interface Room {
   subGroupId?: string;
   /** 所屬建物；指派於「建物」分頁，房源表單不動它 */
   propertyId?: string;
+  /** 測試資料標記 */
+  isTest?: boolean;
 }
 
 // --- State ---
@@ -867,7 +874,7 @@ const confirmDeleteRoom = ref(false);
 const form = ref<Partial<Room>>({
   name: '', price: 0, size: 0, address: '', layout: '獨立套房', status: 'vacant',
   tenantName: '', leaseEnd: '', images: [], coverImage: '', isPublic: false, purchaseCost: undefined,
-  subGroupId: ''
+  subGroupId: '', isTest: false
 });
 
 // 電表子群組選項（僅供顯示所屬群組下拉；CRUD 在抄表頁「計算參數設定」）
@@ -1010,7 +1017,7 @@ const openModal = (room?: Room, mode: 'create' | 'edit' | 'view' = 'create') => 
     form.value = {
       name: '', price: 0, size: 0, address: '', layout: '獨立套房', status: 'vacant',
       type: '公寓', tenantName: '', leaseEnd: '', images: [], coverImage: '', isPublic: false, purchaseCost: undefined,
-      subGroupId: ''
+      subGroupId: '', isTest: false
     };
   }
   isEditing.value = !!room;

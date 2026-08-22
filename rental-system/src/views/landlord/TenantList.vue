@@ -133,8 +133,17 @@
         </span>
       </template>
       <button
+        v-if="hasTestData"
+        @click="purgeRequest = { scope: 'test', confirmWord: '清除測試資料', title: '清除所有測試資料' }"
+        class="ml-auto text-xs text-red-600 hover:underline flex items-center gap-1"
+      >
+        <span class="material-symbols-outlined text-[14px]" aria-hidden="true">delete_sweep</span>
+        清除測試資料
+      </button>
+      <button
         @click="loadAccountStatuses" :disabled="isLoadingAccounts"
-        class="ml-auto text-xs text-gold-600 hover:underline disabled:opacity-50 flex items-center gap-1"
+        class="text-xs text-gold-600 hover:underline disabled:opacity-50 flex items-center gap-1"
+        :class="{ 'ml-auto': !hasTestData }"
       >
         <span class="material-symbols-outlined text-[14px]" :class="{ 'animate-spin': isLoadingAccounts }" aria-hidden="true">refresh</span>
         重新查詢
@@ -344,6 +353,12 @@
       </div>
     </div>
 
+    <PurgeConfirmModal
+      :request="purgeRequest"
+      @close="purgeRequest = null"
+      @done="onPurged"
+    />
+
     <TenantCredentialModal
       :credential="createdCredential"
       :activation-link="activationLink"
@@ -426,6 +441,10 @@
               繳費截止日：每月 <span class="font-semibold text-blue-700 dark:text-blue-300">{{ authStore.userProfile?.settings?.paymentDay ?? 5 }}</span> 號（依房東設定）
             </div>
             <RentSubsidyFields v-model="form.rentSubsidy" id-prefix="modal" />
+            <label class="mt-3 flex items-center gap-2 text-sm text-text-secondary-light">
+              <input id="modal-is-test" v-model="form.isTest" type="checkbox" class="rounded">
+              這是測試資料（可由「清除測試資料」一次移除）
+            </label>
             <div class="grid grid-cols-2 gap-4 mt-3">
               <div>
                 <label for="modal-rent" class="block text-sm font-medium text-text-secondary-light mb-1">每月租金 (NT$)</label>
@@ -742,6 +761,30 @@
                     {{ isCreatingAccount ? '產生中…' : '產生啟用連結' }}
                   </button>
                   <button
+                    v-if="drawerTenant?.uid && !drawerTenant?.isHistorical"
+                    @click="doResetPassword(drawerTenant!)"
+                    :disabled="isAccountBusy"
+                    class="w-full py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    title="把密碼重設回證件號碼"
+                  >
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">lock_reset</span>
+                    重設密碼為證件號碼
+                  </button>
+                  <button
+                    v-if="drawerTenant?.uid && !drawerTenant?.isHistorical"
+                    @click="toggleDisabled(drawerTenant!)"
+                    :disabled="isAccountBusy"
+                    class="w-full py-2.5 border rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    :class="drawerAccountState.key === 'disabled'
+                      ? 'border-green-200 dark:border-green-700 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20'
+                      : 'border-gray-200 dark:border-gray-700 text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800'"
+                  >
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">
+                      {{ drawerAccountState.key === 'disabled' ? 'lock_open' : 'block' }}
+                    </span>
+                    {{ drawerAccountState.key === 'disabled' ? '恢復帳號' : '停用帳號' }}
+                  </button>
+                  <button
                     v-if="canCreateAccount(drawerTenant)"
                     @click="createAccountForTenant(drawerTenant!)"
                     :disabled="isCreatingAccount"
@@ -849,6 +892,10 @@
                     繳費截止日：每月 <span class="font-semibold text-blue-700 dark:text-blue-300">{{ authStore.userProfile?.settings?.paymentDay ?? 5 }}</span> 號（依房東設定）
                   </div>
                   <RentSubsidyFields v-model="form.rentSubsidy" id-prefix="drawer" />
+                  <label class="mt-3 flex items-center gap-2 text-sm text-text-secondary-light">
+                    <input id="drawer-is-test" v-model="form.isTest" type="checkbox" class="rounded">
+                    這是測試資料（可由「清除測試資料」一次移除）
+                  </label>
                   <div class="grid grid-cols-2 gap-4 mt-3">
                     <div>
                       <label for="drawer-rent" class="block text-sm font-medium text-text-secondary-light mb-1">每月租金 (NT$)</label>
@@ -1115,6 +1162,7 @@ import { httpsCallable } from 'firebase/functions';
 import { useAuthStore } from '../../stores/auth';
 import { roomMonthlyRent } from '../../utils/room';
 import TenantCredentialModal from '../../components/TenantCredentialModal.vue';
+import PurgeConfirmModal, { type PurgeRequest } from '../../components/tenants/PurgeConfirmModal.vue';
 import { useToastStore } from '../../stores/toast';
 import MoveOutWizard from '../../components/MoveOutWizard.vue';
 import MoveInInspectionModal from '../../components/MoveInInspectionModal.vue';
@@ -1186,6 +1234,8 @@ interface Tenant {
   onboarding?: OnboardingState;
   /** 政府租金補貼；公益出租人資格的事實來源 */
   rentSubsidy?: RentSubsidy;
+  /** 測試資料標記；衍生資料不帶旗標，清除時靠關聯反查 */
+  isTest?: boolean;
   createdAt?: any;
 }
 
@@ -1695,7 +1745,7 @@ const isEditing = ref(false);
 const form = ref<Partial<Tenant>>({
   name: '', room: '', phone: '', email: '', idNumber: '',
   leaseStart: todayStr(), leaseEnd: calcLeaseEnd(todayStr(), 1),
-  rentSubsidy: { hasSubsidy: false, from: '', to: '', docNo: '' },
+  rentSubsidy: { hasSubsidy: false, from: '', to: '', docNo: '' }, isTest: false,
   leaseDuration: 1, rent: 0, depositMonths: 2,
   paymentStatus: 'normal', emergencyContact: '', note: ''
 });
@@ -1703,6 +1753,52 @@ const form = ref<Partial<Tenant>>({
 // 建立帳號後顯示給房東的登入憑證
 const createdCredential = ref<{ phone: string; idNumber: string } | null>(null);
 const activationLink = ref('');
+const purgeRequest = ref<PurgeRequest | null>(null);
+const isAccountBusy = ref(false);
+
+const hasTestData = computed(() => tenants.value.some(t => t.isTest));
+
+const drawerAccountState = computed(() =>
+  accountStateOf(drawerTenant.value || {}, accountStatuses.value)
+);
+
+const onPurged = async () => {
+  closeDrawer();
+  await loadAccountStatuses();
+};
+
+/** 重設回證件號碼，房東不必傳新密碼給租客，租客也不必記 */
+const doResetPassword = async (tenant: Tenant) => {
+  if (!tenant.uid) return;
+  if (!tenant.idNumber) { toast.warning('此租客沒有證件號碼，無法重設'); return; }
+  isAccountBusy.value = true;
+  try {
+    const fn = httpsCallable(functions, 'resetTenantPassword');
+    await fn({ uid: tenant.uid, newPassword: tenant.idNumber });
+    toast.success('密碼已重設為證件號碼');
+  } catch (e: any) {
+    toast.error(e?.message || '重設失敗');
+  } finally {
+    isAccountBusy.value = false;
+  }
+};
+
+/** 停用不刪任何資料，只是讓租客登不進來；退租時用這個而非刪除 */
+const toggleDisabled = async (tenant: Tenant) => {
+  if (!tenant.uid) return;
+  const next = drawerAccountState.value.key !== 'disabled';
+  isAccountBusy.value = true;
+  try {
+    const fn = httpsCallable(functions, 'setTenantAccountDisabled');
+    await fn({ uid: tenant.uid, disabled: next });
+    toast.success(next ? '帳號已停用' : '帳號已恢復');
+    await loadAccountStatuses();
+  } catch (e: any) {
+    toast.error(e?.message || '操作失敗');
+  } finally {
+    isAccountBusy.value = false;
+  }
+};
 const activationError = ref('');
 const activationExpireDays = ref(7);
 
@@ -1770,7 +1866,7 @@ const openNewTenantModal = () => {
   form.value = {
     name: '', room: '', phone: '', email: '',
     leaseStart: today, leaseEnd: calcLeaseEnd(today, 1),
-    rentSubsidy: { hasSubsidy: false, from: '', to: '', docNo: '' },
+    rentSubsidy: { hasSubsidy: false, from: '', to: '', docNo: '' }, isTest: false,
     leaseDuration: 1, rent: 0, depositMonths: 2,
     paymentFrequency: 'monthly',
     paymentStatus: 'normal', emergencyContact: '', note: ''
