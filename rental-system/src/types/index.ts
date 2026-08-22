@@ -113,6 +113,53 @@ export interface Property {
   createdAt?: any;
 }
 
+/** 建物年度費用的種類。皆為租賃所得的可列舉必要費用 */
+export const PropertyCostType = {
+  HouseTax: '房屋稅',
+  LandTax: '地價稅',
+  FireInsurance: '火災險',
+} as const;
+export type PropertyCostType = typeof PropertyCostType[keyof typeof PropertyCostType];
+
+/** 一筆費用分攤到某一棟的金額 */
+export interface CostAllocation {
+  propertyId: string;
+  amount: number;
+}
+
+/**
+ * 建物年度費用（房屋稅／地價稅／火災險）。
+ *
+ * 與 `bills` 的分工：本表是主檔，記錄稅單／保單本身（所屬期間、單號、
+ * 憑證、繳納期限），**無論繳沒繳都存在**；`bills` 只在標記已繳時才依
+ * allocations 落帳，維持「bills 純現金流」——因為帳務頁的「本月支出」
+ * 不看狀態、月內全算，未繳的稅單若先落帳會讓當月支出提前虛增。
+ *
+ * allocations 支援一張稅單跨多棟：地價稅是按土地所有權人在同一縣市的
+ * 全部土地合併計算後開單，一張稅單可能涵蓋多棟的地。
+ */
+export interface PropertyCost {
+  id: string;
+  landlordId: string;
+  type: PropertyCostType;
+  /** 所屬期間起日 YYYY-MM-DD。與繳款日分開：房屋稅課稅期間是前一年 7/1～當年 6/30 */
+  periodStart: string;
+  periodEnd: string;
+  /** 稅單／保單總額。allocations 加總必須等於此值 */
+  amount: number;
+  allocations: CostAllocation[];
+  /** 繳納期限 */
+  dueDate: string;
+  /** 實際繳納日；有值才視為已繳並落帳到 bills */
+  paidAt?: string;
+  /** 稅單號／保單號 */
+  docNo?: string;
+  attachmentUrl?: string;
+  /** 落帳時產生的 bills 文件 id，取消已繳或刪除時據此回收 */
+  billIds?: string[];
+  createdAt?: any;
+}
+
 export interface Tenant {
   id: string;
   uid?: string;

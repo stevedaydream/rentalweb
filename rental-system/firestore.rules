@@ -262,6 +262,14 @@ service cloud.firestore {
       allow delete: if isAdmin() || isLandlordData();
     }
 
+    // 建物年度費用 (property_costs) — 房屋稅／地價稅／火災險的稅單與保單主檔
+    // 標記已繳時才依 allocations 落帳到 bills，維持 bills 為純現金流
+    match /property_costs/{costId} {
+      allow read: if isLandlordData() || isAdmin();
+      allow create: if isCreatingAsLandlord() || isAdmin();
+      allow update, delete: if isLandlordData() || isAdmin();
+    }
+
     // 建物 (properties) — 房屋稅／地價稅／火險與公益出租人的歸屬單位
     // 與 meter_groups 各自獨立：台電按電號寄帳單，一棟可能有兩個電號
     match /properties/{propertyId} {

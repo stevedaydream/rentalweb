@@ -49,6 +49,11 @@
               <span class="material-symbols-outlined text-[18px] text-yellow-500">electric_bolt</span>台電帳單
             </button>
             <div class="border-t border-ink-100 dark:border-ink-700"></div>
+            <button @click="showPropertyCostsModal = true; showMoreMenu = false"
+              class="w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-surface-light dark:hover:bg-surface-dark transition-colors text-ink-600 dark:text-ink-200">
+              <span class="material-symbols-outlined text-[18px] text-rose-500" aria-hidden="true">receipt_long</span>稅費與保險
+            </button>
+            <div class="border-t border-ink-100 dark:border-ink-700"></div>
             <button @click="showPrintBillsModal = true; showMoreMenu = false"
               class="w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-surface-light dark:hover:bg-surface-dark transition-colors text-ink-600 dark:text-ink-200">
               <span class="material-symbols-outlined text-[18px] text-blue-500">print</span>列印帳單
@@ -445,6 +450,7 @@
     <BillTransactionModal v-model:show="showModal" v-model="form" :is-editing="isEditing" :tenants="tenantsList" @save="saveTransaction" />
     <TaipowerModal v-model:show="showTaipowerModal" v-model="taipowerForm" :groups="taipowerGroupOptions" @save="saveTaipowerBill" />
     <PrintBillsModal v-model:show="showPrintBillsModal" :month="currentMonth" />
+    <PropertyCostsModal v-model:show="showPropertyCostsModal" :properties="propertiesList" />
     <BillHistoryModal v-model:show="showHistoryModal" :history="selectedHistory" />
 
     <!-- 一鍵生成帳單確認 Modal -->
@@ -620,6 +626,7 @@ import TaipowerModal from '../../components/financials/TaipowerModal.vue'
 import PrintBillsModal from '../../components/financials/PrintBillsModal.vue'
 import BillHistoryModal from '../../components/financials/BillHistoryModal.vue'
 import ElectricityStatsCard from '../../components/financials/ElectricityStatsCard.vue'
+import PropertyCostsModal from '../../components/financials/PropertyCostsModal.vue'
 import {
   shouldGenerateBill, getBillingAmount, getBillingDescription, publicMeterShare,
 } from '../../utils/meter/billing'
@@ -635,6 +642,8 @@ import {
 import { getPublicMeters } from '../../services/publicMeterService'
 import { getMeterGroups } from '../../services/meterGroupService'
 import { getRooms } from '../../services/roomService'
+import { getProperties } from '../../services/propertyService'
+import type { Property } from '../../types/index'
 import { buildSubGroupIndex } from '../../utils/meter/groups'
 import { buildElectricityStatsList } from '../../utils/financials/electricity'
 import { UNGROUPED_ID, type MeterGroupDoc } from '../../components/meter/types'
@@ -671,6 +680,7 @@ const taipowerBills = ref<TaipowerBill[]>([])
 const tenantsList = ref<{ id: string; name: string; room: string }[]>([])
 const meterGroups = ref<MeterGroupDoc[]>([])
 const roomsList = ref<Room[]>([])
+const propertiesList = ref<Property[]>([])
 const loading = ref(true)
 const markingPaidId = ref<string | null>(null)
 const sendingLine = ref(false)
@@ -680,6 +690,7 @@ const currentTab = ref('all')
 const showModal = ref(false)
 const showTaipowerModal = ref(false)
 const showPrintBillsModal = ref(false)
+const showPropertyCostsModal = ref(false)
 const showHistoryModal = ref(false)
 const showGenerateConfirm = ref(false)
 const showMoreMenu = ref(false)
@@ -771,6 +782,9 @@ const initDataListeners = (uid: string) => {
   getRooms(uid)
     .then(rs => { roomsList.value = rs })
     .catch(e => console.error('讀取房間失敗:', e))
+  getProperties(uid)
+    .then(ps => { propertiesList.value = ps })
+    .catch(e => console.error('讀取建物失敗:', e))
 
   unsubscribeBills = onSnapshot(
     query(collection(db, 'bills'), where('landlordId', '==', uid), orderBy('date', 'desc'), limit(200)),
@@ -974,6 +988,9 @@ const categoryBadge = (cat: string) => {
     '電費': 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
     '公共電費': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
     '台電帳單': 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300',
+    '房屋稅': 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+    '地價稅': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+    '火災險': 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
   }
   return map[cat] || 'bg-surface-light dark:bg-surface-dark text-ink-500 dark:text-ink-300'
 }

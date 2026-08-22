@@ -299,6 +299,10 @@ const incomeCategories = [
 
 const expenseCategories = [
   { value: '台電帳單', label: '台電帳單', active: 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-300' },
+  // 以下三項正常由「稅費與保險」標記已繳時自動落帳，保留手動選項供補登舊資料
+  { value: '房屋稅', label: '房屋稅', active: 'bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-900/30 dark:text-rose-300' },
+  { value: '地價稅', label: '地價稅', active: 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300' },
+  { value: '火災險', label: '火災險', active: 'bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-300' },
   { value: '修繕費', label: '修繕費', active: 'bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-300' },
   { value: '清潔費', label: '清潔費', active: 'bg-teal-100 text-teal-700 border-teal-300 dark:bg-teal-900/30 dark:text-teal-300' },
   { value: '退還押金', label: '退還押金', active: 'bg-pink-100 text-pink-700 border-pink-300 dark:bg-pink-900/30 dark:text-pink-300' },
