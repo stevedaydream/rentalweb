@@ -95,9 +95,17 @@ export const useAuthStore = defineStore('auth', () => {
 
     // 監聽後續 auth 狀態變化（登出等）
     onAuthStateChanged(auth, async (currentUser) => {
+      const hadUser = !!user.value;
       user.value = currentUser;
       if (!currentUser) {
         userProfile.value = null;
+        impersonatingLandlord.value = null;
+        // 登入階段中途失效（逾期、他處登出、清除瀏覽資料）時，畫面仍停在受保護頁，
+        // 之後每個寫入都會撞 PERMISSION_DENIED 且看不出原因，故主動導回登入。
+        // 僅在「原本有人」時導向，避免首次載入尚未還原登入狀態就把人踢走。
+        if (hadUser && router.currentRoute.value.meta?.requiresAuth) {
+          router.push({ name: 'Login', query: { redirect: router.currentRoute.value.fullPath } });
+        }
         return;
       }
       if (!userProfile.value) {
