@@ -195,12 +195,14 @@
             <span class="material-symbols-outlined text-[56px]" :class="completedKeys.inspection ? 'text-green-500' : 'text-gold-300'">checklist</span>
             <div>
               <h3 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">入住點交</h3>
-              <p class="text-sm text-text-secondary-light mt-1 max-w-sm">逐項勾選房間配備與入住狀況，退租時依此點交計算賠償。</p>
+              <p class="text-sm text-text-secondary-light mt-1 max-w-sm">
+                房東先選要確認的項目，再把裝置交給租客逐項確認並拍照，回來二次確認後雙方簽名。
+              </p>
             </div>
-            <button @click="showInspection = true" :disabled="!tenantId"
+            <button @click="openInspectionSession" :disabled="!tenantId || openingInspection"
               class="px-5 py-2.5 rounded-xl bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 transition-colors disabled:opacity-50 flex items-center gap-2">
-              <span class="material-symbols-outlined text-[18px]">checklist</span>
-              {{ completedKeys.inspection ? '查看 / 編輯入住點交' : '建立入住點交' }}
+              <span class="material-symbols-outlined text-[18px]" aria-hidden="true">handshake</span>
+              {{ openingInspection ? '準備中…' : (completedKeys.inspection ? '重新點交 / 查看紀錄' : '開始入住點交') }}
             </button>
             <p v-if="completedKeys.inspection" class="text-sm text-green-600 dark:text-green-400 font-medium">入住點交已完成 ✓</p>
           </section>
@@ -237,13 +239,6 @@
       @close="closeCredentialModal"
     />
 
-    <MoveInInspectionModal
-      v-if="showInspection && tenantId"
-      :tenant="inspectionTenant"
-      :landlord-id="authStore.effectiveUid"
-      @close="showInspection = false"
-      @saved="onInspectionSaved"
-    />
   </div>
 </template>
 
@@ -261,9 +256,8 @@ import {
 import { ONBOARDING_STEPS, type OnboardingStepKey, type OnboardingState } from '../../utils/onboarding';
 import ContractForm from '../../components/ContractForm.vue';
 import DepositReceiptForm from '../../components/DepositReceiptForm.vue';
-import MoveInInspectionModal from '../../components/MoveInInspectionModal.vue';
 import TenantCredentialModal from '../../components/TenantCredentialModal.vue';
-import type { InspectionItem } from '../../utils/inventory';
+import { seedItems, createInspection, findOpenInspection } from '../../services/inspectionService';
 
 const route = useRoute();
 const router = useRouter();
@@ -412,12 +406,52 @@ const receiptPrefill = computed(() => ({
 }));
 const onReceiptSaved = () => { completedKeys.value.receipt = true; };
 
-// ④入住點交（複用 MoveInInspectionModal）
-const showInspection = ref(false);
-const inspectionTenant = computed(() => ({ id: tenantId.value, name: form.value.name, room: form.value.room }));
-const onInspectionSaved = (_items: InspectionItem[]) => {
-  completedKeys.value.inspection = true;
-  showInspection.value = false;
+// ④入住點交：離開精靈進入獨立的雙方點交流程；完成後回精靈時 completedKeys 會重算
+const openingInspection = ref(false);
+
+/** 精靈的房源下拉只留名稱，沿用上次點交需要房間 id，故臨時反查一次 */
+const roomIdByName = async (name: string): Promise<string> => {
+  if (!name) return '';
+  try {
+    const snap = await getDocs(query(
+      collection(db, 'rooms'),
+      where('landlordId', '==', authStore.effectiveUid),
+      where('name', '==', name),
+    ));
+    return snap.docs[0]?.id || '';
+  } catch {
+    return '';
+  }
+};
+
+const openInspectionSession = async () => {
+  if (!tenantId.value) return;
+  openingInspection.value = true;
+  try {
+    const open = await findOpenInspection(authStore.effectiveUid, tenantId.value);
+    if (open) {
+      router.push({ name: 'InspectionSession', params: { inspectionId: open.id } });
+      return;
+    }
+    const ctx = {
+      landlordId: authStore.effectiveUid,
+      tenantDocId: tenantId.value,
+      tenantName: form.value.name || '',
+      roomId: await roomIdByName(form.value.room),
+      roomName: form.value.room || '',
+    };
+    const seed = await seedItems(ctx);
+    const id = await createInspection(ctx, seed.items);
+    router.push({
+      name: 'InspectionSession',
+      params: { inspectionId: id },
+      query: { from: seed.sourceLabel },
+    });
+  } catch (e: any) {
+    toast.error(e?.message || '無法開啟點交');
+  } finally {
+    openingInspection.value = false;
+  }
 };
 
 onMounted(async () => {

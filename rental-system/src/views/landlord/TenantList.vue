@@ -802,20 +802,13 @@
                     <span class="material-symbols-outlined text-[18px]">edit</span>編輯租客資料與合約
                   </button>
                   <button
-                    @click="openMoveInInspection"
-                    class="w-full py-2.5 border border-gold-200 dark:border-gold-700 rounded-xl text-sm font-medium text-gold-700 dark:text-gold-300 hover:bg-gold-50 dark:hover:bg-gold-900/20 flex items-center justify-center gap-2 transition-colors"
-                  >
-                    <span class="material-symbols-outlined text-[18px]">checklist</span>
-                    {{ drawerTenant?.moveInInspection ? '查看 / 編輯入住點交' : '建立入住點交清單' }}
-                  </button>
-                  <button
                     @click="openInspectionSession"
                     :disabled="isOpeningInspection"
-                    class="w-full py-2.5 border border-dashed border-gold-300 dark:border-gold-700 rounded-xl text-sm font-medium text-gold-700 dark:text-gold-300 hover:bg-gold-50 dark:hover:bg-gold-900/20 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    class="w-full py-2.5 border border-gold-200 dark:border-gold-700 rounded-xl text-sm font-medium text-gold-700 dark:text-gold-300 hover:bg-gold-50 dark:hover:bg-gold-900/20 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
                     title="房東選項目 → 遞給租客逐項確認 → 二次確認 → 雙方簽名"
                   >
                     <span class="material-symbols-outlined text-[18px]" aria-hidden="true">handshake</span>
-                    {{ isOpeningInspection ? '準備中…' : '新版雙方點交（開發中）' }}
+                    {{ isOpeningInspection ? '準備中…' : (drawerTenant?.moveInInspection ? '重新點交 / 查看紀錄' : '入住點交') }}
                   </button>
                   <button
                     v-if="drawerTenant?.room"
@@ -1053,14 +1046,6 @@
     </Transition>
 
     <!-- Move-out Wizard -->
-    <MoveInInspectionModal
-      v-if="showMoveInInspection && drawerTenant"
-      :tenant="drawerTenant"
-      :landlord-id="authStore.effectiveUid"
-      @close="showMoveInInspection = false"
-      @saved="onMoveInInspectionSaved"
-    />
-
     <MoveOutWizard
       v-if="showMoveOutWizard && drawerTenant"
       :tenant="drawerTenant"
@@ -1176,7 +1161,6 @@ import PurgeConfirmModal, { type PurgeRequest } from '../../components/tenants/P
 import { seedItems, createInspection, findOpenInspection } from '../../services/inspectionService';
 import { useToastStore } from '../../stores/toast';
 import MoveOutWizard from '../../components/MoveOutWizard.vue';
-import MoveInInspectionModal from '../../components/MoveInInspectionModal.vue';
 import type { InspectionItem } from '../../utils/inventory';
 import { tenantLifecycle, LIFECYCLE_BADGE, type OnboardingState } from '../../utils/onboarding';
 import TenantImportModal from '../../components/TenantImportModal.vue';
@@ -2570,8 +2554,6 @@ const clearMeterReadings = async () => {
 const showMoveOutWizard = ref(false);
 const openMoveOutWizard = () => { showMoveOutWizard.value = true; };
 
-const showMoveInInspection = ref(false);
-const openMoveInInspection = () => { showMoveInInspection.value = true; };
 const continueOnboarding = (t: Tenant) => { router.push({ name: 'OnboardingMode', params: { tenantId: t.id } }); };
 
 // 待確認：核可線上填表 → 建立租客（onboarding step1，待補房源/簽約）；或忽略
@@ -2599,12 +2581,6 @@ const dismissInvite = async (inv: any) => {
     await updateDoc(doc(db, 'onboarding_invites', inv.id), { status: 'dismissed' });
   } catch (e) {
     console.error('忽略失敗:', e);
-  }
-};
-// 儲存後就地更新抽屜租客，使同場退租流程立即帶入點交清單
-const onMoveInInspectionSaved = (items: InspectionItem[]) => {
-  if (drawerTenant.value) {
-    drawerTenant.value.moveInInspection = { inspectedAt: new Date(), items };
   }
 };
 const onMoveOutCompleted = () => {

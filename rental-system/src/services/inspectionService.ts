@@ -1,12 +1,12 @@
 import { db } from '../firebase/config'
 import {
-  collection, addDoc, updateDoc, doc, getDoc, getDocs,
+  collection, addDoc, updateDoc, doc, getDoc, getDocs, writeBatch,
   query, where, orderBy, limit, serverTimestamp,
 } from 'firebase/firestore'
 import { v4 as uuid } from 'uuid'
 import { DEFAULT_CATALOG, type CatalogItem, type InspectionItem } from '../utils/inventory'
 import {
-  entriesFromCatalog, entriesFromLegacy, seedEntriesFrom,
+  entriesFromCatalog, entriesFromLegacy, seedEntriesFrom, toSummaryItems,
   DEFAULT_CONDITION_CATALOG,
   type Inspection, type InspectionEntry, type InspectionStatus, type InspectionType,
 } from '../utils/inspection'
@@ -152,4 +152,39 @@ export const setStatus = (id: string, status: InspectionStatus, extra: Record<st
 export const handToTenant = async (id: string, items: InspectionEntry[]) => {
   await saveItems(id, items)
   await setStatus(id, 'tenant')
+}
+
+/**
+ * 雙方簽名完成。
+ *
+ * 同時回寫一份摘要到 tenants.moveInInspection，讓退租儀不必認識新結構；
+ * 兩筆寫入放同一個 batch，避免出現「點交完成了但退租看不到」的半套狀態。
+ */
+export const completeInspection = async (
+  insp: Inspection,
+  items: InspectionEntry[],
+  signatures: { tenant: string; landlord: string },
+) => {
+  const batch = writeBatch(db)
+  batch.update(doc(db, COLL, insp.id), {
+    items,
+    status: 'signed' as InspectionStatus,
+    signatures: {
+      tenant: { image: signatures.tenant, at: Date.now() },
+      landlord: { image: signatures.landlord, at: Date.now() },
+    },
+    completedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+  if (insp.type !== 'moveout' && insp.tenantDocId) {
+    batch.update(doc(db, 'tenants', insp.tenantDocId), {
+      moveInInspection: {
+        inspectedAt: Date.now(),
+        inspectionId: insp.id,
+        items: toSummaryItems(items),
+      },
+      updatedAt: serverTimestamp(),
+    })
+  }
+  await batch.commit()
 }

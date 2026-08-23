@@ -1,5 +1,5 @@
 // 點交（入住 / 退租）共用：物品主檔預設、毀損等級、賠償比例與計算。
-// 由 Settings 物品主檔、MoveInInspectionModal、MoveOutWizard 三處共用，避免規則散落。
+// 由 Settings 物品主檔、雙方點交（utils/inspection.ts）、MoveOutWizard 共用，避免規則散落。
 
 export interface CatalogItem {
   name: string

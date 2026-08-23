@@ -80,19 +80,63 @@
           @clear="onClearDispute"
         />
 
+        <SignStep
+          v-else-if="inspection?.status === 'signing'"
+          :items="items"
+          :landlord-id="inspection.landlordId"
+          :tenant-sig="tenantSig"
+          :landlord-sig="landlordSig"
+          @update:tenant-sig="tenantSig = $event"
+          @update:landlord-sig="landlordSig = $event"
+        />
+
+        <div v-else-if="inspection?.status === 'signed'" class="py-12 text-center">
+          <span class="material-symbols-outlined text-5xl text-green-500 block mb-3" aria-hidden="true">task_alt</span>
+          <p class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">點交完成</p>
+          <p class="mt-1 text-sm text-text-secondary-light">
+            共 {{ items.length }} 項<span v-if="contestedCount">，其中 {{ contestedCount }} 項經雙方協調</span>
+          </p>
+          <div class="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+            <button @click="printPdf" :disabled="printing"
+              class="px-6 py-2.5 rounded-xl bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+              <span class="material-symbols-outlined text-[18px]" aria-hidden="true">print</span>
+              {{ printing ? '準備中…' : '列印／另存 PDF' }}
+            </button>
+            <button @click="leave"
+              class="px-6 py-2.5 rounded-xl border border-ink-200 dark:border-ink-600 text-sm font-medium text-text-secondary-light">
+              回租客清單
+            </button>
+          </div>
+          <p class="mt-4 text-xs text-text-secondary-light">
+            租客登入後也能在自己的頁面查閱這份清單。
+          </p>
+        </div>
+
         <div v-else class="py-16 text-center">
           <span class="material-symbols-outlined text-4xl text-ink-200 block mb-3" aria-hidden="true">construction</span>
-          <p class="text-sm font-medium text-text-primary-light dark:text-text-primary-dark">
-            {{ stageBadge.label }}階段尚未開放
-          </p>
-          <p class="mt-1 text-xs text-text-secondary-light">雙方簽名在第五段，尚未開放。</p>
+          <p class="text-sm text-text-secondary-light">未知的點交狀態</p>
           <button @click="backToDraft" :disabled="saving"
             class="mt-4 px-5 py-2 rounded-xl border border-ink-200 dark:border-ink-600 text-sm font-medium text-text-secondary-light disabled:opacity-50">
-            退回上一階段
+            退回草稿
           </button>
         </div>
       </div>
     </main>
+
+    <footer v-if="!loading && !error && inspection?.status === 'signing'"
+      class="shrink-0 px-4 py-3 bg-white dark:bg-card-dark border-t border-ink-100 dark:border-ink-700">
+      <div class="max-w-3xl mx-auto flex items-center gap-3">
+        <button @click="backToReview" :disabled="saving"
+          class="px-4 py-2.5 rounded-xl border border-ink-200 dark:border-ink-600 text-sm font-medium text-text-secondary-light disabled:opacity-50">
+          回二次確認
+        </button>
+        <button @click="complete" :disabled="saving || !bothSigned"
+          class="ml-auto px-6 py-2.5 rounded-xl bg-green-600 text-white text-sm font-bold hover:bg-green-700 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
+          <span class="material-symbols-outlined text-[18px]" aria-hidden="true">task_alt</span>
+          {{ saving ? '完成中…' : '完成點交' }}
+        </button>
+      </div>
+    </footer>
 
     <footer v-if="!loading && !error && inspection?.status === 'review'"
       class="shrink-0 px-4 py-3 bg-white dark:bg-card-dark border-t border-ink-100 dark:border-ink-700">
@@ -161,13 +205,17 @@ import DraftStep from '../../components/inspection/DraftStep.vue'
 import TenantConfirmStep from '../../components/inspection/TenantConfirmStep.vue'
 import HandBackModal from '../../components/inspection/HandBackModal.vue'
 import LandlordReviewStep from '../../components/inspection/LandlordReviewStep.vue'
+import SignStep from '../../components/inspection/SignStep.vue'
+import inspectionTemplate from '../../templates/moveInInspection.html?raw'
+import { printHtmlPdf } from '../../utils/contractRender'
+import { buildPdfData, pdfFileName } from '../../utils/inspectionPdf'
 import { useInspectionPhotos } from '../../composables/useInspectionPhotos'
 import { useSignatureVault } from '../../composables/useSignatureVault'
 import {
-  getInspection, saveItems, handToTenant, setStatus,
+  getInspection, saveItems, handToTenant, setStatus, completeInspection,
 } from '../../services/inspectionService'
 import {
-  canHandToTenant, canReturnToLandlord, tenantProgress, canSign,
+  canHandToTenant, canReturnToLandlord, tenantProgress, canSign, contestedItems,
   markDispute, resolveDispute, clearDispute,
   type Inspection, type InspectionEntry,
 } from '../../utils/inspection'
@@ -181,7 +229,8 @@ const STAGES = [
   { key: 'draft', label: '選項目' },
   { key: 'tenant', label: '租客確認' },
   { key: 'review', label: '二次確認' },
-  { key: 'signed', label: '雙方簽名' },
+  { key: 'signing', label: '雙方簽名' },
+  { key: 'signed', label: '完成' },
 ] as const
 
 const loading = ref(true)
@@ -205,6 +254,12 @@ const remainingCount = computed(() => {
 })
 const readyToSign = computed(() =>
   canSign({ status: 'review', items: items.value }) && photos.pendingCount.value === 0)
+
+const tenantSig = ref('')
+const landlordSig = ref('')
+const printing = ref(false)
+const bothSigned = computed(() => !!tenantSig.value && !!landlordSig.value)
+const contestedCount = computed(() => contestedItems(items.value).length)
 const stageIndex = computed(() => STAGES.findIndex(s => s.key === inspection.value?.status))
 const typeLabel = computed(() => (inspection.value?.type === 'moveout' ? '退租點交' : '入住點交'))
 
@@ -213,6 +268,7 @@ const stageBadge = computed(() => {
     draft: { label: '草稿', cls: 'bg-ink-100 dark:bg-ink-700 text-text-secondary-light' },
     tenant: { label: '租客確認中', cls: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' },
     review: { label: '二次確認', cls: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300' },
+    signing: { label: '待簽名', cls: 'bg-gold-100 dark:bg-gold-900/30 text-gold-700 dark:text-gold-300' },
     signed: { label: '已完成', cls: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' },
   }
   return map[inspection.value?.status || 'draft'] || map.draft!
@@ -227,6 +283,8 @@ onMounted(async () => {
     inspection.value = found
     items.value = (found.items || []).map(e => ({ ...e }))
     sourceLabel.value = String(route.query.from || '')
+    tenantSig.value = found.signatures?.tenant?.image || ''
+    landlordSig.value = found.signatures?.landlord?.image || ''
     await photos.init()
     void photos.drain(applyPhotoPatch)
   } catch (e: any) {
@@ -331,9 +389,75 @@ const backToTenant = async () => {
   }
 }
 
-const goSign = () => {
-  if (!readyToSign.value) return
-  toast.info('簽名頁在第五段，尚未開放')
+const goSign = async () => {
+  if (!readyToSign.value || !inspection.value) return
+  saving.value = true
+  try {
+    await saveItems(inspection.value.id, items.value)
+    await setStatus(inspection.value.id, 'signing')
+    inspection.value = { ...inspection.value, status: 'signing', items: items.value }
+  } catch (e: any) {
+    toast.error(e?.message || '操作失敗')
+  } finally {
+    saving.value = false
+  }
+}
+
+const backToReview = async () => {
+  if (!inspection.value) return
+  saving.value = true
+  try {
+    await setStatus(inspection.value.id, 'review')
+    inspection.value = { ...inspection.value, status: 'review' }
+  } catch (e: any) {
+    toast.error(e?.message || '操作失敗')
+  } finally {
+    saving.value = false
+  }
+}
+
+const complete = async () => {
+  if (!inspection.value || !bothSigned.value) return
+  saving.value = true
+  try {
+    await completeInspection(inspection.value, items.value, {
+      tenant: tenantSig.value,
+      landlord: landlordSig.value,
+    })
+    inspection.value = { ...inspection.value, status: 'signed', items: items.value }
+    toast.success('點交完成')
+  } catch (e: any) {
+    toast.error(e?.message || '完成失敗')
+  } finally {
+    saving.value = false
+  }
+}
+
+const todayStr = () => {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+const printPdf = async () => {
+  if (!inspection.value) return
+  printing.value = true
+  try {
+    const today = todayStr()
+    const data = buildPdfData(
+      { ...inspection.value, items: items.value },
+      {
+        today,
+        landlordSignature: landlordSig.value,
+        tenantSignature: tenantSig.value,
+      },
+    )
+    await printHtmlPdf(inspectionTemplate, data, pdfFileName(inspection.value, today))
+  } catch (e: any) {
+    toast.error(e?.message || '列印失敗')
+  } finally {
+    printing.value = false
+  }
 }
 
 /**

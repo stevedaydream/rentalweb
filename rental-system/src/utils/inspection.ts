@@ -2,7 +2,8 @@
  * 雙方點交（inspections）共用型別與純函式。
  *
  * 流程是四階段狀態機：draft（房東選項目）→ tenant（租客逐項確認）
- * → review（房東二次確認、標歧異、協調共識）→ signed（雙方簽名，完成）。
+ * → review（房東二次確認、標歧異、協調共識）→ signing（雙方簽名）→ signed（完成）。
+ * signing 獨立成一個持久狀態，是為了讓平板在簽名頁沒電時能接回同一頁。
  *
  * 房東在 review 階段不是「改掉」租客的判定，而是標記歧異、記下自己的主張，
  * 雙方口頭協調後再收斂成 finalCondition。三個值全部留底，退租爭議時才拿得出軌跡。
@@ -12,7 +13,7 @@
  */
 import type { CatalogItem, Condition, InspectionItem } from './inventory'
 
-export type InspectionStatus = 'draft' | 'tenant' | 'review' | 'signed'
+export type InspectionStatus = 'draft' | 'tenant' | 'review' | 'signing' | 'signed'
 export type InspectionType = 'movein' | 'moveout'
 
 /** 逐項的爭議狀態；agreed 為預設（房東接受租客判定） */
