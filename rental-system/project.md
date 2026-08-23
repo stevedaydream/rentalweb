@@ -44,7 +44,8 @@ rental-system/
 │   │   ├── dashboard/     # Dashboard 小元件（6 個）
 │   │   ├── financials/    # 帳務元件（7 個：月份/帳單/台電/列印/歷史/稅費/年度）
 │   │   ├── rooms/         # 建物管理（PropertyTab, PropertyFormModal）
-│   │   ├── tenants/       # 租客元件（TenantStatModal, RentSubsidyFields）
+│   │   ├── tenants/       # 租客元件（TenantStatModal, RentSubsidyFields, PurgeConfirmModal）
+│   │   ├── inspection/    # 雙方點交（Draft/TenantConfirm/LandlordReview/Sign/PhotoCapture/…）
 │   │   └── meter/         # 抄表元件（2 個）
 │   ├── stores/            # Pinia：auth, bill, notification, toast, user
 │   ├── services/          # Firestore CRUD：bill, meter, repair, room, tenant,
@@ -52,6 +53,8 @@ rental-system/
 │   ├── utils/meter/       # 電費計算純函式 + 單元測試（calc / groups / sections / billing）
 │   ├── utils/financials/  # 帳務純函式 + 單元測試（tenantGroups / electricity /
 │   │                      #   propertyCosts / incomeTax / annualSummary / reminders）
+│   ├── utils/             # 其他純函式 + 測試（inspection 狀態機 / inspectionPdf /
+│   │                      #   imageCompress / photoQueue / tenantAccount / inventory）
 │   ├── router/            # 路由設定（含角色守衛）
 │   ├── firebase/          # Firebase 初始化與模擬器自動切換
 │   ├── layouts/           # LandlordLayout, TenantLayout, SuperAdminLayout
@@ -92,6 +95,7 @@ rental-system/
 | `line_configs` | doc ID = landlordId，LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN |
 | `line_bindings` | 綁定碼，uid, expiry |
 | `tenant_activations` | 租客帳號啟用連結：code(doc id), tenantDocId, uid, landlordId, expireAt(7 天), usedAt?(一次性)　※**前端完全禁止讀寫**，發放與兌換全由 Cloud Function 處理——它等同鑰匙，可列舉則二次驗證形同虛設 |
+| `inspections` | id, landlordId, tenantDocId, tenantId?(Auth uid，點交當下未必有帳號), roomId, roomName, type('movein'\|'moveout'), status('draft'→'tenant'→'review'→'signing'→'signed'), items[{key, kind('asset'物品可計賠\|'condition'屋況僅存證), name, quantity, unitPrice, tenantCondition, landlordCondition?, finalCondition?, dispute('agreed'\|'disputed'\|'resolved'), note?, landlordNote?, photos[{id,thumbUrl,origUrl?,pending?}]}], signatures{tenant,landlord}, completedAt?, origPurgedAt?　※**房東二次確認時不覆蓋租客判定**，而是標歧異並記自己的主張，協調後收斂為 finalCondition，三個值全部留底；只要還有 `disputed` 就進不了簽名。完成時同步回寫 `tenants.moveInInspection` 摘要（**僅 asset**，否則單價 0 的屋況項會污染退租賠償表），`MoveOutWizard` 因此不需改動 |
 | `reviews` | id, landlordId, rating(1-5), isVisible, landlordReply |
 | `public_profiles` | doc ID = uid，公開資訊（lineBotId 等） |
 | `taipower_bills` | 台電帳單記錄，landlordId, month(迄月), amount, usage, groupId(所屬台電總表) |
@@ -158,6 +162,7 @@ rental-system/
   - **安全界線**：PIN 保護的是「簽名被再利用」（下載原圖、蓋到其他單據、資料庫外洩），**不是「被看見」** —— 租客簽署時該份文件上本來就會顯示房東簽名
 - 解除房間綁定後無法直接刪除租客修正（2026-08-12）：`drawerTenant` 是開啟抽屜當下的淺複本（`{ ...tenant }`），`unbindRoom` 的註解「drawerTenant 會透過 onSnapshot 自動更新」與事實不符 —— 沒有任何程式碼在同步它。解除綁定後 Firestore 的 `room` 已清空、列表也更新，抽屜內卻仍是舊房號，`:disabled="!!drawerTenant?.room"` 與 `deleteTenant` 的早退判斷雙雙成立，必須關閉抽屜再開才刪得掉。修法：新增 `watch(tenants)` 以 id 對回最新資料同步 `drawerTenant`（置於其宣告之後，避免日後加 `immediate` 觸發 TDZ）
 - 精靈租客可建立登入帳號（2026-08-12）：`createTenantAccount` 原本只有兩個呼叫點 —— `TenantList.saveTenant`（且限 `!isEditing`，即只在手動新增當下）與 Excel 匯入。精靈的 `saveProfile` 完全沒有呼叫，且租客清單沒有「為既有租客補建帳號」入口，導致精靈產生的租客**永遠無法登入**，唯一辦法是刪除重建（連帶失去合約、收據、點交紀錄）。諷刺的是精靈 `:441` 強制要求填證件號碼，那正是建帳號所需欄位。修法：(a) 精靈建檔新增租客時一併呼叫 `createTenantAccount`，失敗僅警告不阻斷上線流程；(b) 租客抽屜新增「建立租客登入帳號」按鈕，條件為 `!uid && phone && idNumber`，用於補救既有資料。憑證提示 Modal 抽為共用元件 `TenantCredentialModal.vue`，兩處共用
+- 雙方入住點交（2026-08-23）：房東選項目 → **實體遞交裝置** → 租客逐項確認並拍照 → PIN 交還 → 房東二次確認與歧異協調 → 雙方簽名 → PDF。全螢幕獨立路由不掛 LandlordLayout（留著側邊選單等於讓租客一點就看到其他租客的身分證號與租金）；遞出前呼叫 `vault.lock()`，交還時以簽名 PIN 驗身分並同時解鎖簽名。品項優先沿用同一間房上次的點交（只帶骨架，狀況與照片重來）。取代舊的單頁 `MoveInInspectionModal`
 - 報修管理（查看/處理租客報修申請）
 - 公告發布
 - 合約管理（自訂範本、PDF 匯出、電子簽名、排程續約：續約後目前租期維持到期滿、新租期存 pendingRenewal 到期自動接續+通知租客+導向重簽；房東「標記不續約」註記）
@@ -175,6 +180,7 @@ rental-system/
 - 報修申請（含圖片上傳）
 - 聯絡房東
 - 大樓資訊
+- 入住點交查閱（唯讀，含協調紀錄、照片與雙方簽名，可自行列印 PDF）
 
 ### 管理員系統
 - 房東管理（列表、詳情）
@@ -205,7 +211,12 @@ rental-system/
 | `sendLineReply` | Callable：房東回覆租客 LINE 訊息 |
 | `sendLineBillNotifications` | Callable：推播帳單通知給租客 |
 | `createTenantAccount` | Callable（房東/Admin）：以手機+身分證建立租客 Firebase Auth 帳號 |
-| `resetTenantPassword` | Callable（Admin）：重設租客登入密碼 |
+| `resetTenantPassword` | Callable（房東/Admin）：重設租客登入密碼，房東僅限自己名下租客 |
+| `getTenantAccountStatus` | Callable（房東/Admin）：讀 Auth `metadata.lastSignInTime` 判定帳號狀態；**不接受前端傳 uid** |
+| `createActivationLink` / `activateTenant` | Callable：一次性啟用連結（7 天、限用一次）與兌換（免登入，需證件號碼相符才發 custom token） |
+| `setTenantAccountDisabled` | Callable（房東/Admin）：停用／恢復租客登入，資料全部保留 |
+| `purgeData` | Callable（房東/Admin）：級聯刪除單一租客或所有 `isTest` 資料；preview 與 execute 共用同一段掃描 |
+| `scheduledPurgeInspectionOriginals` | 定時（每日 04:10）：退租結清滿 2 年後刪除點交照片的高解析備查檔，縮圖永久保留。依 `tenants.moveOutSummary.moveOutDate` 判斷而非檔案年齡——Storage lifecycle 只認得建立時間，長租十年的入住照會在第二年就被誤刪 |
 | `submitRenewalResponse` | Callable（租客）：回覆是否續租，同步 LINE 通知房東 |
 | `notifyTenantRenewal` | Callable（房東）：一鍵續約後 LINE 通知租客新租期 |
 | `lineWebhook`（房東指令） | webhook 內 `handleLandlordCommand`：房東本人（`lineUserId===ownerLineUserId`）可查租客/欠費/到期/電費/報修 |
@@ -281,4 +292,5 @@ rental-system/
 | 2026-08-22 | **稅務／保險整併 階段 3b**：稅費與火險提醒。規則抽為 `src/utils/financials/reminders.ts`（20 項測試）：①開徵期到了但該年度尚未登錄稅單（房屋稅 5 月、地價稅 11 月，開徵前 7 天起至月底）②已登錄未繳，期限 14 天內（剩 3 天內升為最高等級）③逾期 ④火險保單迄日前 30 天（剩 7 天內升級）⑤火險已過期。Dashboard 新增 `TaxReminderCard`（跨滿版置頂，有 danger 時轉紅），載入獨立於主流程、失敗只是少一張卡。LINE 走既有 `scheduledReminderDaily`，新增房東端推播（`line_configs.ownerLineUserId`）：**只在里程碑日推**（稅費 14/7/3/1/0 天前，火險 30/14/7/1/0 天前），逾期每 7 天一次且**最多兩個月**——每日排程若逐日推，一個 14 天的窗會連轟 14 次、逾期更會無限期推下去。以腳本模擬 400 天驗證：單張稅單共 13 次（5 次到期 + 8 次逾期）、火險 5 次 |
 | 2026-08-22 | **稅務／保險整併 階段 3c（完結）**：租金補貼追蹤與公益出租人資格落差提示。`tenants.rentSubsidy` 新欄位，UI 抽為 `components/tenants/RentSubsidyFields.vue` 供桌機與抽屜兩份表單共用（TenantList 有兩套重複表單，直接內嵌會變成第三份重複標記）。`reminders.ts` 擴充三種規則：①補貼到期前 30 天（剩 7 天內升級）②有補貼中租客但該門牌未登錄當年度核定 → 提示可申請 ③已登錄核定但無補貼中租客 → 提示資格待確認。落差判斷逐棟獨立、租客經房號歸戶，房號未歸建物者不誤判；**完全沒有租客資料時不做落差判斷**以免誤報。LINE 補上補貼到期推播（30/14/7/1/0 天前）；資格落差屬常態狀態不推播，只在 Dashboard 顯示。測試 34 項 |
 | 2026-08-23 | **租客帳號管理 階段 A**：租客列表顯示登入帳號狀態。登入紀錄只有 Firebase Auth 有（前端拿不到），新增 callable `getTenantAccountStatus` 以 Admin SDK 讀 `metadata.lastSignInTime`——**刻意不接受前端傳 uid**，由伺服端自撈呼叫者名下租客，否則可塞任意 uid 探測他人帳號。因為讀的是 Auth 本身，既有帳號的歷史狀態可直接追溯，不必等下次登入。狀態判定抽為 `src/utils/tenantAccount.ts`（11 項測試）：未建立／已建立未登入／已啟用（帶最後登入日）／已停用／**帳號已不存在**（`tenants.uid` 指向已刪除 Auth 帳號的孤兒）／查詢中——「尚未查回」與「查回但查無此 uid」必須分得出來，否則會謊報成沒帳號。LINE 綁定為獨立維度，以小圖示另標。列表上方新增帳號概況條與「重新查詢」。**順帶修正**：原「已綁定帳號」標籤判斷 `tenant.isOnlineUser`，而該旗標只有來自 `users` collection 的租客才有，房東手動建立、之後補建帳號的租客 `uid` 有值卻永遠不顯示 |
+| 2026-08-23 | **雙方入住點交**（六段）：原本 `MoveInInspectionModal` 是房東單方勾選的單頁表單，改為房東→租客→房東→雙簽的四階段流程。①**同機遞交**而非租客自己的手機——「還給房東二次確認」語意上就是實體交還，也免掉租客身分驗證與跨裝置同步。②**項目分物品與屋況兩類**：物品帶單價供退租計賠，屋況（牆面／地板／門窗／衛浴…）只記狀況與照片，實務上「入住前就有的壁癌」正是退租最常爭的。③**歧異不是覆蓋**：房東標記不同意並記下自己的主張，協調後選最終狀況（可以是雙方都沒主張過的第三個結果，現場常談成「那算輕微就好」），三個值全部留底並在 PDF 獨立成區置頂——這份文件的價值在於「哪幾項談過、結論是什麼」。只要還有未解決歧異就進不了簽名。④**照片**：一張產兩份（縮圖 1600px/JPEG85 給畫面與 PDF、高解析 2560px/JPEG92 備查），不存相機直出原檔（新手機一張可到 8MB，體積隨機型失控）；壓縮完先落地 IndexedDB，畫面用本地預覽照常往下走，網路回來再補傳——地下室或還沒牽網路的現場不該把租客卡在某一頁。嚴重瑕疵沒照片翻不到下一頁；照片沒傳完也簽不了名（簽名等於封存，證據不能只在平板裡）。⑤解碼走 `createImageBitmap({imageOrientation:'from-image'})`，否則手機直拍會躺著。⑥完成以單一 batch 寫簽名並回寫 `tenants.moveInInspection` 摘要，不會出現「簽完了但退租看不到」的半套狀態 |
 | 2026-08-23 | **租客帳號管理 階段 B/C/D**：①**一次性啟用連結**——`createActivationLink`（7 天、限用一次、產生時作廢該租客舊連結）＋ `activateTenant`（免登入；只帶 code 時僅回姓名供稱呼，帶證件號碼且相符才發 custom token）。連結不含帳密：連結證明「房東發的」、證件號碼證明「本人」，外洩也進不去；custom token 登入自然繞過身分選擇頁。新增 `/activate/:code` 公開路由與 `/tenant/welcome` 引導頁（設密碼可跳過、LINE 綁定自動產碼並附加好友連結；刻意不掛 TenantLayout，有側邊選單租客會直接點走）。②**帳號管理**——`resetTenantPassword` 開放房東並**補上租戶隔離驗證**（原本只驗 `role===admin`、完全沒驗目標是否屬於呼叫者，開放給房東等於任一房東可重設任何人密碼）；新增 `setTenantAccountDisabled`（退租用停用，資料全保留）。③**級聯刪除／測試資料**——`purgeData({mode, scope})` preview 與 execute 共用同一段掃描，預覽數字才等於實際刪除量；掃 bills／contracts／signed_contracts／repair_requests／messages／payment_proofs／reviews／meter_readings／tenant_activations／line_bindings／users 與 Auth 帳號。`isTest` 只標建物／房間／租客三個根實體，衍生資料靠關聯反查（否則帳單生成有多處寫入點，漏一處就有清不掉的殘骸）。刪除需打字確認。**順帶修正** `createTenantAccount` 未寫入 `landlordId`，導致從租客列表補建帳號的租客在引導頁抓不到房東 LINE Bot |

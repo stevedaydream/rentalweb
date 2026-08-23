@@ -15,6 +15,7 @@ const line = require('@line/bot-sdk');
 const { initializeApp, getApps } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
+const { getStorage } = require('firebase-admin/storage');
 
 // 模擬器模式：讓 Admin SDK verifyIdToken() 驗本地 Auth emulator 的 token
 // 必須在 initializeApp() 之前設定
@@ -1849,6 +1850,71 @@ exports.createTenantAccount = onCall({ region: 'asia-east1' }, async (request) =
     throw new Error(e.message);
   }
 });
+
+// ─── scheduledPurgeInspectionOriginals ─────────────────────────────────────
+// 每天 04:10 清理點交照片的高解析備查檔。
+//
+// 保留規則：退租結清後滿兩年才刪原檔，縮圖永久保留。
+// 判斷依據是 tenants.moveOutSummary.moveOutDate（退租儀寫入），而不是檔案本身
+// 的年齡——Storage 的 lifecycle 規則只認得物件建立時間，不知道哪天結清，
+// 長租十年的租客入住照會在住到第二年時就被誤刪。
+const INSPECTION_ORIG_RETENTION_YEARS = 2;
+
+exports.scheduledPurgeInspectionOriginals = onSchedule(
+  { schedule: '10 4 * * *', timeZone: 'Asia/Taipei', region: 'asia-east1' },
+  async () => {
+    const db = getFirestore();
+    const bucket = getStorage().bucket();
+
+    const cutoff = new Date();
+    cutoff.setFullYear(cutoff.getFullYear() - INSPECTION_ORIG_RETENTION_YEARS);
+
+    let scanned = 0;
+    let purged = 0;
+
+    const tenants = await db.collection('tenants').where('isHistorical', '==', true).get();
+
+    for (const t of tenants.docs) {
+      const moveOutDate = t.data()?.moveOutSummary?.moveOutDate;
+      if (!moveOutDate) continue;
+      const settled = new Date(moveOutDate);
+      if (isNaN(settled.getTime()) || settled > cutoff) continue;
+
+      const insps = await db.collection('inspections').where('tenantDocId', '==', t.id).get();
+      for (const d of insps.docs) {
+        scanned++;
+        const data = d.data();
+        if (data.origPurgedAt) continue;
+        const items = Array.isArray(data.items) ? data.items : [];
+        const hasOrig = items.some(i => (i.photos || []).some(p => p.origUrl));
+        if (!hasOrig) continue;
+
+        try {
+          // 只刪 orig/ 目錄；thumb/ 保持不動
+          await bucket.deleteFiles({ prefix: `inspections/${d.id}/orig/` });
+        } catch (e) {
+          logger.warn('purgeInspectionOriginals: delete failed', { inspectionId: d.id, error: e.message });
+          continue;
+        }
+
+        const stripped = items.map(i => ({
+          ...i,
+          photos: (i.photos || []).map(p => {
+            const { origUrl, ...rest } = p;
+            return rest;
+          }),
+        }));
+        await d.ref.update({
+          items: stripped,
+          origPurgedAt: FieldValue.serverTimestamp(),
+        });
+        purged++;
+      }
+    }
+
+    logger.info('purgeInspectionOriginals: done', { scanned, purged, cutoff: cutoff.toISOString() });
+  },
+);
 
 // ─── createActivationLink ──────────────────────────────────────────────────
 // 房東為某位租客產生一次性啟用連結。

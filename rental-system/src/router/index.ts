@@ -115,6 +115,7 @@ const routes = [
       { path: 'contact', name: 'ContactLandlord', component: TenantContact },
       { path: 'building-info', name: 'TenantBuildingInfo', component: TenantBuildingInfo },
       { path: 'contract', name: 'TenantMyContract', component: TenantMyContract },
+      { path: 'inspection', name: 'TenantInspection', component: () => import('../views/tenant/Inspection.vue') },
     ]
   },
   {
