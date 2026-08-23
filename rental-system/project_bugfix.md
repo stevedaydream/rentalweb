@@ -262,3 +262,36 @@
 - **根本原因**：
 - **最終解法**：
 - **牽扯檔案**：
+
+---
+
+## BF-012 租客帳單「下載圖片」全平台失效（Tailwind v4 的 oklch）
+
+**問題描述**
+租客端帳單詳情按「下載圖片」一律跳出「截圖失敗，請稍後再試」。手機上先被發現，
+但實際上桌機也一樣壞。
+
+**嘗試過程**
+一開始誤判為 Android 無痕模式禁止截圖（那行紅字看起來很像系統訊息）。
+實際上 `Bills.vue` 的 catch 就是印出這句 toast，是我們自己的錯誤處理。
+
+**根本原因**
+`html2canvas` 停在 1.4.1（2022 年釋出），原始碼裡完全沒有 `oklch` 這個字。
+而專案用 Tailwind CSS v4，預設色盤整包是 `oklch()`——打包後的 CSS 有 116 處。
+html2canvas 解析顏色時遇到不認得的函式就拋例外，於是每一次擷取都失敗。
+
+版本相依的坑：升級 Tailwind v3 → v4 時不會有任何警告，畫面完全正常，
+只有依賴「自己解析 CSS」的工具會靜靜地壞掉。
+
+**最終解法**
+改用 `html-to-image`（SVG foreignObject），它是把節點交給瀏覽器自己畫，
+瀏覽器支援的顏色它就支援，不需要自己解析 CSS。順帶：
+- 優先呼叫 Web Share API（手機可直接分享到 LINE），不支援才退回下載
+- 下載改用 blob URL 而非 data URL——iOS Safari 對 `<a download>` 帶 data URL
+  的支援時好時壞
+- `html2canvas` 全案僅此一處使用，已從相依移除
+
+**牽扯檔案**
+- `src/utils/captureImage.ts`（新增：captureElementPng / saveOrShareImage）
+- `src/views/tenant/Bills.vue`（downloadImage）
+- `package.json`（移除 html2canvas，新增 html-to-image）

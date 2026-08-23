@@ -384,7 +384,7 @@ import {
   limit
 } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
-import html2canvas from 'html2canvas';
+import { captureElementPng, saveOrShareImage } from '../../utils/captureImage';
 
 // --- Type Definitions ---
 // 對應 Firebase 'bills' collection 結構
@@ -658,32 +658,26 @@ const confirmPay = async () => {
 };
 
 
-// 下載圖片功能
+// 下載／分享帳單圖片
 const downloadImage = async () => {
   if (!billReceiptRef.value) return;
-  
+
   isGenerating.value = true;
-  
+
   try {
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    const canvas = await html2canvas(billReceiptRef.value, {
-      backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff',
-      scale: 2, 
-      logging: false
-    });
-
-    const image = canvas.toDataURL("image/png");
-    const link = document.createElement('a');
-    link.href = image;
-    link.download = `帳單_${selectedBill.value?.monthStr || 'receipt'}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const bg = document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff';
+    const blob = await captureElementPng(billReceiptRef.value, bg);
+    const result = await saveOrShareImage(
+      blob,
+      `帳單_${selectedBill.value?.monthStr || 'receipt'}.png`,
+    );
+    toast.success(result === 'shared' ? '已開啟分享' : '圖片已下載');
 
   } catch (error) {
-    console.error('截圖失敗:', error);
-    toast.error('截圖失敗，請稍後再試');
+    console.error('帳單圖片產生失敗:', error);
+    toast.error('圖片產生失敗，請截圖或改用「前往繳費」');
   } finally {
     isGenerating.value = false;
   }
