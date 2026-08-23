@@ -1,6 +1,8 @@
 // [修改開始]：src/router/index.ts
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
+import { useFeatureFlagStore } from '../stores/featureFlags';
+import { featureForRoute } from '../utils/featureFlags';
 import { auth, db } from '../firebase/config';
 import { doc, getDoc } from 'firebase/firestore';
 
@@ -46,6 +48,8 @@ const AdminDashboard = () => import('../views/admin/Dashboard.vue');
 const AdminLandlords = () => import('../views/admin/LandlordManagement.vue');
 const AdminDatabase = () => import('../views/admin/DatabaseManagement.vue');
 const AdminTenants = () => import('../views/admin/TenantManagement.vue');
+const AdminFeatureFlags = () => import('../views/admin/FeatureFlags.vue');
+const Maintenance = () => import('../views/Maintenance.vue');
 
 const RoomExplore = () => import('../views/explore/RoomExplore.vue');
 const LandlordProfile = () => import('../views/explore/LandlordProfile.vue');
@@ -83,6 +87,7 @@ const routes = [
       { path: 'investment', name: 'InvestmentCalculator', component: InvestmentCalculator },
       { path: 'building-info', name: 'LandlordBuildingInfo', component: LandlordBuildingInfo },
       { path: 'reviews', name: 'LandlordReviews', component: LandlordReviews },
+      { path: 'maintenance', name: 'LandlordMaintenance', component: Maintenance },
     ]
   },
 
@@ -116,6 +121,7 @@ const routes = [
       { path: 'building-info', name: 'TenantBuildingInfo', component: TenantBuildingInfo },
       { path: 'contract', name: 'TenantMyContract', component: TenantMyContract },
       { path: 'inspection', name: 'TenantInspection', component: () => import('../views/tenant/Inspection.vue') },
+      { path: 'maintenance', name: 'TenantMaintenance', component: Maintenance },
     ]
   },
   {
@@ -137,6 +143,7 @@ const routes = [
       { path: 'landlords', name: 'AdminLandlords', component: AdminLandlords },
       { path: 'tenants', name: 'AdminTenants', component: AdminTenants },
       { path: 'database', name: 'AdminDatabase', component: AdminDatabase },
+      { path: 'features', name: 'AdminFeatureFlags', component: AdminFeatureFlags },
       {
         path: 'simulator',
         name: 'SystemSimulator',
@@ -218,6 +225,20 @@ router.beforeEach(async (to, _from, next) => {
       if (userRole === 'tenant') return next({ name: 'TenantDashboard' });
       if (userRole === 'admin') return next({ name: 'AdminDashboard' });
       return next({ name: 'Identity' });
+    }
+  }
+
+  // 維護開關：被管理員關掉的功能，直接輸入網址也擋在維修頁
+  if (isAuthenticated) {
+    const target = featureForRoute(to.name);
+    if (target) {
+      const flags = useFeatureFlagStore();
+      await flags.ensureLoaded();
+      if (flags.isDisabled(target.role, target.feature.id)) {
+        const page = target.role === 'landlord' ? 'LandlordMaintenance' : 'TenantMaintenance';
+        if (to.name === page) return next();
+        return next({ name: page, query: { f: target.feature.label } });
+      }
     }
   }
 

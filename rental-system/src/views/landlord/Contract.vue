@@ -260,7 +260,7 @@ import { useAuthStore } from '../../stores/auth'
 import { useToastStore } from '../../stores/toast'
 import { db, auth, storage } from '../../firebase/config'
 import {
-  collection, query, where, getDocs, addDoc, getDoc, doc, orderBy, serverTimestamp
+  collection, query, where, getDocs, addDoc, getDoc, doc, updateDoc, orderBy, serverTimestamp
 } from 'firebase/firestore'
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import Preview from '../../components/Preview.vue'
@@ -373,11 +373,38 @@ const loadHistory = async () => {
         orderBy('signedAt', 'desc'))
     )
     signedContracts.value = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    await backfillTenantUid()
   } catch (e) {
     console.error('載入合約記錄失敗:', e)
   } finally {
     loadingHistory.value = false
   }
+}
+
+// 舊合約未寫入 tenantUid，租客端「我的合約」以 tenantUid 查詢會查不到，
+// 也無法完成電子確認（規則要求 tenantUid 相符）。此處依證件號碼比對租客檔案補寫。
+const backfillTenantUid = async () => {
+  if (!tenants.value.length) return
+  const targets = signedContracts.value.filter(c => !c.tenantUid)
+  if (!targets.length) return
+  let fixed = 0
+  for (const c of targets) {
+    const t = tenants.value.find(x => {
+      if (c.tenantId && x.idNumber) return x.idNumber === c.tenantId
+      return false
+    }) || tenants.value.find(x =>
+      c.tenant && c.roomNo && x.name === c.tenant &&
+      (x.roomNumber === c.roomNo || x.room === c.roomNo))
+    if (!t?.uid) continue
+    try {
+      await updateDoc(doc(db, 'signed_contracts', c.id), { tenantUid: t.uid })
+      c.tenantUid = t.uid
+      fixed++
+    } catch (e) {
+      console.warn('補寫合約 tenantUid 失敗:', c.id, e)
+    }
+  }
+  if (fixed) toast.success(`已補齊 ${fixed} 筆舊合約的租客連結，租客端即可查閱`)
 }
 
 const redownloadContract = async (c) => {
@@ -501,6 +528,7 @@ const prefillFromRenewal = async () => {
       ))
     }
     newPrefill.value = {
+      tenantUid: t?.uid || '',
       tenant: t?.name || c.tenantName || '',
       tenantId: t?.idNumber || '',
       tenantPhone: t?.phone || '',

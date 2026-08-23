@@ -27,7 +27,51 @@ const injectStyles = (html: string): string => {
   return html.replace('</head>', `${fontLinks}\n${customStyle}\n</head>`)
 }
 
-// 等待 iframe 內字型與圖片就緒，避免列印時套到 fallback 字型
+/**
+ * 把列印文件裡的跨來源圖片換成 data URL。
+ * 平板（iOS Safari）從 iframe 送印時，常在遠端圖抓完前就把版面交給列印引擎，
+ * 點交單的瑕疵存證於是印成空白圖框。先自己抓下來內嵌就沒有這個時間差；
+ * 抓不到（CORS 未開、檔案已刪）維持原網址，交給 waitImages 再等一次。
+ */
+const inlinePrintImages = async (doc: Document): Promise<void> => {
+  const imgs = Array.from(doc.images).filter((img) => {
+    const src = img.getAttribute('src') || ''
+    if (!/^https?:/i.test(src)) return false
+    try { return new URL(src, location.href).origin !== location.origin } catch { return false }
+  })
+  await Promise.all(imgs.map(async (img) => {
+    try {
+      const res = await fetch(img.src, { mode: 'cors', credentials: 'omit' })
+      if (!res.ok) return
+      const blob = await res.blob()
+      img.src = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result))
+        reader.onerror = () => reject(reader.error)
+        reader.readAsDataURL(blob)
+      })
+    } catch {
+      // 維持原網址
+    }
+  }))
+}
+
+// 逐張等圖片解析完成。點交單的瑕疵存證是 Storage 上的遠端圖，load 事件之外
+// 還可能因 readyState 已是 complete 而漏等；沒等到就 print() 會印出空白圖框。
+// 失敗（error）也算就緒，一張壞圖不該把整份文件卡住。
+const waitImages = (doc: Document): Promise<void> => {
+  const imgs = Array.from(doc.images || [])
+  if (!imgs.length) return Promise.resolve()
+  return Promise.all(imgs.map(img => img.complete
+    ? Promise.resolve()
+    : new Promise<void>((res) => {
+        img.addEventListener('load', () => res(), { once: true })
+        img.addEventListener('error', () => res(), { once: true })
+      }),
+  )).then(() => undefined)
+}
+
+// 等待 iframe 內字型與圖片就緒，避免列印時套到 fallback 字型或印出空白圖框
 const waitReady = (iframe: HTMLIFrameElement): Promise<void> =>
   new Promise((resolve) => {
     const win = iframe.contentWindow
@@ -37,13 +81,13 @@ const waitReady = (iframe: HTMLIFrameElement): Promise<void> =>
     const finish = () => { if (!settled) { settled = true; resolve() } }
     const afterLoad = () => {
       const fonts = (doc as Document & { fonts?: FontFaceSet }).fonts
-      if (fonts?.ready) fonts.ready.then(finish).catch(finish)
-      else finish()
+      const fontsReady = fonts?.ready ? fonts.ready.then(() => undefined).catch(() => undefined) : Promise.resolve()
+      fontsReady.then(() => waitImages(doc)).then(finish).catch(finish)
     }
     if (doc.readyState === 'complete') afterLoad()
     else win.addEventListener('load', afterLoad, { once: true })
-    // 安全網：最長等 4 秒仍未就緒就強制列印
-    setTimeout(finish, 4000)
+    // 安全網：遠端照片較多時 4 秒不夠，放寬到 15 秒仍未就緒才強制列印
+    setTimeout(finish, 15000)
   })
 
 /**
@@ -75,6 +119,7 @@ export const printHtmlPdf = async (
     doc.write(filledHtml)
     doc.close()
 
+    await inlinePrintImages(doc)
     await waitReady(iframe)
 
     const win = iframe.contentWindow

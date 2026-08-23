@@ -84,11 +84,13 @@
       </button>
     </div>
 
-    <div v-if="showNewRequest" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+    <Teleport to="body">
+    <div v-if="showNewRequest" class="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showNewRequest = false"></div>
-      <div class="relative bg-white dark:bg-card-dark w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 overflow-y-auto max-h-[90vh]">
-        <h2 class="text-xl font-bold mb-6">填寫報修單</h2>
-        
+      <div class="relative bg-white dark:bg-card-dark w-full max-w-lg rounded-t-3xl sm:rounded-3xl flex flex-col max-h-[92dvh] sm:max-h-[85dvh]">
+        <h2 class="text-xl font-bold px-6 pt-6 pb-4 shrink-0">填寫報修單</h2>
+
+        <div class="flex-1 overflow-y-auto px-6">
         <div v-if="roomNumber" class="mb-4 text-sm text-blue-600 bg-blue-50 p-2 rounded-lg flex items-center">
           <span class="material-symbols-outlined text-base mr-1">home</span>
           <span>自動帶入房號：{{ roomNumber }}</span>
@@ -131,7 +133,9 @@
           </div>
         </div>
 
-        <div class="mt-8 flex gap-3">
+        </div>
+
+        <div class="shrink-0 flex gap-3 px-6 pt-4 pb-6 border-t border-gray-100 dark:border-gray-800">
           <button @click="showNewRequest = false" class="flex-1 py-3 text-gray-500 font-medium">取消</button>
           <button 
             @click="submitRequest" 
@@ -143,6 +147,7 @@
         </div>
       </div>
     </div>
+    </Teleport>
   </div>
 </template>
 

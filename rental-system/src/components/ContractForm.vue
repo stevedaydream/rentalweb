@@ -158,6 +158,7 @@ const rooms = ref([])
 const tenants = ref([])
 const selectedRoomId = ref('')
 const selectedTenantId = ref('')
+const selectedTenantUid = ref('')
 const onRoomSelect = () => {
   const r = rooms.value.find(x => x.id === selectedRoomId.value)
   if (!r) return
@@ -171,6 +172,7 @@ const onTenantSelect = () => {
   form.value.tenant = t.name || ''
   form.value.tenantId = t.idNumber || ''
   form.value.tenantPhone = t.phone || ''
+  selectedTenantUid.value = t.uid || ''
 }
 
 const authStore = useAuthStore()
@@ -307,7 +309,7 @@ const submitContract = async () => {
     const docRef = await addDoc(collection(db, 'signed_contracts'), {
       landlordUid: props.landlordId,
       contractSource: 'digital',
-      tenantUid: props.prefill?.tenantUid || null,
+      tenantUid: props.prefill?.tenantUid || selectedTenantUid.value || null,
       ...form.value,
       rentfee: Number(form.value.rentfee) || 0,
       deposit: Number(form.value.deposit) || 0,

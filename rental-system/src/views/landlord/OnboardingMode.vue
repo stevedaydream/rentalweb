@@ -267,6 +267,9 @@ const toast = useToastStore();
 const steps = ONBOARDING_STEPS;
 const step = ref(1);
 const tenantId = ref<string>((route.params.tenantId as string) || '');
+// 租客的 Firebase UID（建檔時由 createTenantAccount 回傳／既有租客由 loadTenant 帶入），
+// 供合約寫入 signed_contracts.tenantUid，否則租客端「我的合約」查不到自己的合約。
+const tenantUid = ref('');
 const saving = ref(false);
 const availableRooms = ref<{ name: string; rent: number; address: string }[]>([]);
 const skipped = ref<OnboardingStepKey[]>([]);
@@ -349,6 +352,7 @@ const stepDone = (k: OnboardingStepKey) => !!completedKeys.value[k];
 
 // ②簽約：帶入①建檔資料；簽署完成 → 設 contractId、標記完成、進下一步
 const contractPrefill = computed(() => ({
+  tenantUid: tenantUid.value,
   tenant: form.value.name,
   tenantId: form.value.idNumber,
   tenantPhone: form.value.phone,
@@ -482,6 +486,7 @@ const loadTenant = async () => {
     const snap = await getDoc(doc(db, 'tenants', tenantId.value));
     if (!snap.exists()) return;
     const t: any = snap.data();
+    tenantUid.value = t.uid || '';
     const ob: OnboardingState | undefined = t.onboarding;
     // 既有欄位 + 進行中草稿還原
     form.value = {
@@ -538,12 +543,13 @@ const saveProfile = async (): Promise<boolean> => {
     // 失敗不阻斷上線流程，租客清單抽屜仍可補建。
     try {
       const createAccount = httpsCallable(functions, 'createTenantAccount');
-      await createAccount({
+      const res: any = await createAccount({
         phone: form.value.phone,
         idNumber: form.value.idNumber,
         tenantDocId: docRef.id,
         name: form.value.name,
       });
+      tenantUid.value = res?.data?.uid || '';
       createdCredential.value = { phone: form.value.phone, idNumber: form.value.idNumber };
       await requestActivationLink(docRef.id);
     } catch (e: any) {

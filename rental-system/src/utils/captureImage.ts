@@ -11,19 +11,61 @@ import { toBlob } from 'html-to-image'
 /** 標了這個屬性的節點不會進到圖片裡 */
 export const SKIP_ATTR = 'data-capture-skip'
 
+/**
+ * 跨來源圖片（Storage 上的匯款截圖）在 foreignObject 裡畫不出來，必須先換成
+ * data URL。抓不到的（CORS 沒開、檔案已刪）就地標上 SKIP_ATTR 排除掉——
+ * 少一張截圖，總比整張帳單存不下來好。回傳還原函式，擷取後務必呼叫。
+ */
+const inlineRemoteImages = async (root: HTMLElement): Promise<() => void> => {
+  const undos: Array<() => void> = []
+  const imgs = Array.from(root.querySelectorAll('img')).filter((img) => {
+    const src = img.currentSrc || img.src
+    if (!/^https?:/i.test(src)) return false
+    try { return new URL(src, location.href).origin !== location.origin } catch { return false }
+  })
+  await Promise.all(imgs.map(async (img) => {
+    const original = img.getAttribute('src') || ''
+    try {
+      const res = await fetch(img.currentSrc || img.src, { mode: 'cors', credentials: 'omit' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const blob = await res.blob()
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result))
+        reader.onerror = () => reject(reader.error)
+        reader.readAsDataURL(blob)
+      })
+      img.setAttribute('src', dataUrl)
+      undos.push(() => img.setAttribute('src', original))
+      // 換完 src 要等瀏覽器解完圖，否則擷取當下畫出來的是空白
+      try { await img.decode() } catch { /* 解不開就讓 filter 那關擋掉 */ }
+    } catch {
+      if (!img.hasAttribute(SKIP_ATTR)) {
+        img.setAttribute(SKIP_ATTR, 'true')
+        undos.push(() => img.removeAttribute(SKIP_ATTR))
+      }
+    }
+  }))
+  return () => undos.forEach(undo => undo())
+}
+
 export const captureElementPng = async (
   el: HTMLElement, backgroundColor: string,
 ): Promise<Blob> => {
-  const blob = await toBlob(el, {
-    pixelRatio: 2,
-    backgroundColor,
-    // 跨來源圖片必須內嵌才畫得出來，內嵌失敗會讓整張擷取失敗，
-    // 故由呼叫端以 SKIP_ATTR 標記排除（例如租客自己上傳的匯款截圖）
-    filter: (node: HTMLElement) =>
-      !(node instanceof Element) || !node.hasAttribute(SKIP_ATTR),
-  })
-  if (!blob) throw new Error('無法產生圖片')
-  return blob
+  const restore = await inlineRemoteImages(el)
+  try {
+    const blob = await toBlob(el, {
+      pixelRatio: 2,
+      backgroundColor,
+      // 呼叫端可用 SKIP_ATTR 排除不該入鏡的節點（按鈕、內嵌失敗的圖）
+      filter: (node: HTMLElement) =>
+        !(node instanceof Element) || !node.hasAttribute(SKIP_ATTR),
+    })
+    if (!blob) throw new Error('無法產生圖片')
+    return blob
+  } finally {
+    restore()
+  }
 }
 
 /**

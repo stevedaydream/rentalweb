@@ -288,10 +288,22 @@ service cloud.firestore {
       allow update, delete: if isLandlordData() || isAdmin();
     }
 
+    // 系統設定 (system_config) — 目前僅 features（功能維護開關）
+    // 全員可讀（前端需據此隱藏維修中的功能），只有管理員可寫
+    match /system_config/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // 建物 (properties) — 房屋稅／地價稅／火險與公益出租人的歸屬單位
     // 與 meter_groups 各自獨立：台電按電號寄帳單，一棟可能有兩個電號
+    // 租客需讀自己那一棟的 buildingInfo（大樓資訊／逃生圖），比照 meter_readings
+    // 以 users.landlordId 作範圍限制；建物本身不含個資，僅有稅籍與大樓公共資訊
     match /properties/{propertyId} {
-      allow read: if isLandlordData() || isAdmin();
+      allow read: if isLandlordData() || isAdmin()
+        || (isSignedIn() &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('landlordId', '') != '' &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('landlordId', '') == resource.data.landlordId);
       allow create: if isCreatingAsLandlord() || isAdmin();
       allow update, delete: if isLandlordData() || isAdmin();
     }

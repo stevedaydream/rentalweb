@@ -126,6 +126,8 @@ import { useRoute } from 'vue-router';
 import { db } from '../firebase/config';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import logoSrc from '../assets/logo.svg';
+import { useFeatureFlagStore } from '../stores/featureFlags';
+import { featureForRoute } from '../utils/featureFlags';
 
 const authStore = useAuthStore();
 const toast = useToastStore();
@@ -183,6 +185,13 @@ interface MenuItem {
   icon: string;
 }
 
+// 維修中的功能直接從選單／底部 Tab 拿掉；路由守衛另有一道
+const flags = useFeatureFlagStore();
+const isVisible = (item: MenuItem) => {
+  const target = featureForRoute(item.to.name);
+  return !target || !flags.isDisabled(target.role, target.feature.id);
+};
+
 const menuItems = computed<MenuItem[]>(() => [
   { id: 'dashboard',     name: '儀表板',  tabLabel: '首頁', to: { name: 'TenantDashboard' },    icon: 'dashboard' },
   { id: 'bills',         name: '我的帳單', tabLabel: '帳單', to: { name: 'TenantBills' },         icon: 'receipt_long' },
@@ -192,7 +201,7 @@ const menuItems = computed<MenuItem[]>(() => [
   { id: 'building',      name: '大樓資訊', tabLabel: '資訊', to: { name: 'TenantBuildingInfo' },  icon: 'apartment' },
   { id: 'contract',      name: '我的合約', tabLabel: '合約', to: { name: 'TenantMyContract' },    icon: 'history_edu' },
   { id: 'inspection',    name: '入住點交', tabLabel: '點交', to: { name: 'TenantInspection' },    icon: 'checklist' },
-]);
+].filter(isVisible));
 
 const getBadgeCount = (item: MenuItem): number => {
   if (item.id === 'bills') return unpaidBillCount.value;
@@ -214,6 +223,7 @@ const handleMessageReadEvent = () => {
 };
 
 onMounted(() => {
+  void flags.ensureLoaded();
   window.addEventListener('messages-read', handleMessageReadEvent);
 
   if (!authStore.user) return;

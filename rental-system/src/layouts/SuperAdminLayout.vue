@@ -96,6 +96,7 @@ const menuItems = [
   { name: '房東管理', to: { name: 'AdminLandlords' }, icon: 'supervisor_account' },
   { name: '租客與配對', to: { name: 'AdminTenants' }, icon: 'manage_accounts' }, 
   { name: '資料庫操作', to: { name: 'AdminDatabase' }, icon: 'database' },
+  { name: '功能開關', to: { name: 'AdminFeatureFlags' }, icon: 'toggle_on' },
   { name: '系統模擬器', to: { name: 'SystemSimulator' }, icon: 'settings_remote' },
 ];
 

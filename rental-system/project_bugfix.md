@@ -295,3 +295,39 @@ html2canvas 解析顏色時遇到不認得的函式就拋例外，於是每一�
 - `src/utils/captureImage.ts`（新增：captureElementPng / saveOrShareImage）
 - `src/views/tenant/Bills.vue`（downloadImage）
 - `package.json`（移除 html2canvas，新增 html-to-image）
+
+---
+
+## BF-013 平板列印／存圖時遠端圖片缺席（跨來源圖 + 送印時序）
+
+**問題描述**
+平板上列印點交確認單，瑕疵存證照片沒有印出來或印成空白框；租客帳單詳情
+「下載圖片」存下來的圖也沒有自己上傳的匯款截圖。
+
+**根本原因**
+兩件事同一個根：Storage 上的照片是**跨來源**資源，兩條產圖管線都拿不到它。
+
+- 列印（`printHtmlPdf`）：就緒判斷只等 iframe `load` 事件與 `fonts.ready`，且
+  `doc.readyState` 在 `document.write` 後常已是 `complete`（圖片其實還在飛），
+  安全網又只有 4 秒。行動／平板瀏覽器從 iframe 送印本來就傾向「當下畫面直接送」，
+  遠端照片於是整批缺席。
+- 存圖（`captureElementPng` / html-to-image）：foreignObject 畫不出跨來源圖，
+  內嵌失敗會讓整張擷取拋錯，先前的作法是用 `data-capture-skip` 主動排除截圖
+  ——症狀就是「截圖永遠不會被印出來」。
+
+**最終解法**
+兩條管線都改成「先自己 fetch 成 data URL，再產圖」，失敗降級而非整份失敗：
+
+- `contractRender.ts` 新增 `inlinePrintImages(doc)`（送印前內嵌，抓不到維持原網址）
+  與 `waitImages(doc)`（逐張等 `img.complete`，`error` 也算就緒），安全網 4s → 15s。
+- `captureImage.ts` 新增 `inlineRemoteImages(root)`：內嵌成功就換 src 並 `await img.decode()`，
+  失敗才就地補 `SKIP_ATTR` 排除該張圖，擷取後還原。`Bills.vue` 移除截圖上的
+  `data-capture-skip`。
+
+前提是 Storage 的 CORS 要含部署網域（`cors.json`），否則兩者都會退回原本行為。
+
+**牽扯檔案**
+- `src/utils/contractRender.ts`（inlinePrintImages / waitImages / printHtmlPdf）
+- `src/utils/captureImage.ts`（inlineRemoteImages / captureElementPng）
+- `src/views/tenant/Bills.vue`（匯款截圖的 data-capture-skip）
+- `cors.json`（Storage CORS 來源）

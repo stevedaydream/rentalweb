@@ -4,6 +4,7 @@
     <div class="flex items-center gap-3">
       <span class="material-symbols-outlined text-gold-500">apartment</span>
       <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">大樓資訊</h1>
+      <span v-if="propertyName" class="text-sm text-text-secondary-light">{{ propertyName }}</span>
     </div>
 
     <div v-if="isLoading" class="flex justify-center py-16">
@@ -33,7 +34,7 @@
 
       <!-- Tab: 互動地圖 -->
       <div v-if="activeTab === 'map'">
-        <div v-if="!buildingInfo.mapType" class="text-center py-16 text-text-secondary-light">
+        <div v-if="buildingInfo.mapType === 'none'" class="text-center py-16 text-text-secondary-light">
           <span class="material-symbols-outlined text-5xl mb-3 block">map</span>
           <p>房東尚未設定互動地圖</p>
         </div>
@@ -46,33 +47,32 @@
 
           <!-- Legend -->
           <div class="flex flex-wrap gap-3">
-            <div v-for="(cfg, type) in markerConfig" :key="type" class="flex items-center gap-1.5 text-xs text-text-secondary-light">
-              <span class="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px]" :class="cfg.bg">
-                <span class="material-symbols-outlined text-[12px]">{{ cfg.icon }}</span>
+            <div v-for="type in usedMarkerTypes" :key="type" class="flex items-center gap-1.5 text-xs text-text-secondary-light">
+              <span class="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px]" :class="markerConfig[type].bg">
+                <span class="material-symbols-outlined text-[12px]">{{ markerConfig[type].icon }}</span>
               </span>
-              {{ cfg.label }}
+              {{ markerConfig[type].label }}
             </div>
           </div>
 
           <!-- Map -->
           <div class="relative w-full select-none rounded-xl overflow-hidden border border-ink-100 dark:border-ink-700">
-            <!-- SVG Template -->
+            <!-- 內建樣板 -->
             <div
-              v-if="buildingInfo.mapType !== 'custom'"
-              ref="mapEl"
+              v-if="buildingInfo.mapType === 'template'"
               class="w-full"
               v-html="currentSvgTemplate"
             ></div>
-            <!-- Custom Image -->
+            <!-- 房東上傳的平面圖 -->
             <img
-              v-else-if="buildingInfo.customImageUrl"
-              ref="mapEl"
-              :src="buildingInfo.customImageUrl"
+              v-else-if="buildingInfo.mapImageUrl"
+              :src="buildingInfo.mapImageUrl"
+              alt="大樓平面圖"
               class="w-full block"
               draggable="false"
             />
 
-            <!-- Shapes SVG overlay (read-only) -->
+            <!-- Shapes overlay (read-only) -->
             <svg
               v-if="buildingInfo.shapes?.length"
               class="absolute inset-0 w-full h-full pointer-events-none"
@@ -111,20 +111,19 @@
             </svg>
 
             <!-- Markers -->
-            <template v-for="marker in buildingInfo.markers" :key="marker.id">
-              <div
-                class="absolute cursor-pointer group"
-                :style="{ left: marker.x + '%', top: marker.y + '%', transform: 'translate(-50%, -100%)' }"
-                @click="showMarkerInfo(marker)"
-              >
-                <div class="w-8 h-8 rounded-full flex items-center justify-center text-white shadow-lg hover:scale-110 transition-transform"
-                  :class="markerConfig[marker.type]?.bg || 'bg-gray-500'">
-                  <span class="material-symbols-outlined text-[16px]">{{ marker.customIcon || markerConfig[marker.type]?.icon }}</span>
-                </div>
-                <div class="w-0 h-0 border-l-4 border-r-4 border-t-6 border-l-transparent border-r-transparent mx-auto"
-                  :class="markerConfig[marker.type]?.triangle"></div>
+            <div
+              v-for="marker in buildingInfo.markers" :key="marker.id"
+              class="absolute cursor-pointer group"
+              :style="{ left: marker.x + '%', top: marker.y + '%', transform: 'translate(-50%, -100%)' }"
+              @click="infoMarker = marker"
+            >
+              <div class="w-8 h-8 rounded-full flex items-center justify-center text-white shadow-lg hover:scale-110 transition-transform"
+                :class="markerConfig[marker.type]?.bg || 'bg-gray-500'">
+                <span class="material-symbols-outlined text-[16px]">{{ marker.customIcon || markerConfig[marker.type]?.icon }}</span>
               </div>
-            </template>
+              <div class="w-0 h-0 border-l-4 border-r-4 border-t-6 border-l-transparent border-r-transparent mx-auto"
+                :class="markerConfig[marker.type]?.triangle"></div>
+            </div>
           </div>
 
           <!-- Info Popup -->
@@ -141,7 +140,7 @@
                     <div class="text-xs text-text-secondary-light">{{ markerConfig[infoMarker.type]?.label }}</div>
                   </div>
                 </div>
-                <p v-if="infoMarker.description" class="text-sm text-text-secondary-light mb-4">{{ infoMarker.description }}</p>
+                <p v-if="infoMarker.description" class="text-sm text-text-secondary-light whitespace-pre-wrap mb-4">{{ infoMarker.description }}</p>
                 <button @click="infoMarker = null" class="w-full py-2 bg-ink-100 dark:bg-ink-700 rounded-xl text-sm font-medium hover:bg-ink-200 dark:hover:bg-ink-600 transition-colors">
                   關閉
                 </button>
@@ -151,24 +150,26 @@
         </div>
       </div>
 
-      <!-- Tab: 設施規範 -->
+      <!-- Tab: 設施說明（由地圖上有備註的標記彙整） -->
       <div v-if="activeTab === 'rules'" class="space-y-4">
-        <div v-if="!buildingInfo.facilities?.length" class="text-center py-16 text-text-secondary-light">
+        <div v-if="!facilityNotes.length" class="text-center py-16 text-text-secondary-light">
           <span class="material-symbols-outlined text-5xl mb-3 block">rule</span>
-          <p>房東尚未設定設施規範</p>
+          <p>房東尚未填寫設施說明</p>
         </div>
 
         <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div
-            v-for="facility in buildingInfo.facilities"
-            :key="facility.id"
+            v-for="note in facilityNotes"
+            :key="note.id"
             class="bg-white dark:bg-card-dark rounded-2xl p-5 shadow-sm border border-ink-100 dark:border-ink-800"
           >
             <div class="flex items-start gap-3">
-              <span class="text-3xl leading-none">{{ facility.icon }}</span>
+              <span class="w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0" :class="note.bg">
+                <span class="material-symbols-outlined text-[20px]">{{ note.icon }}</span>
+              </span>
               <div class="flex-1 min-w-0">
-                <h3 class="font-bold text-text-primary-light dark:text-text-primary-dark mb-1">{{ facility.name }}</h3>
-                <p class="text-sm text-text-secondary-light whitespace-pre-wrap">{{ facility.description }}</p>
+                <h3 class="font-bold text-text-primary-light dark:text-text-primary-dark mb-1">{{ note.name }}</h3>
+                <p class="text-sm text-text-secondary-light whitespace-pre-wrap">{{ note.description }}</p>
               </div>
             </div>
           </div>
@@ -183,155 +184,99 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { db } from '../../firebase/config'
-import { doc, getDoc } from 'firebase/firestore'
-
-type MarkerType = 'exit' | 'extinguisher' | 'firstaid' | 'facility' | 'warning' | 'appliance'
-
-interface Marker {
-  id: string
-  type: MarkerType
-  x: number
-  y: number
-  label: string
-  description: string
-  customIcon?: string
-}
-
-interface Facility {
-  id: string
-  icon: string
-  name: string
-  description: string
-}
-
-interface Shape {
-  id: string
-  type: 'rect' | 'line' | 'text'
-  x1: number; y1: number
-  x2: number; y2: number
-  text?: string
-  fill: string
-  stroke: string
-}
-
-interface BuildingInfo {
-  mapType: string
-  customImageUrl?: string
-  markers: Marker[]
-  facilities: Facility[]
-  shapes: Shape[]
-}
+import { doc, getDoc, collection, query, where, getDocs, limit } from 'firebase/firestore'
+import {
+  MARKER_CONFIG as markerConfig,
+  SVG_TEMPLATES as svgTemplates,
+  emptyBuildingInfo, normalizeBuildingInfo,
+  type Marker, type MarkerType,
+} from '../../utils/buildingMap'
 
 const authStore = useAuthStore()
 const isLoading = ref(true)
-const buildingInfo = ref<BuildingInfo>({ mapType: '', markers: [], facilities: [], shapes: [] })
+const buildingInfo = ref(emptyBuildingInfo())
 const infoMarker = ref<Marker | null>(null)
 const activeTab = ref<'map' | 'rules'>('map')
+const propertyName = ref('')
 
 const tabs = [
   { id: 'map', label: '互動地圖' },
-  { id: 'rules', label: '設施規範' },
+  { id: 'rules', label: '設施說明' },
 ]
 
-const markerConfig: Record<MarkerType, { icon: string; bg: string; triangle: string; label: string }> = {
-  exit:         { icon: 'door_open',             bg: 'bg-green-500',  triangle: 'border-t-green-500',  label: '逃生出口' },
-  extinguisher: { icon: 'fire_extinguisher',     bg: 'bg-red-500',    triangle: 'border-t-red-500',    label: '滅火器'   },
-  firstaid:     { icon: 'medical_services',      bg: 'bg-blue-500',   triangle: 'border-t-blue-500',   label: '急救箱'   },
-  facility:     { icon: 'meeting_room',          bg: 'bg-amber-500',  triangle: 'border-t-amber-500',  label: '公共設施' },
-  warning:      { icon: 'warning',               bg: 'bg-orange-500', triangle: 'border-t-orange-500', label: '注意事項' },
-  appliance:    { icon: 'local_laundry_service', bg: 'bg-purple-500', triangle: 'border-t-purple-500', label: '家電設備' },
-}
+const currentSvgTemplate = computed(() =>
+  svgTemplates[buildingInfo.value.templateId] || svgTemplates['blank']!)
 
-const svgTemplates: Record<string, string> = {
-  blank: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" class="w-full h-auto bg-gray-50 dark:bg-ink-900">
-    <rect width="800" height="500" fill="#f9fafb"/>
-    <rect x="20" y="20" width="760" height="460" fill="none" stroke="#d1d5db" stroke-width="2" stroke-dasharray="8,4"/>
-    <text x="400" y="255" text-anchor="middle" fill="#9ca3af" font-size="16" font-family="sans-serif">（空白地圖）</text>
-  </svg>`,
-
-  studio: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" class="w-full h-auto">
-    <rect width="800" height="500" fill="#f0f4f8"/>
-    <rect x="40" y="40" width="720" height="420" fill="#fff" stroke="#64748b" stroke-width="3"/>
-    <rect x="40" y="40" width="720" height="60" fill="#e2e8f0" stroke="#64748b" stroke-width="2"/>
-    <text x="400" y="78" text-anchor="middle" fill="#475569" font-size="14" font-weight="bold" font-family="sans-serif">套房平面圖</text>
-    <rect x="60" y="130" width="200" height="160" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
-    <text x="160" y="218" text-anchor="middle" fill="#1d4ed8" font-size="13" font-family="sans-serif">主臥室</text>
-    <rect x="60" y="310" width="200" height="130" fill="#dcfce7" stroke="#22c55e" stroke-width="1.5"/>
-    <text x="160" y="382" text-anchor="middle" fill="#15803d" font-size="13" font-family="sans-serif">衛浴</text>
-    <rect x="280" y="130" width="460" height="310" fill="#fefce8" stroke="#eab308" stroke-width="1.5"/>
-    <text x="510" y="292" text-anchor="middle" fill="#854d0e" font-size="13" font-family="sans-serif">客廳 / 餐廳 / 廚房</text>
-    <rect x="340" y="420" width="80" height="40" fill="#fff" stroke="#64748b" stroke-width="2"/>
-    <text x="380" y="446" text-anchor="middle" fill="#475569" font-size="11" font-family="sans-serif">入口</text>
-  </svg>`,
-
-  onebedroom: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 550" class="w-full h-auto">
-    <rect width="800" height="550" fill="#f0f4f8"/>
-    <rect x="40" y="40" width="720" height="470" fill="#fff" stroke="#64748b" stroke-width="3"/>
-    <rect x="40" y="40" width="720" height="60" fill="#e2e8f0" stroke="#64748b" stroke-width="2"/>
-    <text x="400" y="78" text-anchor="middle" fill="#475569" font-size="14" font-weight="bold" font-family="sans-serif">一房一廳平面圖</text>
-    <rect x="60" y="130" width="280" height="200" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
-    <text x="200" y="237" text-anchor="middle" fill="#1d4ed8" font-size="13" font-family="sans-serif">主臥室</text>
-    <rect x="60" y="350" width="140" height="140" fill="#dcfce7" stroke="#22c55e" stroke-width="1.5"/>
-    <text x="130" y="427" text-anchor="middle" fill="#15803d" font-size="13" font-family="sans-serif">衛浴</text>
-    <rect x="220" y="350" width="120" height="140" fill="#fce7f3" stroke="#ec4899" stroke-width="1.5"/>
-    <text x="280" y="427" text-anchor="middle" fill="#be185d" font-size="13" font-family="sans-serif">廚房</text>
-    <rect x="360" y="130" width="360" height="360" fill="#fefce8" stroke="#eab308" stroke-width="1.5"/>
-    <text x="540" y="317" text-anchor="middle" fill="#854d0e" font-size="13" font-family="sans-serif">客廳 / 餐廳</text>
-    <rect x="380" y="470" width="80" height="40" fill="#fff" stroke="#64748b" stroke-width="2"/>
-    <text x="420" y="496" text-anchor="middle" fill="#475569" font-size="11" font-family="sans-serif">入口</text>
-  </svg>`,
-
-  twobedroom: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" class="w-full h-auto">
-    <rect width="800" height="600" fill="#f0f4f8"/>
-    <rect x="40" y="40" width="720" height="520" fill="#fff" stroke="#64748b" stroke-width="3"/>
-    <rect x="40" y="40" width="720" height="60" fill="#e2e8f0" stroke="#64748b" stroke-width="2"/>
-    <text x="400" y="78" text-anchor="middle" fill="#475569" font-size="14" font-weight="bold" font-family="sans-serif">兩房一廳平面圖</text>
-    <rect x="60" y="130" width="260" height="180" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
-    <text x="190" y="227" text-anchor="middle" fill="#1d4ed8" font-size="13" font-family="sans-serif">主臥室</text>
-    <rect x="60" y="330" width="260" height="180" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1.5"/>
-    <text x="190" y="427" text-anchor="middle" fill="#6d28d9" font-size="13" font-family="sans-serif">次臥室</text>
-    <rect x="340" y="130" width="380" height="260" fill="#fefce8" stroke="#eab308" stroke-width="1.5"/>
-    <text x="530" y="267" text-anchor="middle" fill="#854d0e" font-size="13" font-family="sans-serif">客廳 / 餐廳</text>
-    <rect x="340" y="410" width="180" height="100" fill="#fce7f3" stroke="#ec4899" stroke-width="1.5"/>
-    <text x="430" y="467" text-anchor="middle" fill="#be185d" font-size="13" font-family="sans-serif">廚房</text>
-    <rect x="540" y="410" width="180" height="100" fill="#dcfce7" stroke="#22c55e" stroke-width="1.5"/>
-    <text x="630" y="467" text-anchor="middle" fill="#15803d" font-size="13" font-family="sans-serif">衛浴</text>
-    <rect x="350" y="510" width="80" height="40" fill="#fff" stroke="#64748b" stroke-width="2"/>
-    <text x="390" y="536" text-anchor="middle" fill="#475569" font-size="11" font-family="sans-serif">入口</text>
-  </svg>`,
-}
-
-const currentSvgTemplate = computed(() => {
-  const t = buildingInfo.value.mapType
-  return svgTemplates[t] || svgTemplates.blank
+const usedMarkerTypes = computed(() => {
+  const seen = new Set<MarkerType>()
+  buildingInfo.value.markers.forEach(m => { if (markerConfig[m.type]) seen.add(m.type) })
+  return [...seen]
 })
 
-const hasData = computed(() =>
-  buildingInfo.value.mapType || (buildingInfo.value.facilities?.length > 0)
-)
+/** 設施說明＝地圖上有備註的標記；房東只要維護一處 */
+const facilityNotes = computed(() => [
+  ...buildingInfo.value.markers
+    .filter(m => (m.description || '').trim())
+    .map(m => ({
+      id: m.id,
+      name: m.label || markerConfig[m.type]?.label || '設施',
+      description: m.description,
+      icon: m.customIcon || markerConfig[m.type]?.icon || 'info',
+      bg: markerConfig[m.type]?.bg || 'bg-gray-500',
+    })),
+  // 尚未轉換的舊「設施規範」仍照常顯示，房東轉換後自然消失
+  ...buildingInfo.value.facilities.map(f => ({
+    id: f.id,
+    name: f.name,
+    description: [f.location, f.rules].filter(Boolean).join('\n'),
+    icon: 'meeting_room',
+    bg: 'bg-amber-500',
+  })),
+])
 
-const showMarkerInfo = (marker: Marker) => {
-  infoMarker.value = marker
+const hasData = computed(() =>
+  buildingInfo.value.mapType !== 'none' || facilityNotes.value.length > 0)
+
+/** 找出自己住的那一棟；找不到就退回房東的共用一份 */
+const resolvePropertyId = async (uid: string, landlordId: string): Promise<string> => {
+  try {
+    const tenantSnap = await getDocs(
+      query(collection(db, 'tenants'), where('uid', '==', uid), limit(1)))
+    const tenant: any = tenantSnap.docs[0]?.data()
+    const roomName = tenant?.room || tenant?.roomNumber || ''
+    if (!roomName) return ''
+    const roomsSnap = await getDocs(
+      query(collection(db, 'rooms'), where('landlordId', '==', landlordId)))
+    const room: any = roomsSnap.docs
+      .map(d => d.data())
+      .find(r => (r.name || r.roomName) === roomName)
+    return room?.propertyId || ''
+  } catch (e) {
+    console.warn('查詢所屬建物失敗，改用共用大樓資訊:', e)
+    return ''
+  }
 }
 
 const loadBuildingInfo = async () => {
   isLoading.value = true
   try {
-    // Get the landlord ID from the tenant's user document
-    const tenantProfile = authStore.userProfile as any
-    const landlordId = tenantProfile?.landlordId
+    const uid = authStore.user?.uid
+    const landlordId = (authStore.userProfile as any)?.landlordId
+    if (!uid || !landlordId) return
 
-    if (!landlordId) {
-      isLoading.value = false
-      return
+    const propertyId = await resolvePropertyId(uid, landlordId)
+    if (propertyId) {
+      const snap = await getDoc(doc(db, 'properties', propertyId))
+      if (snap.exists() && snap.data().buildingInfo) {
+        propertyName.value = snap.data().name || ''
+        buildingInfo.value = normalizeBuildingInfo(snap.data().buildingInfo)
+        return
+      }
     }
-
+    // 這棟還沒設定（或房東還沒建立建物）→ 房東層級的共用一份
     const landlordDoc = await getDoc(doc(db, 'users', landlordId))
     if (landlordDoc.exists()) {
-      const data = landlordDoc.data()
-      if (data.buildingInfo) {
-        buildingInfo.value = data.buildingInfo
-      }
+      buildingInfo.value = normalizeBuildingInfo(landlordDoc.data().buildingInfo)
     }
   } catch (e) {
     console.error('Load building info error:', e)
@@ -346,6 +291,7 @@ onMounted(() => {
   } else {
     setTimeout(() => {
       if (authStore.user) loadBuildingInfo()
+      else isLoading.value = false
     }, 1000)
   }
 })

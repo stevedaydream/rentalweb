@@ -31,15 +31,17 @@
             :class="isActive(item.to) ? 'bg-gold-500/15 text-gold-300' : 'text-ink-300 hover:bg-ink-700 hover:text-ink-100'"
             @click="isSidebarOpen = false"
           >
-            <span class="material-symbols-outlined mr-3 text-[20px]" aria-hidden="true">{{ item.icon }}</span>
-            <span class="flex-1">{{ item.name }}</span>
-            <span
-              v-if="getBadgeCount(item.id) > 0"
-              class="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gold-500 text-ink-900"
-            >
-              {{ getBadgeCount(item.id) > 99 ? '99+' : getBadgeCount(item.id) }}
+            <span class="relative mr-3 shrink-0">
+              <span class="material-symbols-outlined text-[20px] block" aria-hidden="true">{{ item.icon }}</span>
+              <span
+                v-if="getBadgeCount(item.id) > 0"
+                class="absolute -top-1.5 -right-2 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none ring-2 ring-ink-800"
+              >
+                {{ getBadgeCount(item.id) > 99 ? '99+' : getBadgeCount(item.id) }}
+              </span>
+              <span v-else-if="getBadgeDot(item.id)" class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-ink-800"></span>
             </span>
-            <span v-else-if="getBadgeDot(item.id)" class="ml-2 w-2 h-2 rounded-full bg-gold-400"></span>
+            <span class="flex-1">{{ item.name }}</span>
           </router-link>
 
           <!-- ── 工具群組（折疊） ── -->
@@ -63,14 +65,16 @@
                 :class="isActive(item.to) ? 'bg-gold-500/15 text-gold-300' : 'text-ink-400 hover:bg-ink-700 hover:text-ink-100'"
                 @click="isSidebarOpen = false"
               >
-                <span class="material-symbols-outlined mr-3 text-[18px]" aria-hidden="true">{{ item.icon }}</span>
-                <span class="flex-1">{{ item.name }}</span>
-                <span
-                  v-if="getBadgeCount(item.id) > 0"
-                  class="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gold-500 text-ink-900"
-                >
-                  {{ getBadgeCount(item.id) > 99 ? '99+' : getBadgeCount(item.id) }}
+                <span class="relative mr-3 shrink-0">
+                  <span class="material-symbols-outlined text-[18px] block" aria-hidden="true">{{ item.icon }}</span>
+                  <span
+                    v-if="getBadgeCount(item.id) > 0"
+                    class="absolute -top-1.5 -right-2 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none ring-2 ring-ink-800"
+                  >
+                    {{ getBadgeCount(item.id) > 99 ? '99+' : getBadgeCount(item.id) }}
+                  </span>
                 </span>
+                <span class="flex-1">{{ item.name }}</span>
               </router-link>
             </div>
           </div>
@@ -114,8 +118,19 @@
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
       <header class="lg:hidden flex items-center justify-between p-4 bg-ink-800 border-b border-ink-700">
         <img :src="logoSrc" alt="Logo" class="h-8 w-auto brightness-0 invert" />
-        <button @click="isSidebarOpen = true" class="p-2 rounded-lg text-ink-300 hover:bg-ink-700" aria-label="開啟選單">
+        <!-- 側欄收合時看不到選單內的 badge，未讀訊息數直接掛在漢堡鈕上 -->
+        <button
+          @click="isSidebarOpen = true"
+          class="relative p-2 rounded-lg text-ink-300 hover:bg-ink-700"
+          :aria-label="notificationStore.messages > 0 ? `開啟選單，${notificationStore.messages} 則未讀訊息` : '開啟選單'"
+        >
           <span class="material-symbols-outlined" aria-hidden="true">menu</span>
+          <span
+            v-if="notificationStore.messages > 0"
+            class="absolute top-0 right-0 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none ring-2 ring-ink-800"
+          >
+            {{ notificationStore.messages > 99 ? '99+' : notificationStore.messages }}
+          </span>
         </button>
       </header>
 
@@ -143,9 +158,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useNotificationStore } from '../stores/notification';
+import { useFeatureFlagStore } from '../stores/featureFlags';
+import { featureForRoute } from '../utils/featureFlags';
 import { useRoute } from 'vue-router';
 import logoSrc from '../assets/logo.svg';
 
@@ -154,7 +171,7 @@ const notificationStore = useNotificationStore();
 const route = useRoute();
 const isSidebarOpen = ref(false);
 
-const primaryItems = [
+const PRIMARY_ITEMS = [
   { id: 'dashboard',     name: '儀表板',  to: { name: 'LandlordDashboard' },    icon: 'dashboard' },
   { id: 'rooms',         name: '房源管理', to: { name: 'RoomManagement' },        icon: 'bedroom_parent' },
   { id: 'tenants',       name: '租客列表', to: { name: 'TenantList' },            icon: 'group' },
@@ -164,7 +181,7 @@ const primaryItems = [
   { id: 'messages',      name: '訊息中心', to: { name: 'LandlordMessages' },      icon: 'chat' },
 ];
 
-const toolItems = [
+const TOOL_ITEMS = [
   { id: 'announcements', name: '社區公告', to: { name: 'LandlordAnnouncements' }, icon: 'campaign' },
   { id: 'contract',      name: '電子合約', to: { name: 'Contract' },              icon: 'history_edu' },
   { id: 'receipts',      name: '收據產生', to: { name: 'Receipts' },              icon: 'receipt' },
@@ -175,7 +192,7 @@ const toolItems = [
 ];
 
 // 若目前路由在工具群組內，自動展開
-const toolRouteNames = new Set(toolItems.map(i => i.to.name).concat(['Settings']));
+const toolRouteNames = new Set(TOOL_ITEMS.map(i => i.to.name).concat(['Settings']));
 const isToolsExpanded = ref(toolRouteNames.has(String(route.name)));
 
 // 切換路由時若進入工具頁，自動展開
@@ -185,7 +202,17 @@ watch(() => route.name, (name) => {
   }
 });
 
+// 維修中的功能直接從選單拿掉；路由守衛另有一道，直接輸入網址也進不去
+const flags = useFeatureFlagStore();
+const isVisible = (item: { to: { name: string } }) => {
+  const target = featureForRoute(item.to.name);
+  return !target || !flags.isDisabled(target.role, target.feature.id);
+};
+const primaryItems = computed(() => PRIMARY_ITEMS.filter(isVisible));
+const toolItems = computed(() => TOOL_ITEMS.filter(isVisible));
+
 onMounted(() => {
+  void flags.ensureLoaded();
   if (!authStore.user) return;
   notificationStore.startListeners(authStore.effectiveUid);
 });

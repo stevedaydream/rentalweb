@@ -332,7 +332,6 @@
               <p class="text-amber-700 dark:text-amber-400 font-bold text-sm">截圖已上傳，等待房東確認</p>
             </div>
             <a v-if="selectedBill.paymentProofUrl" :href="selectedBill.paymentProofUrl" target="_blank" rel="noopener"
-               :data-capture-skip="true"
                class="block rounded-lg overflow-hidden border border-amber-200">
               <img :src="selectedBill.paymentProofUrl" class="w-full max-h-40 object-cover" alt="匯款截圖" width="400" height="160" />
             </a>
