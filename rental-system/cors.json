@@ -1,8 +1,15 @@
 [
   {
-    "origin": ["https://rental-8897a.web.app", "https://rental-8897a.firebaseapp.com"],
-    "method": ["GET", "POST", "PUT", "DELETE", "HEAD"],
-    "responseHeader": ["Content-Type", "Authorization", "x-goog-resumable"],
+    "origin": [
+      "https://rental-system-7675e.web.app",
+      "https://rental-system-7675e.firebaseapp.com",
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:4173",
+      "http://localhost:5000"
+    ],
+    "method": ["GET", "HEAD"],
+    "responseHeader": ["Content-Type", "Content-Length", "Content-Range"],
     "maxAgeSeconds": 3600
   }
 ]

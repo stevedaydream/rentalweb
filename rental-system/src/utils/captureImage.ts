@@ -26,47 +26,16 @@ export const captureElementPng = async (
   return blob
 }
 
-/** 手機上多半沒有「下載」的概念，能直接分享到 LINE 才是使用者要的 */
-const canShareFile = (file: File): boolean => {
-  const nav = navigator as Navigator & { canShare?: (d: any) => boolean }
-  return typeof nav.share === 'function' && !!nav.canShare?.({ files: [file] })
-}
-
 /**
- * 這台裝置按下去會叫出分享還是直接下載。
- * 給呼叫端決定按鈕要寫什麼——按鈕寫「下載」卻跳出分享選單是最惱人的那種不一致。
- */
-export const willShareImage = (): boolean => {
-  try {
-    return canShareFile(new File([new Blob()], 'probe.png', { type: 'image/png' }))
-  } catch {
-    return false
-  }
-}
-
-export type SaveResult = 'shared' | 'downloaded'
-
-/**
- * 優先叫出系統分享（手機可直接傳 LINE），不支援才退回下載。
+ * 存成檔案。
+ *
+ * 這張圖是給租客自己留底的，不是拿去分享給房東——房東本來就知道他繳了。
+ * 所以一律走下載，不叫系統分享選單。
  *
  * 用 blob URL 而非 data URL：iOS Safari 對 `<a download>` 帶 data URL
  * 的支援時好時壞，blob URL 穩定得多。
  */
-export const saveOrShareImage = async (
-  blob: Blob, fileName: string,
-): Promise<SaveResult> => {
-  const file = new File([blob], fileName, { type: 'image/png' })
-
-  if (canShareFile(file)) {
-    try {
-      await (navigator as any).share({ files: [file], title: fileName })
-      return 'shared'
-    } catch (e: any) {
-      // 使用者自己取消不算失敗，也不該再退回下載
-      if (e?.name === 'AbortError') return 'shared'
-    }
-  }
-
+export const downloadImage = (blob: Blob, fileName: string): void => {
   const url = URL.createObjectURL(blob)
   try {
     const link = document.createElement('a')
@@ -79,5 +48,4 @@ export const saveOrShareImage = async (
     // 立即撤銷會讓部分瀏覽器來不及讀取
     setTimeout(() => URL.revokeObjectURL(url), 10_000)
   }
-  return 'downloaded'
 }

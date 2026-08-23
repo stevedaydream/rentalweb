@@ -345,9 +345,9 @@
             @click="downloadImage"
             class="flex items-center gap-2 px-5 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium transition-colors shadow-sm"
           >
-            <span v-if="!isGenerating" class="material-symbols-outlined text-lg">{{ shareMode ? 'ios_share' : 'image' }}</span>
+            <span v-if="!isGenerating" class="material-symbols-outlined text-lg">download</span>
             <span v-else class="material-symbols-outlined text-lg animate-spin">refresh</span>
-            {{ isGenerating ? '處理中...' : saveButtonLabel }}
+            {{ isGenerating ? '處理中...' : '下載圖片' }}
           </button>
           
           <button
@@ -385,7 +385,7 @@ import {
   limit
 } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { captureElementPng, saveOrShareImage, willShareImage } from '../../utils/captureImage';
+import { captureElementPng, downloadImage as saveImageFile } from '../../utils/captureImage';
 import { tenantCategoryLabel } from '../../utils/billLabels';
 
 // --- Type Definitions ---
@@ -427,9 +427,6 @@ const proofPreview = ref<string>('');
 const uploading = ref(false);
 const landlordBankInfo = ref<{ code: string; account: string; name: string } | null>(null);
 const billReceiptRef = ref<HTMLElement | null>(null);
-// 按鈕文字要與實際行為一致：能分享就寫分享，否則寫下載
-const shareMode = willShareImage();
-const saveButtonLabel = shareMode ? '儲存 / 分享' : '下載圖片';
 const isGenerating = ref(false);
 
 // 用電記錄
@@ -674,11 +671,8 @@ const downloadImage = async () => {
 
     const bg = document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff';
     const blob = await captureElementPng(billReceiptRef.value, bg);
-    const result = await saveOrShareImage(
-      blob,
-      `帳單_${selectedBill.value?.monthStr || 'receipt'}.png`,
-    );
-    toast.success(result === 'shared' ? '已開啟分享' : '圖片已下載');
+    saveImageFile(blob, `帳單_${selectedBill.value?.monthStr || 'receipt'}.png`);
+    toast.success('圖片已下載');
 
   } catch (error) {
     console.error('帳單圖片產生失敗:', error);
