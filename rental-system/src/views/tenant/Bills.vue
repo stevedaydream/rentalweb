@@ -79,7 +79,7 @@
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2 flex-wrap">
                     <p class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ bill.monthStr }}</p>
-                    <span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-600 dark:text-gray-300">{{ bill.category }}</span>
+                    <span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-600 dark:text-gray-300">{{ tenantCategoryLabel(bill.category) }}</span>
                   </div>
                   <p class="text-xs text-text-secondary-light mt-1 truncate">{{ bill.description }}</p>
                   <div class="flex items-center gap-1 mt-1.5 text-xs text-text-secondary-light">
@@ -123,7 +123,7 @@
                     <p class="font-bold text-text-primary-light">{{ bill.monthStr }}</p>
                   </td>
                   <td class="px-6 py-4">
-                    <span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-600 dark:text-gray-300">{{ bill.category }}</span>
+                    <span class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-600 dark:text-gray-300">{{ tenantCategoryLabel(bill.category) }}</span>
                   </td>
                   <td class="px-6 py-4 text-text-secondary-light" :class="bill.status === 'overdue' ? 'text-red-500 font-medium' : ''">
                     {{ bill.dueDate || '無期限' }}
@@ -222,7 +222,7 @@
         <div class="bg-surface-light dark:bg-surface-dark rounded-xl p-4 space-y-2 text-sm">
           <div class="flex justify-between">
             <span class="text-text-secondary-light">項目</span>
-            <span class="font-medium">{{ billToConfirm?.category }}</span>
+            <span class="font-medium">{{ tenantCategoryLabel(billToConfirm?.category) }}</span>
           </div>
           <div class="flex justify-between border-t border-gray-100 dark:border-gray-700 pt-2">
             <span class="font-bold">應繳金額</span>
@@ -292,7 +292,7 @@
           <div v-if="selectedBill" class="space-y-4 border-t border-gray-100 dark:border-gray-700 pt-4">
             <div class="flex justify-between items-start">
                <div>
-                 <p class="font-bold text-text-primary-light">{{ selectedBill.category }}</p>
+                 <p class="font-bold text-text-primary-light">{{ tenantCategoryLabel(selectedBill.category) }}</p>
                  <p class="text-xs text-text-secondary-light">{{ selectedBill.description }}</p>
                </div>
                <p class="font-medium text-text-primary-light">NT$ {{ selectedBill.amount.toLocaleString() }}</p>
@@ -385,6 +385,7 @@ import {
 } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { captureElementPng, saveOrShareImage } from '../../utils/captureImage';
+import { tenantCategoryLabel } from '../../utils/billLabels';
 
 // --- Type Definitions ---
 // 對應 Firebase 'bills' collection 結構

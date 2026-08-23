@@ -89,6 +89,7 @@ import { collection, getDocs, query, where, orderBy, limit } from 'firebase/fire
 import { useAuthStore } from '../../stores/auth'
 import { useToastStore } from '../../stores/toast'
 import { printHtmlPdf } from '../../utils/contractRender'
+import { tenantCategoryLabel } from '../../utils/billLabels'
 // @ts-expect-error pdfHelper.js 為既有 JS 模組，無型別宣告
 import { downloadPdfFromBlob } from '../../views/pdfHelper.js'
 import billStatementTemplate from '../../templates/billStatement.html?raw'
@@ -266,7 +267,7 @@ const buildPage = (fragment: string, row: RoomRow): string => {
 
   const itemRows = sorted.map(b => `
     <tr>
-      <td>${esc(b.category)}</td>
+      <td>${esc(tenantCategoryLabel(b.category))}</td>
       <td class="desc">${esc(b.description)}</td>
       <td class="amt">NT$ ${fmt(b.amount)}</td>
       <td class="st">${isCollected(b) ? '<span class="paid">已繳 ✓</span>' : '<span class="unpaid">未繳</span>'}</td>
@@ -280,7 +281,7 @@ const buildPage = (fragment: string, row: RoomRow): string => {
         ${row.prevBills.map(b => `
         <tr class="overdue">
           <td style="width:22mm">${esc(b.date)}</td>
-          <td class="desc">${esc(b.category)}｜${esc(b.description)}</td>
+          <td class="desc">${esc(tenantCategoryLabel(b.category))}｜${esc(b.description)}</td>
           <td class="amt" style="width:26mm">NT$ ${fmt(b.amount)}</td>
           <td class="st"><span class="unpaid">未繳</span></td>
         </tr>`).join('')}
