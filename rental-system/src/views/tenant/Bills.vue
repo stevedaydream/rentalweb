@@ -332,6 +332,7 @@
               <p class="text-amber-700 dark:text-amber-400 font-bold text-sm">截圖已上傳，等待房東確認</p>
             </div>
             <a v-if="selectedBill.paymentProofUrl" :href="selectedBill.paymentProofUrl" target="_blank" rel="noopener"
+               :data-capture-skip="true"
                class="block rounded-lg overflow-hidden border border-amber-200">
               <img :src="selectedBill.paymentProofUrl" class="w-full max-h-40 object-cover" alt="匯款截圖" width="400" height="160" />
             </a>
@@ -344,9 +345,9 @@
             @click="downloadImage"
             class="flex items-center gap-2 px-5 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium transition-colors shadow-sm"
           >
-            <span v-if="!isGenerating" class="material-symbols-outlined text-lg">image</span>
+            <span v-if="!isGenerating" class="material-symbols-outlined text-lg">{{ shareMode ? 'ios_share' : 'image' }}</span>
             <span v-else class="material-symbols-outlined text-lg animate-spin">refresh</span>
-            {{ isGenerating ? '處理中...' : '下載圖片' }}
+            {{ isGenerating ? '處理中...' : saveButtonLabel }}
           </button>
           
           <button
@@ -384,7 +385,7 @@ import {
   limit
 } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { captureElementPng, saveOrShareImage } from '../../utils/captureImage';
+import { captureElementPng, saveOrShareImage, willShareImage } from '../../utils/captureImage';
 import { tenantCategoryLabel } from '../../utils/billLabels';
 
 // --- Type Definitions ---
@@ -426,6 +427,9 @@ const proofPreview = ref<string>('');
 const uploading = ref(false);
 const landlordBankInfo = ref<{ code: string; account: string; name: string } | null>(null);
 const billReceiptRef = ref<HTMLElement | null>(null);
+// 按鈕文字要與實際行為一致：能分享就寫分享，否則寫下載
+const shareMode = willShareImage();
+const saveButtonLabel = shareMode ? '儲存 / 分享' : '下載圖片';
 const isGenerating = ref(false);
 
 // 用電記錄
@@ -678,7 +682,7 @@ const downloadImage = async () => {
 
   } catch (error) {
     console.error('帳單圖片產生失敗:', error);
-    toast.error('圖片產生失敗，請截圖或改用「前往繳費」');
+    toast.error('圖片產生失敗，請直接用手機截圖，帳單內容不受影響');
   } finally {
     isGenerating.value = false;
   }

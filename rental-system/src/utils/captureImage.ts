@@ -8,14 +8,19 @@
  */
 import { toBlob } from 'html-to-image'
 
+/** 標了這個屬性的節點不會進到圖片裡 */
+export const SKIP_ATTR = 'data-capture-skip'
+
 export const captureElementPng = async (
   el: HTMLElement, backgroundColor: string,
 ): Promise<Blob> => {
   const blob = await toBlob(el, {
     pixelRatio: 2,
     backgroundColor,
-    // 產生的圖只給人看，跳過會拖慢或失敗的外部資源
-    cacheBust: true,
+    // 跨來源圖片必須內嵌才畫得出來，內嵌失敗會讓整張擷取失敗，
+    // 故由呼叫端以 SKIP_ATTR 標記排除（例如租客自己上傳的匯款截圖）
+    filter: (node: HTMLElement) =>
+      !(node instanceof Element) || !node.hasAttribute(SKIP_ATTR),
   })
   if (!blob) throw new Error('無法產生圖片')
   return blob
@@ -25,6 +30,18 @@ export const captureElementPng = async (
 const canShareFile = (file: File): boolean => {
   const nav = navigator as Navigator & { canShare?: (d: any) => boolean }
   return typeof nav.share === 'function' && !!nav.canShare?.({ files: [file] })
+}
+
+/**
+ * 這台裝置按下去會叫出分享還是直接下載。
+ * 給呼叫端決定按鈕要寫什麼——按鈕寫「下載」卻跳出分享選單是最惱人的那種不一致。
+ */
+export const willShareImage = (): boolean => {
+  try {
+    return canShareFile(new File([new Blob()], 'probe.png', { type: 'image/png' }))
+  } catch {
+    return false
+  }
 }
 
 export type SaveResult = 'shared' | 'downloaded'
