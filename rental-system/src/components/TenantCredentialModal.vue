@@ -29,6 +29,30 @@
           type="button" @click="copyLink"
           class="w-full py-2 rounded-lg bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 transition-colors"
         >{{ copied ? '已複製連結' : '複製連結' }}</button>
+
+        <div class="pt-1 border-t border-gold-200/70 dark:border-gold-800/40">
+          <button
+            type="button" @click="showQr = !showQr"
+            class="w-full py-1.5 text-xs font-medium text-gold-700 dark:text-gold-300 flex items-center justify-center gap-1"
+            :aria-expanded="showQr"
+          >
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">qr_code_2</span>
+            {{ showQr ? '收起 QR 碼' : '顯示 QR 碼給租客掃描' }}
+          </button>
+
+          <div v-if="showQr" class="flex flex-col items-center gap-2 pb-1">
+            <img
+              :src="qrDataUrl" alt="啟用連結 QR 碼"
+              class="w-48 h-48 bg-white rounded-lg p-1 border border-gold-200 dark:border-gold-800/40"
+              style="image-rendering: pixelated"
+            >
+            <p class="text-[11px] text-gold-700/80 dark:text-gold-300/80 text-center">
+              請租客用<strong>他自己的手機</strong>掃描。<br>
+              這樣連結會在他的裝置開啟，不會影響你目前的登入。
+            </p>
+          </div>
+        </div>
+
         <p class="text-[11px] text-gold-700/80 dark:text-gold-300/80">
           租客點開後需輸入證件號碼確認身分，接著會引導設定密碼與綁定 LINE。
         </p>
@@ -71,7 +95,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { toQrDataUrl } from '../utils/qr'
 
 export interface TenantCredential {
   phone: string
@@ -89,6 +114,12 @@ const props = withDefaults(defineProps<{
 }>(), { activationLink: '', linkError: '', expireDays: 7, generating: false })
 
 const emit = defineEmits<{ close: [] }>()
+
+const showQr = ref(false)
+const qrDataUrl = computed(() => toQrDataUrl(props.activationLink))
+
+// 換一位租客（連結重產）時收起，避免上一張 QR 還開著造成誤掃
+watch(() => props.activationLink, () => { showQr.value = false })
 
 const copied = ref(false)
 const copyLink = async () => {
