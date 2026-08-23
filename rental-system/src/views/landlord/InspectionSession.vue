@@ -71,12 +71,21 @@
           @remove-photo="removePhoto"
         />
 
+        <LandlordReviewStep
+          v-else-if="inspection?.status === 'review'"
+          :items="items"
+          :previews="photos.previews.value"
+          @mark-dispute="onMarkDispute"
+          @resolve="onResolve"
+          @clear="onClearDispute"
+        />
+
         <div v-else class="py-16 text-center">
           <span class="material-symbols-outlined text-4xl text-ink-200 block mb-3" aria-hidden="true">construction</span>
           <p class="text-sm font-medium text-text-primary-light dark:text-text-primary-dark">
             {{ stageBadge.label }}階段尚未開放
           </p>
-          <p class="mt-1 text-xs text-text-secondary-light">此階段仍在開發中，目前只能操作到「房東選項目」。</p>
+          <p class="mt-1 text-xs text-text-secondary-light">雙方簽名在第五段，尚未開放。</p>
           <button @click="backToDraft" :disabled="saving"
             class="mt-4 px-5 py-2 rounded-xl border border-ink-200 dark:border-ink-600 text-sm font-medium text-text-secondary-light disabled:opacity-50">
             退回上一階段
@@ -84,6 +93,25 @@
         </div>
       </div>
     </main>
+
+    <footer v-if="!loading && !error && inspection?.status === 'review'"
+      class="shrink-0 px-4 py-3 bg-white dark:bg-card-dark border-t border-ink-100 dark:border-ink-700">
+      <div class="max-w-3xl mx-auto flex items-center gap-3">
+        <p v-if="photos.pendingCount.value" class="text-[11px] text-amber-700 dark:text-amber-400 flex items-center gap-1">
+          <span class="material-symbols-outlined text-[14px]" aria-hidden="true">cloud_upload</span>
+          {{ photos.pendingCount.value }} 張照片待上傳，傳完才能簽名
+        </p>
+        <button @click="backToTenant" :disabled="saving"
+          class="px-4 py-2.5 rounded-xl border border-ink-200 dark:border-ink-600 text-sm font-medium text-text-secondary-light disabled:opacity-50">
+          退回租客確認
+        </button>
+        <button @click="goSign" :disabled="saving || !readyToSign"
+          class="ml-auto px-6 py-2.5 rounded-xl bg-gold-500 text-white text-sm font-bold hover:bg-gold-600 disabled:opacity-40 transition-colors flex items-center justify-center gap-2">
+          <span class="material-symbols-outlined text-[18px]" aria-hidden="true">draw</span>
+          確認無誤，進入簽名
+        </button>
+      </div>
+    </footer>
 
     <footer v-if="!loading && !error && inspection?.status === 'tenant'"
       class="shrink-0 px-4 py-3 bg-white dark:bg-card-dark border-t border-ink-100 dark:border-ink-700">
@@ -132,13 +160,15 @@ import { useToastStore } from '../../stores/toast'
 import DraftStep from '../../components/inspection/DraftStep.vue'
 import TenantConfirmStep from '../../components/inspection/TenantConfirmStep.vue'
 import HandBackModal from '../../components/inspection/HandBackModal.vue'
+import LandlordReviewStep from '../../components/inspection/LandlordReviewStep.vue'
 import { useInspectionPhotos } from '../../composables/useInspectionPhotos'
 import { useSignatureVault } from '../../composables/useSignatureVault'
 import {
   getInspection, saveItems, handToTenant, setStatus,
 } from '../../services/inspectionService'
 import {
-  canHandToTenant, canReturnToLandlord, tenantProgress,
+  canHandToTenant, canReturnToLandlord, tenantProgress, canSign,
+  markDispute, resolveDispute, clearDispute,
   type Inspection, type InspectionEntry,
 } from '../../utils/inspection'
 import type { Condition } from '../../utils/inventory'
@@ -173,6 +203,8 @@ const remainingCount = computed(() => {
   const p = tenantProgress(items.value)
   return p.total - p.done
 })
+const readyToSign = computed(() =>
+  canSign({ status: 'review', items: items.value }) && photos.pendingCount.value === 0)
 const stageIndex = computed(() => STAGES.findIndex(s => s.key === inspection.value?.status))
 const typeLabel = computed(() => (inspection.value?.type === 'moveout' ? '退租點交' : '入住點交'))
 
@@ -260,6 +292,48 @@ const removePhoto = async (key: string, photoId: string) => {
   items.value = items.value.map(e =>
     (e.key === key ? { ...e, photos: e.photos.filter(p => p.id !== photoId) } : e))
   queueSave()
+}
+
+// 房東標記不同意，記下自己的主張；租客原本的判定與說明不動
+const onMarkDispute = (key: string, condition: any, note: string) => {
+  const e = items.value.find(x => x.key === key)
+  if (e) replaceEntry(markDispute(e, condition, note))
+}
+
+// 協調後收斂；最終判定可以是雙方都沒主張過的第三個結果
+const onResolve = (key: string, condition: any, note: string) => {
+  const e = items.value.find(x => x.key === key)
+  if (e) replaceEntry(resolveDispute(e, condition, note))
+}
+
+const onClearDispute = (key: string) => {
+  const e = items.value.find(x => x.key === key)
+  if (e) replaceEntry(clearDispute(e))
+}
+
+const replaceEntry = (next: InspectionEntry) => {
+  items.value = items.value.map(e => (e.key === next.key ? next : e))
+  queueSave()
+}
+
+/** 租客有東西漏填或想改，退回去讓他自己改，不要房東代填 */
+const backToTenant = async () => {
+  if (!inspection.value) return
+  saving.value = true
+  try {
+    await saveItems(inspection.value.id, items.value)
+    await setStatus(inspection.value.id, 'tenant')
+    inspection.value = { ...inspection.value, status: 'tenant', items: items.value }
+  } catch (e: any) {
+    toast.error(e?.message || '操作失敗')
+  } finally {
+    saving.value = false
+  }
+}
+
+const goSign = () => {
+  if (!readyToSign.value) return
+  toast.info('簽名頁在第五段，尚未開放')
 }
 
 /**
