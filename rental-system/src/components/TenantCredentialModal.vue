@@ -38,7 +38,7 @@
         <p class="text-xs text-amber-800 dark:text-amber-300">{{ linkError }}</p>
       </div>
 
-      <div v-else class="bg-surface-light dark:bg-surface-dark rounded-xl p-3 text-center">
+      <div v-else-if="generating" class="bg-surface-light dark:bg-surface-dark rounded-xl p-3 text-center">
         <p class="text-xs text-text-secondary-light">產生啟用連結中…</p>
       </div>
 
@@ -84,7 +84,9 @@ const props = withDefaults(defineProps<{
   activationLink?: string
   linkError?: string
   expireDays?: number
-}>(), { activationLink: '', linkError: '', expireDays: 7 })
+  /** 是否正在產生連結；未傳時不顯示「產生中」，避免呼叫端忘了接線而卡住轉圈 */
+  generating?: boolean
+}>(), { activationLink: '', linkError: '', expireDays: 7, generating: false })
 
 const emit = defineEmits<{ close: [] }>()
 

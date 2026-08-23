@@ -364,6 +364,7 @@
       :activation-link="activationLink"
       :link-error="activationError"
       :expire-days="activationExpireDays"
+      :generating="activationPending"
       @close="closeCredentialModal"
     />
 
@@ -1801,6 +1802,7 @@ const toggleDisabled = async (tenant: Tenant) => {
 };
 const activationError = ref('');
 const activationExpireDays = ref(7);
+const activationPending = ref(false);
 
 const closeCredentialModal = () => {
   createdCredential.value = null;
@@ -1817,6 +1819,7 @@ const closeCredentialModal = () => {
 const requestActivationLink = async (tenantDocId: string) => {
   activationLink.value = '';
   activationError.value = '';
+  activationPending.value = true;
   try {
     const fn = httpsCallable(functions, 'createActivationLink');
     const res: any = await fn({ tenantDocId, origin: window.location.origin });
@@ -1827,6 +1830,8 @@ const requestActivationLink = async (tenantDocId: string) => {
     activationError.value = code.includes('failed-precondition')
       ? '此租客缺少證件號碼，無法產生啟用連結（連結需以證件號碼驗證身分）'
       : '產生啟用連結失敗，可改用下方帳號密碼告知租客';
+  } finally {
+    activationPending.value = false;
   }
 };
 

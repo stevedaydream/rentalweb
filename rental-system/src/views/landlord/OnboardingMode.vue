@@ -228,7 +228,14 @@
       </footer>
     </div>
 
-    <TenantCredentialModal :credential="createdCredential" @close="createdCredential = null" />
+    <TenantCredentialModal
+      :credential="createdCredential"
+      :activation-link="activationLink"
+      :link-error="activationError"
+      :expire-days="activationExpireDays"
+      :generating="activationPending"
+      @close="closeCredentialModal"
+    />
 
     <MoveInInspectionModal
       v-if="showInspection && tenantId"
@@ -270,6 +277,36 @@ const saving = ref(false);
 const availableRooms = ref<{ name: string; rent: number; address: string }[]>([]);
 const skipped = ref<OnboardingStepKey[]>([]);
 const createdCredential = ref<{ phone: string; idNumber: string } | null>(null);
+const activationLink = ref('');
+const activationError = ref('');
+const activationExpireDays = ref(7);
+const activationPending = ref(false);
+
+const closeCredentialModal = () => {
+  createdCredential.value = null;
+  activationLink.value = '';
+  activationError.value = '';
+};
+
+/** 產生一次性啟用連結；失敗不阻斷精靈，房東仍可退而用帳密告知租客 */
+const requestActivationLink = async (tenantDocId: string) => {
+  activationLink.value = '';
+  activationError.value = '';
+  activationPending.value = true;
+  try {
+    const fn = httpsCallable(functions, 'createActivationLink');
+    const res: any = await fn({ tenantDocId, origin: window.location.origin });
+    activationLink.value = res.data?.url || '';
+    activationExpireDays.value = res.data?.expireDays ?? 7;
+  } catch (e: any) {
+    const code = String(e?.code || '');
+    activationError.value = code.includes('failed-precondition')
+      ? '此租客缺少證件號碼，無法產生啟用連結（連結需以證件號碼驗證身分）'
+      : '產生啟用連結失敗，可改用下方帳號密碼告知租客';
+  } finally {
+    activationPending.value = false;
+  }
+};
 const completedKeys = ref<Record<string, boolean>>({});
 
 const form = ref<any>({
@@ -474,6 +511,7 @@ const saveProfile = async (): Promise<boolean> => {
         name: form.value.name,
       });
       createdCredential.value = { phone: form.value.phone, idNumber: form.value.idNumber };
+      await requestActivationLink(docRef.id);
     } catch (e: any) {
       toast.warning('租客已建檔，但登入帳號建立失敗：' + (e?.message || '可稍後於租客清單補建'));
     }
