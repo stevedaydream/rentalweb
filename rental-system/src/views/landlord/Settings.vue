@@ -492,6 +492,51 @@
       </button>
     </section>
 
+    <!-- ===== 屋況檢查項 ===== -->
+    <section class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gold-200 dark:border-gold-800/40">
+      <h2 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center mb-1">
+        <span class="material-symbols-outlined text-[20px] text-gold-500 mr-2">roofing</span>
+        屋況檢查項
+      </h2>
+      <p class="text-sm text-text-secondary-light mb-4">
+        牆面、地板、門窗這類沒有單價的項目。點交時一樣要逐項確認並可拍照存證，但不會進入退租賠償計算。
+      </p>
+
+      <div class="space-y-2">
+        <div v-for="(name, i) in conditionCatalog" :key="i" class="flex gap-2 items-center">
+          <input
+            :value="name"
+            @input="conditionCatalog[i] = ($event.target as HTMLInputElement).value"
+            type="text" placeholder="檢查項名稱" :aria-label="`第 ${i + 1} 項檢查項`"
+            class="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-sm outline-none focus:ring-2 focus:ring-gold-500" />
+          <button @click="conditionCatalog.splice(i, 1)" class="text-red-400 hover:text-red-600 shrink-0 p-1" aria-label="移除檢查項">
+            <span class="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-2 mt-3">
+        <button @click="conditionCatalog.push('')"
+          class="px-3 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-sm text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-1.5 transition-colors">
+          <span class="material-symbols-outlined text-[16px]">add</span>新增檢查項
+        </button>
+        <button @click="conditionCatalog = [...DEFAULT_CONDITION_CATALOG]"
+          class="px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+          套用預設清單
+        </button>
+      </div>
+
+      <button
+        @click="saveConditionCatalog"
+        :disabled="isSavingConditions"
+        class="w-full mt-4 py-2.5 bg-gold-500 hover:bg-gold-600 text-white font-bold rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+      >
+        <span v-if="isSavingConditions" class="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+        <span v-else class="material-symbols-outlined text-[18px]">save</span>
+        {{ isSavingConditions ? '儲存中...' : '儲存屋況檢查項' }}
+      </button>
+    </section>
+
     <!-- ===== 我的簽名 / 印章 ===== -->
     <section class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gold-200 dark:border-gold-800/40">
       <h2 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center mb-1">
@@ -583,6 +628,7 @@ import { useToastStore } from '../../stores/toast';
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { DEFAULT_CATALOG, type CatalogItem } from '../../utils/inventory';
+import { DEFAULT_CONDITION_CATALOG } from '../../utils/inspection';
 import { fileToResizedDataUrl } from '../../utils/signature';
 import { useSignatureVault } from '../../composables/useSignatureVault';
 import { isValidPin } from '../../utils/signatureVault';
@@ -671,6 +717,25 @@ const saveCatalog = async () => {
     toast.error('儲存失敗，請稍後再試');
   } finally {
     isSavingCatalog.value = false;
+  }
+};
+
+// ── 屋況檢查項（settings/{landlordId}.conditionCatalog） ──
+const conditionCatalog = ref<string[]>([...DEFAULT_CONDITION_CATALOG]);
+const isSavingConditions = ref(false);
+const saveConditionCatalog = async () => {
+  if (!authStore.user) return;
+  const cleaned = conditionCatalog.value.map(n => (n || '').trim()).filter(Boolean);
+  isSavingConditions.value = true;
+  try {
+    await setDoc(doc(db, 'settings', authStore.effectiveUid), { conditionCatalog: cleaned }, { merge: true });
+    conditionCatalog.value = cleaned;
+    toast.success('屋況檢查項已儲存');
+  } catch (e) {
+    console.error('Condition catalog save error:', e);
+    toast.error('儲存失敗，請稍後再試');
+  } finally {
+    isSavingConditions.value = false;
   }
 };
 
@@ -876,6 +941,10 @@ onMounted(async () => {
     catalog.value = Array.isArray(savedCatalog) && savedCatalog.length > 0
       ? savedCatalog.map(c => ({ name: c.name, unitPrice: Number(c.unitPrice) || 0 }))
       : DEFAULT_CATALOG.map(c => ({ ...c }));
+    const savedConditions = settingsSnap.exists() ? (settingsSnap.data().conditionCatalog as string[]) : null;
+    conditionCatalog.value = Array.isArray(savedConditions) && savedConditions.length > 0
+      ? [...savedConditions]
+      : [...DEFAULT_CONDITION_CATALOG];
     await signatureVault.load(authStore.effectiveUid);
     // 加密後明文欄位為空，若本工作階段已解鎖則直接顯示，否則呈現「已加密」狀態
     signatureImage.value = (settingsSnap.exists() ? (settingsSnap.data().signatureImage || '') : '')

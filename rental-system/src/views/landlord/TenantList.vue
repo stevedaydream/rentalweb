@@ -809,6 +809,15 @@
                     {{ drawerTenant?.moveInInspection ? '查看 / 編輯入住點交' : '建立入住點交清單' }}
                   </button>
                   <button
+                    @click="openInspectionSession"
+                    :disabled="isOpeningInspection"
+                    class="w-full py-2.5 border border-dashed border-gold-300 dark:border-gold-700 rounded-xl text-sm font-medium text-gold-700 dark:text-gold-300 hover:bg-gold-50 dark:hover:bg-gold-900/20 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    title="房東選項目 → 遞給租客逐項確認 → 二次確認 → 雙方簽名"
+                  >
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">handshake</span>
+                    {{ isOpeningInspection ? '準備中…' : '新版雙方點交（開發中）' }}
+                  </button>
+                  <button
                     v-if="drawerTenant?.room"
                     @click="openMoveOutWizard"
                     class="w-full py-2.5 border border-red-200 dark:border-red-700 rounded-xl text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center gap-2 transition-colors"
@@ -1164,6 +1173,7 @@ import { useAuthStore } from '../../stores/auth';
 import { roomMonthlyRent } from '../../utils/room';
 import TenantCredentialModal from '../../components/TenantCredentialModal.vue';
 import PurgeConfirmModal, { type PurgeRequest } from '../../components/tenants/PurgeConfirmModal.vue';
+import { seedItems, createInspection, findOpenInspection } from '../../services/inspectionService';
 import { useToastStore } from '../../stores/toast';
 import MoveOutWizard from '../../components/MoveOutWizard.vue';
 import MoveInInspectionModal from '../../components/MoveInInspectionModal.vue';
@@ -1803,6 +1813,44 @@ const toggleDisabled = async (tenant: Tenant) => {
 const activationError = ref('');
 const activationExpireDays = ref(7);
 const activationPending = ref(false);
+const isOpeningInspection = ref(false);
+
+/**
+ * 開啟雙方點交：有未完成的就接回去，否則開新的一筆。
+ * 品項優先沿用同一間房上次的點交，其次是既有的 moveInInspection，最後才用主檔。
+ */
+const openInspectionSession = async () => {
+  const t = drawerTenant.value;
+  if (!t) return;
+  isOpeningInspection.value = true;
+  try {
+    const open = await findOpenInspection(authStore.effectiveUid, t.id);
+    if (open) {
+      router.push({ name: 'InspectionSession', params: { inspectionId: open.id } });
+      return;
+    }
+    const ctx = {
+      landlordId: authStore.effectiveUid,
+      tenantDocId: t.id,
+      tenantId: t.uid || '',
+      tenantName: t.name || '',
+      roomId: availableRooms.value.find(r => r.name === t.room)?.id || '',
+      roomName: t.room || '',
+      legacyItems: t.moveInInspection?.items || [],
+    };
+    const seed = await seedItems(ctx);
+    const id = await createInspection(ctx, seed.items);
+    router.push({
+      name: 'InspectionSession',
+      params: { inspectionId: id },
+      query: { from: seed.sourceLabel },
+    });
+  } catch (e: any) {
+    toast.error(e?.message || '無法開啟點交');
+  } finally {
+    isOpeningInspection.value = false;
+  }
+};
 
 const closeCredentialModal = () => {
   createdCredential.value = null;

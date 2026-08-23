@@ -94,6 +94,14 @@ const routes = [
     meta: { requiresAuth: true, role: 'landlord' },
   },
 
+  // 雙方點交（全螢幕獨立模式：租客那一輪要把裝置交出去，不能有側邊選單）
+  {
+    path: '/landlord/inspection/:inspectionId',
+    name: 'InspectionSession',
+    component: () => import('../views/landlord/InspectionSession.vue'),
+    meta: { requiresAuth: true, role: 'landlord' },
+  },
+
   // 租客系統
   {
     path: '/tenant',
