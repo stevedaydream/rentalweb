@@ -300,6 +300,12 @@
                 {{ expandedGroups.has(g.key) ? 'expand_more' : 'chevron_right' }}
               </span>
               <span class="font-bold text-sm truncate flex-1 min-w-0">{{ g.label }}</span>
+              <!-- 收合時也要看得到租客傳了截圖在等你，否則等於沒通知 -->
+              <span v-if="waitingCount(g.items)"
+                class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 whitespace-nowrap">
+                <span class="material-symbols-outlined text-[13px]" aria-hidden="true">hourglass_top</span>
+                待確認 {{ waitingCount(g.items) }}
+              </span>
               <span class="text-xs text-text-secondary-light shrink-0 whitespace-nowrap">{{ g.items.length }} 筆</span>
               <span class="text-sm font-bold shrink-0 sm:w-24 text-right whitespace-nowrap"
                 :class="g.total >= 0 ? 'text-green-600' : 'text-red-500'">
@@ -342,7 +348,20 @@
                     {{ item.type === 'income' ? '+' : '-' }} {{ item.amount.toLocaleString() }}
                   </span>
                   <span class="shrink-0 sm:w-32 text-right whitespace-nowrap">
-                    <button v-if="item.type === 'income' && !isCollected(item)"
+                    <!-- 待確認：租客已上傳截圖，先給你看圖再確認 -->
+                    <span v-if="item.status === 'waiting_confirmation'" class="inline-flex items-center gap-1.5">
+                      <a v-if="item.paymentProofUrl" :href="item.paymentProofUrl" target="_blank" rel="noopener"
+                        @click.stop
+                        class="block w-9 h-7 rounded overflow-hidden border border-amber-300 hover:border-amber-500 transition-colors"
+                        title="查看匯款截圖">
+                        <img :src="item.paymentProofUrl" class="w-full h-full object-cover" alt="匯款截圖" width="36" height="28">
+                      </a>
+                      <button @click="markPaid(item)" :disabled="markingPaidId === item.id"
+                        class="px-2 py-1 rounded text-[11px] font-medium bg-amber-100 text-amber-700 hover:bg-green-100 hover:text-green-700 transition-colors disabled:opacity-50">
+                        確認收款
+                      </button>
+                    </span>
+                    <button v-else-if="item.type === 'income' && !isCollected(item)"
                       @click="markPaid(item)" :disabled="markingPaidId === item.id"
                       class="px-2 py-1 rounded text-[11px] font-medium bg-orange-100 text-orange-700 hover:bg-green-100 hover:text-green-700 transition-colors disabled:opacity-50">
                       標記已收
@@ -950,6 +969,12 @@ const electricityStatsList = computed<ElectricityStats[]>(() =>
   })
 )
 
+/** 這群帳單裡有幾筆租客已上傳截圖、等著你確認 */
+const waitingCount = (items: { status?: string }[]) =>
+  items.filter(i => i.status === 'waiting_confirmation').length
+
+const waitingTotal = computed(() => waitingCount(monthlyTransactions.value))
+
 const tabs = computed(() => [
   { label: '全部', value: 'all', count: 0 },
   { label: '租金收入', value: '租金收入', count: 0 },
@@ -958,6 +983,7 @@ const tabs = computed(() => [
   { label: '公共電費', value: '公共電費', count: 0 },
   { label: '支出', value: 'expense', count: 0 },
   { label: '待收', value: 'pending', count: pendingCount.value },
+  { label: '待確認', value: 'waiting', count: waitingTotal.value },
 ])
 
 const filteredTransactions = computed(() => {
@@ -965,6 +991,7 @@ const filteredTransactions = computed(() => {
     if (currentTab.value === 'all') return true
     if (currentTab.value === 'expense') return t.type === 'expense'
     if (currentTab.value === 'pending') return !isCollected(t) && t.type === 'income'
+    if (currentTab.value === 'waiting') return t.status === 'waiting_confirmation'
     return t.category === currentTab.value
   })
 })
