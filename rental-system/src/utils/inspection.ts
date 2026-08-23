@@ -11,7 +11,7 @@
  * 閘門集中在這裡（canHandToTenant / canReturnToLandlord / canSign），
  * UI 只負責呈現，避免規則散落在三個元件裡各寫一份。
  */
-import type { CatalogItem, Condition, InspectionItem } from './inventory'
+import { DAMAGE_RATIO, type CatalogItem, type Condition, type InspectionItem } from './inventory'
 
 export type InspectionStatus = 'draft' | 'tenant' | 'review' | 'signing' | 'signed'
 export type InspectionType = 'movein' | 'moveout'
@@ -31,6 +31,13 @@ export interface InspectionPhoto {
   /** 尚未（完全）上傳完畢；現場沒網路時照片先落在裝置的待傳佇列 */
   pending?: boolean
   at?: any
+}
+
+/** 退租點交時帶入的入住基準，供逐項對照；入住點交本身沒有這個欄位 */
+export interface InspectionBaseline {
+  condition: Condition
+  note?: string
+  photos: InspectionPhoto[]
 }
 
 export interface InspectionEntry {
@@ -54,6 +61,8 @@ export interface InspectionEntry {
   /** 房東標歧異／註記共識時的說明 */
   landlordNote?: string
   photos: InspectionPhoto[]
+  /** 入住當時的狀況與照片（僅退租點交） */
+  baseline?: InspectionBaseline
 }
 
 export interface InspectionSignature {
@@ -172,6 +181,29 @@ export const seedEntriesFrom = (
     unitPrice: Number(e.unitPrice) || 0,
   }))
 
+/**
+ * 由已簽署的入住點交建立退租點交的品項。
+ *
+ * 與 seedEntriesFrom 的差別在於**保留入住基準**：退租要比對的不是「現在壞不壞」，
+ * 而是「跟入住時比有沒有變差」。入住當時的狀況與照片一併帶著，租客與房東
+ * 在現場就看得到對照，不必回頭翻舊文件。
+ */
+export const seedEntriesForMoveOut = (
+  moveInItems: InspectionEntry[],
+  keyFor: (index: number) => string,
+): InspectionEntry[] =>
+  moveInItems.map((e, i) => makeEntry(keyFor(i), {
+    kind: e.kind,
+    name: e.name,
+    quantity: Number(e.quantity) || 1,
+    unitPrice: Number(e.unitPrice) || 0,
+    baseline: {
+      condition: effectiveCondition(e),
+      note: composeNote(e),
+      photos: (e.photos || []).filter(p => p.thumbUrl),
+    },
+  }))
+
 /** 承接舊的 tenants.moveInInspection.items；present 為 false 者當初就不在房間裡 */
 export const entriesFromLegacy = (
   items: InspectionItem[],
@@ -262,6 +294,26 @@ export const clearDispute = (e: InspectionEntry): InspectionEntry => ({
   finalCondition: undefined,
   landlordNote: '',
 })
+
+/** 狀況的嚴重度排序，用於判斷有沒有變差 */
+const SEVERITY: Record<Condition, number> = { normal: 0, minor: 1, total: 2 }
+
+/**
+ * 建議賠償比例：只賠「惡化的部分」。
+ *
+ * 入住就已經是輕微瑕疵、退租仍是輕微，租客沒有讓它變差，不該賠；
+ * 入住輕微、退租全損，賠的是 100% 減去入住當時就存在的 30%。
+ * 房東仍可逐項覆寫——這是建議值，不是判決。
+ */
+export const suggestedRatio = (
+  baseline: Condition | undefined, moveOut: Condition,
+): number => {
+  const from = SEVERITY[baseline ?? 'normal']
+  const to = SEVERITY[moveOut]
+  if (to <= from) return 0
+  const ratio = DAMAGE_RATIO[moveOut] - DAMAGE_RATIO[baseline ?? 'normal']
+  return Math.max(0, Math.round(ratio * 100) / 100)
+}
 
 // ── 對外輸出 ────────────────────────────────────────────────
 

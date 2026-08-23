@@ -95,7 +95,7 @@ rental-system/
 | `line_configs` | doc ID = landlordId，LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN |
 | `line_bindings` | 綁定碼，uid, expiry |
 | `tenant_activations` | 租客帳號啟用連結：code(doc id), tenantDocId, uid, landlordId, expireAt(7 天), usedAt?(一次性)　※**前端完全禁止讀寫**，發放與兌換全由 Cloud Function 處理——它等同鑰匙，可列舉則二次驗證形同虛設 |
-| `inspections` | id, landlordId, tenantDocId, tenantId?(Auth uid，點交當下未必有帳號), roomId, roomName, type('movein'\|'moveout'), status('draft'→'tenant'→'review'→'signing'→'signed'), items[{key, kind('asset'物品可計賠\|'condition'屋況僅存證), name, quantity, unitPrice, tenantCondition, landlordCondition?, finalCondition?, dispute('agreed'\|'disputed'\|'resolved'), note?, landlordNote?, photos[{id,thumbUrl,origUrl?,pending?}]}], signatures{tenant,landlord}, completedAt?, origPurgedAt?　※**房東二次確認時不覆蓋租客判定**，而是標歧異並記自己的主張，協調後收斂為 finalCondition，三個值全部留底；只要還有 `disputed` 就進不了簽名。完成時同步回寫 `tenants.moveInInspection` 摘要（**僅 asset**，否則單價 0 的屋況項會污染退租賠償表），`MoveOutWizard` 因此不需改動 |
+| `inspections` | id, landlordId, tenantDocId, tenantId?(Auth uid，點交當下未必有帳號), roomId, roomName, type('movein'\|'moveout'), status('draft'→'tenant'→'review'→'signing'→'signed'), items[{key, kind('asset'物品可計賠\|'condition'屋況僅存證), name, quantity, unitPrice, tenantCondition, landlordCondition?, finalCondition?, dispute('agreed'\|'disputed'\|'resolved'), reasons?[](瑕疵原因快捷選項), note?, landlordNote?, photos[{id,thumbUrl,origUrl?,pending?}], baseline?{condition,note,photos}(**僅退租**：入住當時的狀況與照片，供現場逐項對照)}], signatures{tenant,landlord}, completedAt?, origPurgedAt?　※**房東二次確認時不覆蓋租客判定**，而是標歧異並記自己的主張，協調後收斂為 finalCondition，三個值全部留底；只要還有 `disputed` 就進不了簽名。完成時同步回寫 `tenants.moveInInspection` 摘要（**僅 asset**，否則單價 0 的屋況項會污染退租賠償表），`MoveOutWizard` 因此不需改動 |
 | `reviews` | id, landlordId, rating(1-5), isVisible, landlordReply |
 | `public_profiles` | doc ID = uid，公開資訊（lineBotId 等） |
 | `taipower_bills` | 台電帳單記錄，landlordId, month(迄月), amount, usage, groupId(所屬台電總表) |
@@ -163,6 +163,7 @@ rental-system/
 - 解除房間綁定後無法直接刪除租客修正（2026-08-12）：`drawerTenant` 是開啟抽屜當下的淺複本（`{ ...tenant }`），`unbindRoom` 的註解「drawerTenant 會透過 onSnapshot 自動更新」與事實不符 —— 沒有任何程式碼在同步它。解除綁定後 Firestore 的 `room` 已清空、列表也更新，抽屜內卻仍是舊房號，`:disabled="!!drawerTenant?.room"` 與 `deleteTenant` 的早退判斷雙雙成立，必須關閉抽屜再開才刪得掉。修法：新增 `watch(tenants)` 以 id 對回最新資料同步 `drawerTenant`（置於其宣告之後，避免日後加 `immediate` 觸發 TDZ）
 - 精靈租客可建立登入帳號（2026-08-12）：`createTenantAccount` 原本只有兩個呼叫點 —— `TenantList.saveTenant`（且限 `!isEditing`，即只在手動新增當下）與 Excel 匯入。精靈的 `saveProfile` 完全沒有呼叫，且租客清單沒有「為既有租客補建帳號」入口，導致精靈產生的租客**永遠無法登入**，唯一辦法是刪除重建（連帶失去合約、收據、點交紀錄）。諷刺的是精靈 `:441` 強制要求填證件號碼，那正是建帳號所需欄位。修法：(a) 精靈建檔新增租客時一併呼叫 `createTenantAccount`，失敗僅警告不阻斷上線流程；(b) 租客抽屜新增「建立租客登入帳號」按鈕，條件為 `!uid && phone && idNumber`，用於補救既有資料。憑證提示 Modal 抽為共用元件 `TenantCredentialModal.vue`，兩處共用
 - 雙方入住點交（2026-08-23）：房東選項目 → **實體遞交裝置** → 租客逐項確認並拍照 → PIN 交還 → 房東二次確認與歧異協調 → 雙方簽名 → PDF。全螢幕獨立路由不掛 LandlordLayout（留著側邊選單等於讓租客一點就看到其他租客的身分證號與租金）；遞出前呼叫 `vault.lock()`，交還時以簽名 PIN 驗身分並同時解鎖簽名。品項優先沿用同一間房上次的點交（只帶骨架，狀況與照片重來）。取代舊的單頁 `MoveInInspectionModal`
+- 雙方退租點交（2026-08-23）：以該租客已簽署的入住點交為基準帶入品項，每項顯示入住當時的狀況與照片；`MoveOutWizard` 改讀已簽署的退租點交，**狀況欄鎖定**（雙方簽過名的結論不該在結算畫面單方改掉），賠償比例依「入住→退租」的惡化程度預填（`suggestedRatio`：入住已有輕微、退租全損只賠 70%）後仍可逐項調整。未做雙方點交時保留舊的手動路徑並警示舉證力較弱
 - 報修管理（查看/處理租客報修申請）
 - 公告發布
 - 合約管理（自訂範本、PDF 匯出、電子簽名、排程續約：續約後目前租期維持到期滿、新租期存 pendingRenewal 到期自動接續+通知租客+導向重簽；房東「標記不續約」註記）

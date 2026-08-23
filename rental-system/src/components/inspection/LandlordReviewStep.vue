@@ -35,6 +35,19 @@
           </span>
         </div>
 
+        <div v-if="entry.baseline" class="mb-2 flex items-center gap-2 flex-wrap text-sm">
+          <span class="text-text-secondary-light text-xs">入住當時</span>
+          <span class="px-2 py-0.5 rounded-full text-xs font-bold" :class="badge(entry.baseline.condition)">
+            {{ label(entry.baseline.condition) }}
+          </span>
+          <span v-if="entry.baseline.note" class="text-xs text-text-secondary-light truncate">「{{ entry.baseline.note }}」</span>
+          <button v-for="p in entry.baseline.photos" :key="p.id"
+            @click="lightbox = { src: p.origUrl || p.thumbUrl, alt: `${entry.name} 入住當時`, pending: false }"
+            class="w-8 h-8 rounded overflow-hidden border border-ink-100 dark:border-ink-700">
+            <img :src="p.thumbUrl" :alt="`${entry.name} 入住當時照片`" class="w-full h-full object-cover">
+          </button>
+        </div>
+
         <div class="flex items-center gap-2 text-sm">
           <span class="text-text-secondary-light text-xs">租客判定</span>
           <span class="px-2 py-0.5 rounded-full text-xs font-bold" :class="badge(entry.tenantCondition)">

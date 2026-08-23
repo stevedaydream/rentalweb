@@ -93,7 +93,30 @@
               <p class="text-xs">提示：日後可於租客抽屜先建立「入住點交」，退租時即自動帶入逐項點交。</p>
             </div>
             <template v-else>
-              <p class="text-xs text-text-secondary-light">依入住清單逐項點交，標記退租狀況；賠償＝單價 × 數量 × 比例，將自動併入押金扣款。</p>
+              <div v-if="fromInspection"
+                class="flex items-start gap-2 p-3 rounded-xl bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800">
+                <span class="material-symbols-outlined text-[18px] text-green-600 shrink-0" aria-hidden="true">verified</span>
+                <div class="text-xs text-green-800 dark:text-green-300">
+                  <p class="font-bold">狀況取自雙方簽署的退租點交</p>
+                  <p class="mt-0.5">
+                    狀況欄不可在此修改——那是雙方在現場逐項確認並簽名的結論。要改請回退租點交重新協調。
+                    賠償比例已依「入住→退租」的惡化程度預填，仍可逐項調整。
+                  </p>
+                </div>
+              </div>
+
+              <div v-else class="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800">
+                <span class="material-symbols-outlined text-[18px] text-amber-600 shrink-0" aria-hidden="true">info</span>
+                <div class="text-xs text-amber-800 dark:text-amber-300">
+                  <p class="font-bold">尚未做雙方退租點交</p>
+                  <p class="mt-0.5">
+                    以下為房東單方認定，沒有租客簽名，日後有爭議時舉證力較弱。
+                    建議先關閉此視窗，在租客抽屜點「退租點交」與租客一起逐項確認。
+                  </p>
+                </div>
+              </div>
+
+              <p class="text-xs text-text-secondary-light">賠償＝單價 × 數量 × 比例，將自動併入押金扣款。</p>
 
               <div v-for="(item, i) in moveOutItems" :key="i"
                 class="p-3 rounded-xl border transition-colors"
@@ -111,10 +134,20 @@
                 <p v-if="item.moveInCondition !== 'normal'" class="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
                   入住既有狀況：{{ CONDITION_LABELS[item.moveInCondition] }}<span v-if="item.moveInNote">（{{ item.moveInNote }}）</span>
                 </p>
+                <p v-if="fromInspection && item.moveOutNote" class="text-[11px] text-text-secondary-light mt-0.5">
+                  退租狀況說明：{{ item.moveOutNote }}
+                </p>
                 <div class="grid grid-cols-2 gap-2 mt-2">
                   <div>
                     <label class="block text-[10px] text-text-secondary-light mb-0.5">退租狀況</label>
-                    <select v-model="item.moveOutCondition" @change="onConditionChange(item)" class="form-input text-sm">
+                    <div v-if="fromInspection"
+                      class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-light dark:bg-ink-800 text-sm">
+                      <span class="material-symbols-outlined text-[15px] text-green-600" aria-hidden="true">lock</span>
+                      <span class="font-medium">{{ CONDITION_LABELS[item.moveOutCondition] }}</span>
+                      <span v-if="item.moveOutCondition === item.moveInCondition"
+                        class="ml-auto text-[10px] text-green-700 dark:text-green-400">與入住相同</span>
+                    </div>
+                    <select v-else v-model="item.moveOutCondition" @change="onConditionChange(item)" class="form-input text-sm">
                       <option value="normal">正常</option>
                       <option value="minor">輕微毀損</option>
                       <option value="total">完全毀損</option>
@@ -433,6 +466,8 @@ import {
   CONDITION_LABELS, defaultRatioFor, calcCompensation,
   type Condition, type InspectionItem,
 } from '../utils/inventory';
+import { suggestedRatio, effectiveCondition, composeNote } from '../utils/inspection';
+import { latestSignedMoveOut, stampPhotoCleanup } from '../services/inspectionService';
 import Signature from './Signature.vue';
 import { loadLandlordSignature, BLANK_PIXEL } from '../utils/signature';
 
@@ -515,9 +550,48 @@ interface MoveOutItem {
   moveInCondition: Condition;
   moveInNote: string;
   moveOutCondition: Condition;
+  moveOutNote?: string;
   ratio: number;
 }
 const moveOutItems = ref<MoveOutItem[]>([]);
+/** 已簽署的雙方退租點交；有的話狀況由它決定，房東只調整賠償比例 */
+const moveOutInspectionId = ref('');
+const fromInspection = computed(() => !!moveOutInspectionId.value);
+
+/**
+ * 以雙方退租點交為準載入品項。
+ *
+ * 狀況欄鎖住不給改——那是租客與房東在現場逐項確認並簽名過的結論，
+ * 事後在結算畫面單方面改掉，等於那份簽名沒有意義。要改就回去重新協調。
+ * 賠償比例仍可調整：狀況是事實，賠多少是協商。
+ */
+const loadFromMoveOutInspection = async (): Promise<boolean> => {
+  try {
+    const insp = await latestSignedMoveOut(props.landlordId, props.tenant.id);
+    if (!insp?.items?.length) return false;
+    moveOutInspectionId.value = insp.id;
+    moveOutItems.value = insp.items
+      .filter(e => e.kind === 'asset')
+      .map(e => {
+        const moveOut = effectiveCondition(e);
+        const moveIn = e.baseline?.condition || 'normal';
+        return {
+          name: e.name,
+          quantity: Number(e.quantity) || 1,
+          unitPrice: Number(e.unitPrice) || 0,
+          moveInCondition: moveIn,
+          moveInNote: e.baseline?.note || '',
+          moveOutCondition: moveOut,
+          moveOutNote: composeNote(e) || e.landlordNote || '',
+          ratio: suggestedRatio(moveIn, moveOut),
+        };
+      });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const loadInspection = () => {
   const src = props.tenant.moveInInspection?.items || [];
   moveOutItems.value = src
@@ -571,7 +645,8 @@ const onTenantSignConfirm = (img: string) => { tenantSignature.value = img; };
 // ── Data loading ──
 onMounted(async () => {
   try {
-    loadInspection();
+    // 有雙方簽署的退租點交就用它，否則退回舊的手動點交（租客已經走了也要能結案）
+    if (!(await loadFromMoveOutInspection())) loadInspection();
     await Promise.all([
       loadSettings(), loadUnpaidBills(), loadDeposits(), loadLastMeterReading(),
       loadLandlordSignature(props.landlordId).then(img => { landlordSignature.value = img; }),
@@ -748,6 +823,11 @@ const execute = async () => {
   isExecuting.value = true;
   try {
     const today = new Date().toISOString().split('T')[0] as string;
+    // 退租結清起算兩年後可刪點交原檔；排程仍會自行推算，這裡先落在資料上
+    void stampPhotoCleanup(
+      props.landlordId, props.tenant.id,
+      new Date(moveOutDate.value || today).getTime(),
+    );
 
     const moveOutPayload = {
       moveOutDate: moveOutDate.value,

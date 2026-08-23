@@ -6,8 +6,9 @@ import {
 import { v4 as uuid } from 'uuid'
 import { DEFAULT_CATALOG, type CatalogItem, type InspectionItem } from '../utils/inventory'
 import {
-  entriesFromCatalog, entriesFromLegacy, seedEntriesFrom, toSummaryItems,
+  entriesFromCatalog, entriesFromLegacy, seedEntriesFrom, seedEntriesForMoveOut, toSummaryItems,
   DEFAULT_CONDITION_CATALOG,
+  cleanupAtFrom,
   type Inspection, type InspectionEntry, type InspectionStatus, type InspectionType,
 } from '../utils/inspection'
 
@@ -41,10 +42,27 @@ const latestForRoom = async (landlordId: string, roomId: string): Promise<Inspec
     where('landlordId', '==', landlordId),
     where('roomId', '==', roomId),
     orderBy('createdAt', 'desc'),
-    limit(1),
+    limit(5),
   ))
-  const d = snap.docs[0]
+  // 退租點交帶著入住基準，拿來當下一位租客的骨架會把上一位的狀況也複製過去
+  const d = snap.docs.find(x => (x.data().type || 'movein') !== 'moveout')
   return d ? ({ id: d.id, ...d.data() } as Inspection) : null
+}
+
+/** 該租客已簽署的入住點交，最新的一筆；退租點交的比對基準 */
+export const latestSignedMoveIn = async (
+  landlordId: string, tenantDocId: string,
+): Promise<Inspection | null> => {
+  const all = await listInspectionsByTenant(landlordId, tenantDocId)
+  return all.find(i => i.type !== 'moveout' && i.status === 'signed') || null
+}
+
+/** 該租客已簽署的退租點交，最新的一筆 */
+export const latestSignedMoveOut = async (
+  landlordId: string, tenantDocId: string,
+): Promise<Inspection | null> => {
+  const all = await listInspectionsByTenant(landlordId, tenantDocId)
+  return all.find(i => i.type === 'moveout' && i.status === 'signed') || null
 }
 
 const loadCatalogs = async (landlordId: string): Promise<{ assets: CatalogItem[]; conditions: string[] }> => {
@@ -77,7 +95,7 @@ export interface SeedContext {
 export interface SeedResult {
   items: InspectionEntry[]
   /** 品項從哪來，用於在畫面上說明「沿用 3F-A 上次的清單」 */
-  source: 'previous' | 'legacy' | 'catalog'
+  source: 'movein' | 'previous' | 'legacy' | 'catalog'
   sourceLabel: string
 }
 
@@ -88,6 +106,18 @@ export interface SeedResult {
  * 前兩者都只帶骨架，狀況與照片一律重來——帶著上次的判定會誘導這次照抄。
  */
 export const seedItems = async (ctx: SeedContext): Promise<SeedResult> => {
+  // 退租點交的基準只能是「這位租客的入住點交」，不能沿用同房間別人的那次
+  if (ctx.type === 'moveout') {
+    const movein = await latestSignedMoveIn(ctx.landlordId, ctx.tenantDocId)
+    if (movein?.items?.length) {
+      return {
+        items: seedEntriesForMoveOut(movein.items, newKey),
+        source: 'movein',
+        sourceLabel: '以入住點交為基準逐項比對，每項都會顯示入住當時的狀況與照片',
+      }
+    }
+  }
+
   const prev = ctx.roomId ? await latestForRoom(ctx.landlordId, ctx.roomId) : null
   if (prev?.items?.length) {
     return {
@@ -134,12 +164,27 @@ export const createInspection = async (
   return ref.id
 }
 
+/**
+ * 退租結清時標記這位租客所有點交的原檔可刪除時點。
+ *
+ * 排程本來就會自己從 moveOutSummary.moveOutDate 推算，這裡多寫一次是為了
+ * 讓時點落在資料上看得見，也避免日後退租摘要格式變動導致漏刪。
+ */
+export const stampPhotoCleanup = async (
+  landlordId: string, tenantDocId: string, settledAtMs: number,
+) => {
+  const all = await listInspectionsByTenant(landlordId, tenantDocId)
+  const at = cleanupAtFrom(settledAtMs)
+  await Promise.all(all.map(i =>
+    updateDoc(doc(db, COLL, i.id), { photoCleanupAt: at }).catch(() => {})))
+}
+
 /** 尚未完成的點交（草稿或進行中），用來接回中斷的現場 */
 export const findOpenInspection = async (
-  landlordId: string, tenantDocId: string,
+  landlordId: string, tenantDocId: string, type: InspectionType = 'movein',
 ): Promise<Inspection | null> => {
   const all = await listInspectionsByTenant(landlordId, tenantDocId)
-  return all.find(i => i.status !== 'signed') || null
+  return all.find(i => i.status !== 'signed' && (i.type || 'movein') === type) || null
 }
 
 export const saveItems = (id: string, items: InspectionEntry[]) =>

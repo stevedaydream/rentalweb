@@ -10,8 +10,14 @@
     </div>
 
     <p class="text-xs text-text-secondary-light">
-      請逐項看過房間現況再點選。點「嚴重瑕疵」需要拍一張照片，這是為了保障你——
-      退租時才有依據證明這不是你造成的。
+      <template v-if="isMoveOut">
+        每一項都會顯示入住當時的狀況與照片，請對照後判斷現在的狀況。
+        入住時就有的瑕疵不會算在你頭上。
+      </template>
+      <template v-else>
+        請逐項看過房間現況再點選。點「嚴重瑕疵」需要拍一張照片，這是為了保障你——
+        退租時才有依據證明這不是你造成的。
+      </template>
     </p>
 
     <div v-for="entry in pageItems" :key="entry.key"
@@ -27,6 +33,21 @@
         <span class="ml-auto text-[11px] px-2 py-0.5 rounded-full bg-ink-100 dark:bg-ink-700 text-text-secondary-light">
           {{ entry.kind === 'asset' ? '物品' : '屋況' }}
         </span>
+      </div>
+
+      <div v-if="entry.baseline" class="mb-3 p-3 rounded-xl bg-surface-light dark:bg-ink-800/60">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-[11px] text-text-secondary-light">入住當時</span>
+          <span class="px-2 py-0.5 rounded-full text-[11px] font-bold" :class="baselineBadge(entry.baseline.condition)">
+            {{ CONDITION_LABELS[entry.baseline.condition] }}
+          </span>
+          <span v-if="entry.baseline.note" class="text-[11px] text-text-secondary-light">「{{ entry.baseline.note }}」</span>
+        </div>
+        <div v-if="entry.baseline.photos.length" class="flex flex-wrap gap-1.5 mt-2">
+          <img v-for="p in entry.baseline.photos" :key="p.id" :src="p.thumbUrl"
+            :alt="`${entry.name} 入住當時照片`"
+            class="w-12 h-12 rounded object-cover border border-ink-100 dark:border-ink-700">
+        </div>
       </div>
 
       <div class="grid grid-cols-3 gap-2">
@@ -112,7 +133,7 @@ import { ref, computed, watch } from 'vue'
 import PhotoCapture from './PhotoCapture.vue'
 import {
   paginate, entryReady, photoRequired, tenantProgress,
-  DEFECT_REASONS, OTHER_REASON,
+  DEFECT_REASONS, OTHER_REASON, CONDITION_LABELS,
   type InspectionEntry,
 } from '../../utils/inspection'
 import type { Condition } from '../../utils/inventory'
@@ -130,6 +151,13 @@ const emit = defineEmits<{
   'add-photo': [string, File]
   'remove-photo': [string, string]
 }>()
+
+
+const baselineBadge = (c: Condition) => {
+  if (c === 'total') return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+  if (c === 'minor') return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+  return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+}
 
 const hasReason = (e: InspectionEntry, r: string) => (e.reasons || []).includes(r)
 
@@ -172,6 +200,7 @@ const OPTIONS = [
 const page = ref(0)
 const rootEl = ref<HTMLElement | null>(null)
 
+const isMoveOut = computed(() => props.items.some(e => !!e.baseline))
 const pages = computed(() => paginate(props.items))
 const pageItems = computed(() => pages.value[page.value] || [])
 const pageComplete = computed(() => pageItems.value.every(entryReady))

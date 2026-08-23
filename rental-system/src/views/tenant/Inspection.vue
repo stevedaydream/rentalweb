@@ -1,9 +1,9 @@
 <template>
   <div class="p-4 sm:p-6 max-w-3xl mx-auto space-y-4">
     <header>
-      <h1 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">入住點交</h1>
+      <h1 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">點交紀錄</h1>
       <p class="text-sm text-text-secondary-light mt-1">
-        入住時與房東共同確認的房間現況。退租時以此為比對基準，建議留著。
+        與房東共同確認並雙方簽名的房間現況。退租時以入住那份為比對基準，建議留著。
       </p>
     </header>
 
@@ -27,7 +27,12 @@
       <div class="p-4 border-b border-ink-100 dark:border-ink-700 flex items-center gap-3">
         <div class="min-w-0 flex-1">
           <p class="font-bold text-text-primary-light dark:text-text-primary-dark">
-            {{ insp.roomName || '房間' }}
+            <span class="mr-1.5 text-[11px] px-1.5 py-0.5 rounded align-middle"
+              :class="insp.type === 'moveout'
+                ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'">
+              {{ insp.type === 'moveout' ? '退租' : '入住' }}
+            </span>{{ insp.roomName || '房間' }}
           </p>
           <p class="text-xs text-text-secondary-light">
             {{ dateOf(insp) }} · 共 {{ insp.items.length }} 項<span v-if="contestedOf(insp).length">，{{ contestedOf(insp).length }} 項經協調</span>
@@ -63,6 +68,9 @@
               {{ label(finalOf(e)) }}
             </span>
           </div>
+          <p v-if="e.baseline" class="mt-1 text-xs text-text-secondary-light">
+            入住當時：{{ label(e.baseline.condition) }}<span v-if="e.baseline.note">（{{ e.baseline.note }}）</span>
+          </p>
           <p v-if="composeNote(e)" class="mt-1 text-xs text-text-secondary-light">「{{ composeNote(e) }}」</p>
           <div v-if="thumbsOf(e).length" class="flex flex-wrap gap-2 mt-2">
             <button v-for="p in thumbsOf(e)" :key="p.id"

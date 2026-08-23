@@ -6,6 +6,7 @@ import {
   effectiveCondition, contestedItems,
   markDispute, resolveDispute, clearDispute,
   toSummaryItems, cleanupAtFrom, composeNote,
+  seedEntriesForMoveOut, suggestedRatio,
   TENANT_PAGE_SIZE, RETENTION_YEARS, DEFECT_REASONS, OTHER_REASON,
   DEFAULT_CONDITION_CATALOG,
   type InspectionEntry,
@@ -306,6 +307,72 @@ describe('瑕疵原因與主檔歸屬', () => {
 
   it('牆面與天花板已移出屋況主檔（改列可賠償物品）', () => {
     expect(DEFAULT_CONDITION_CATALOG.some(n => n.includes('牆面'))).toBe(false)
+  })
+})
+
+describe('seedEntriesForMoveOut', () => {
+  const movein = [
+    resolveDispute(
+      markDispute(entry({ key: 'a', tenantCondition: 'total', reasons: ['刮痕'], photos: [photo()] }), 'normal'),
+      'minor',
+    ),
+    entry({ key: 'b', kind: 'condition', name: '地板', unitPrice: 0, tenantCondition: 'normal' }),
+  ]
+
+  it('入住基準取協調後的共識，而非租客原判', () => {
+    const out = seedEntriesForMoveOut(movein, k)
+    expect(out[0]!.baseline!.condition).toBe('minor')
+  })
+
+  it('入住當時的說明與照片一併帶著，現場才有得對照', () => {
+    const out = seedEntriesForMoveOut(movein, k)
+    expect(out[0]!.baseline!.note).toBe('刮痕')
+    expect(out[0]!.baseline!.photos).toHaveLength(1)
+  })
+
+  it('退租那一輪從空白開始，不預填租客判定', () => {
+    const out = seedEntriesForMoveOut(movein, k)
+    expect(out[0]!.tenantCondition).toBeUndefined()
+    expect(out[0]!.photos).toEqual([])
+    expect(out[0]!.dispute).toBe('agreed')
+  })
+
+  it('只帶已上傳的入住照片；本地暫存檔在別台裝置上看不到', () => {
+    const local = [entry({ key: 'c', tenantCondition: 'total', photos: [{ id: 'p9', thumbUrl: '', pending: true }] })]
+    expect(seedEntriesForMoveOut(local, k)[0]!.baseline!.photos).toEqual([])
+  })
+
+  it('物品與屋況都帶，屋況在退租一樣要看', () => {
+    expect(seedEntriesForMoveOut(movein, k).map(e => e.kind)).toEqual(['asset', 'condition'])
+  })
+})
+
+describe('suggestedRatio', () => {
+  it('沒有變差就不賠', () => {
+    expect(suggestedRatio('normal', 'normal')).toBe(0)
+    expect(suggestedRatio('minor', 'minor')).toBe(0)
+    expect(suggestedRatio('total', 'total')).toBe(0)
+  })
+
+  it('比入住時更好也不賠（租客自己修好了）', () => {
+    expect(suggestedRatio('total', 'minor')).toBe(0)
+    expect(suggestedRatio('minor', 'normal')).toBe(0)
+  })
+
+  it('入住正常、退租輕微 → 輕微的全額比例', () => {
+    expect(suggestedRatio('normal', 'minor')).toBe(0.3)
+  })
+
+  it('入住正常、退租全損 → 全額', () => {
+    expect(suggestedRatio('normal', 'total')).toBe(1)
+  })
+
+  it('入住已有輕微瑕疵時只賠惡化的部分', () => {
+    expect(suggestedRatio('minor', 'total')).toBe(0.7)
+  })
+
+  it('沒有入住基準時視同正常', () => {
+    expect(suggestedRatio(undefined, 'minor')).toBe(0.3)
   })
 })
 

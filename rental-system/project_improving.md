@@ -26,24 +26,16 @@
 
 ---
 
+### 退租點交已接上雙方流程（2026-08-23 完成）
+- ✅ 租客抽屜新增「退租點交」，開啟 `InspectionSession`（`type: 'moveout'`）
+- ✅ 品項以該租客**已簽署的入住點交**為基準帶入，每項附 `baseline`（入住當時的
+  狀況、說明與照片），租客與房東在現場直接對照
+- ✅ `MoveOutWizard` 改讀已簽署的退租點交：狀況欄鎖定顯示（那是雙方簽過名的結論，
+  不該在結算畫面單方改掉），賠償比例以 `suggestedRatio` 依惡化程度預填後仍可調整
+- ✅ 沒做雙方點交時保留舊的手動路徑並明確警示舉證力較弱——租客已經走了也要能結案
+- ✅ 退租執行時 `stampPhotoCleanup` 標記點交原檔的可刪除時點
+
 ## 待實作（未來 sprint）
-
-### 退租點交尚未接上雙方流程（高優先，2026-08-23 記錄）
-入住點交已改為房東→租客→房東→雙簽的四階段流程（`inspections` 集合，`type: 'movein'`），
-但 **`MoveOutWizard.vue` 完全沒有同步**：它仍只讀 `tenants.moveInInspection` 的摘要，
-自己跑一套單頁的退租點交，沒有租客逐項確認、沒有拍照、沒有歧異協調、沒有雙方簽名。
-
-結果是**入住嚴謹、退租寬鬆**——而爭議幾乎都發生在退租那一端。入住時雙方談好並簽名的
-共識，退租時沒有被拿出來逐項比對，等於前面做的工只用到一半。
-
-資料結構已經預留：`inspections.type` 支援 `'moveout'`，UI 元件也沒有寫死「入住」字樣。
-需要做的是：
-1. `MoveOutWizard` 的點交步驟改為開啟 `InspectionSession`（`type: 'moveout'`）
-2. 退租點交建立時，以該租客的入住點交（`status: 'signed'` 的 movein）為基準帶入品項，
-   並在每一項旁顯示入住當時的狀況與照片供對照
-3. 賠償計算改讀退租點交的 `finalCondition`，而非目前的 `tenants.moveInInspection`
-4. 完成後寫入 `photoCleanupAt`（目前由排程自行從 `moveOutSummary.moveOutDate` 推算，
-   接上後可改為直接寫入，較不易漏）
 
 ### 導覽架構（中複雜度）
 - ✅ **租客底部 Tab Bar（手機）**：TenantLayout 在 `< lg` 改為底部固定導覽列（6 個頁籤，含 active 指示條），取代漢堡選單

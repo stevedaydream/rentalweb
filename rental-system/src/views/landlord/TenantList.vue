@@ -802,13 +802,23 @@
                     <span class="material-symbols-outlined text-[18px]">edit</span>編輯租客資料與合約
                   </button>
                   <button
-                    @click="openInspectionSession"
+                    @click="openInspectionSession('movein')"
                     :disabled="isOpeningInspection"
                     class="w-full py-2.5 border border-gold-200 dark:border-gold-700 rounded-xl text-sm font-medium text-gold-700 dark:text-gold-300 hover:bg-gold-50 dark:hover:bg-gold-900/20 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
                     title="房東選項目 → 遞給租客逐項確認 → 二次確認 → 雙方簽名"
                   >
                     <span class="material-symbols-outlined text-[18px]" aria-hidden="true">handshake</span>
                     {{ isOpeningInspection ? '準備中…' : (drawerTenant?.moveInInspection ? '重新點交 / 查看紀錄' : '入住點交') }}
+                  </button>
+                  <button
+                    v-if="drawerTenant?.room"
+                    @click="openInspectionSession('moveout')"
+                    :disabled="isOpeningInspection"
+                    class="w-full py-2.5 border border-red-200 dark:border-red-700 rounded-xl text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    title="以入住點交為基準逐項比對；辦理退租前先做這一步"
+                  >
+                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">fact_check</span>
+                    退租點交
                   </button>
                   <button
                     v-if="drawerTenant?.room"
@@ -1803,12 +1813,12 @@ const isOpeningInspection = ref(false);
  * 開啟雙方點交：有未完成的就接回去，否則開新的一筆。
  * 品項優先沿用同一間房上次的點交，其次是既有的 moveInInspection，最後才用主檔。
  */
-const openInspectionSession = async () => {
+const openInspectionSession = async (type: 'movein' | 'moveout' = 'movein') => {
   const t = drawerTenant.value;
   if (!t) return;
   isOpeningInspection.value = true;
   try {
-    const open = await findOpenInspection(authStore.effectiveUid, t.id);
+    const open = await findOpenInspection(authStore.effectiveUid, t.id, type);
     if (open) {
       router.push({ name: 'InspectionSession', params: { inspectionId: open.id } });
       return;
@@ -1820,6 +1830,7 @@ const openInspectionSession = async () => {
       tenantName: t.name || '',
       roomId: availableRooms.value.find(r => r.name === t.room)?.id || '',
       roomName: t.room || '',
+      type,
       legacyItems: t.moveInInspection?.items || [],
     };
     const seed = await seedItems(ctx);
