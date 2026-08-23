@@ -262,6 +262,17 @@ service cloud.firestore {
       allow delete: if isAdmin() || isLandlordData();
     }
 
+    // 雙方點交 (inspections) — 入住／退租的逐項確認、歧異協調與雙方簽名
+    // 租客要能查閱自己那一份，但點交當下未必已建立帳號，故除了 tenantId 快徑，
+    // 再以 tenants doc 的 uid 反查；帳號事後才補建也讀得到
+    match /inspections/{inspectionId} {
+      allow read: if isLandlordData() || isAdmin() || isOwner('tenantId')
+        || (isSignedIn() && safeField('tenantDocId') != ''
+            && get(/databases/$(database)/documents/tenants/$(resource.data.tenantDocId)).data.get('uid', '') == request.auth.uid);
+      allow create: if isCreatingAsLandlord() || isAdmin();
+      allow update, delete: if isLandlordData() || isAdmin();
+    }
+
     // 租客啟用連結 (tenant_activations) — 一次性登入憑證，等同鑰匙
     // 前端一律不得讀寫：發放與兌換全由 Cloud Function（Admin SDK）處理，
     // 否則任何登入者都能列舉連結碼，二次身分驗證就形同虛設
