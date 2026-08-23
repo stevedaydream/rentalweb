@@ -63,7 +63,7 @@
               {{ label(finalOf(e)) }}
             </span>
           </div>
-          <p v-if="e.note" class="mt-1 text-xs text-text-secondary-light">「{{ e.note }}」</p>
+          <p v-if="composeNote(e)" class="mt-1 text-xs text-text-secondary-light">「{{ composeNote(e) }}」</p>
           <div v-if="thumbsOf(e).length" class="flex flex-wrap gap-2 mt-2">
             <button v-for="p in thumbsOf(e)" :key="p.id"
               @click="lightbox = { src: p.origUrl || p.thumbUrl, alt: e.name }"
@@ -98,7 +98,7 @@ import inspectionTemplate from '../../templates/moveInInspection.html?raw'
 import { printHtmlPdf } from '../../utils/contractRender'
 import { buildPdfData, pdfFileName } from '../../utils/inspectionPdf'
 import {
-  contestedItems, effectiveCondition, CONDITION_LABELS,
+  contestedItems, effectiveCondition, CONDITION_LABELS, composeNote,
   type Inspection, type InspectionEntry,
 } from '../../utils/inspection'
 import type { Condition } from '../../utils/inventory'

@@ -42,11 +42,34 @@
       </div>
 
       <div v-if="entry.tenantCondition && entry.tenantCondition !== 'normal'" class="mt-3 space-y-2">
+        <div>
+          <p class="text-xs text-text-secondary-light mb-1.5">是什麼狀況？可複選</p>
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              v-for="r in DEFECT_REASONS" :key="r"
+              @click="toggleReason(entry, r)"
+              class="px-3 py-1.5 rounded-full text-xs font-medium border transition-colors"
+              :class="hasReason(entry, r)
+                ? 'border-gold-500 bg-gold-500 text-white'
+                : 'border-ink-200 dark:border-ink-600 text-text-secondary-light'"
+              :aria-pressed="hasReason(entry, r)"
+            >{{ r }}</button>
+            <button
+              @click="toggleOther(entry)"
+              class="px-3 py-1.5 rounded-full text-xs font-medium border transition-colors"
+              :class="otherOpen(entry)
+                ? 'border-gold-500 bg-gold-500 text-white'
+                : 'border-ink-200 dark:border-ink-600 text-text-secondary-light'"
+              :aria-pressed="otherOpen(entry)"
+            >{{ OTHER_REASON }}</button>
+          </div>
+        </div>
         <input
+          v-if="otherOpen(entry)"
           :value="entry.note || ''"
           @input="emit('set-note', entry.key, ($event.target as HTMLInputElement).value)"
-          type="text" class="form-input text-sm" :aria-label="`${entry.name} 的瑕疵說明`"
-          placeholder="狀況說明（如：左下角有一道刮痕）"
+          type="text" class="form-input text-sm" :aria-label="`${entry.name} 的其他說明`"
+          placeholder="請描述狀況（如：左下角有一道 5 公分刮痕）"
         >
         <PhotoCapture
           :photos="entry.photos"
@@ -89,6 +112,7 @@ import { ref, computed, watch } from 'vue'
 import PhotoCapture from './PhotoCapture.vue'
 import {
   paginate, entryReady, photoRequired, tenantProgress,
+  DEFECT_REASONS, OTHER_REASON,
   type InspectionEntry,
 } from '../../utils/inspection'
 import type { Condition } from '../../utils/inventory'
@@ -101,10 +125,31 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   'set-condition': [string, Condition]
+  'set-reasons': [string, string[]]
   'set-note': [string, string]
   'add-photo': [string, File]
   'remove-photo': [string, string]
 }>()
+
+const hasReason = (e: InspectionEntry, r: string) => (e.reasons || []).includes(r)
+
+const toggleReason = (e: InspectionEntry, r: string) => {
+  const cur = e.reasons || []
+  emit('set-reasons', e.key, hasReason(e, r) ? cur.filter(x => x !== r) : [...cur, r])
+}
+
+/** 「其他」以 reasons 內的標記表示，收起時一併清掉已輸入的自由文字 */
+const otherOpen = (e: InspectionEntry) => hasReason(e, OTHER_REASON)
+
+const toggleOther = (e: InspectionEntry) => {
+  const cur = e.reasons || []
+  if (otherOpen(e)) {
+    emit('set-reasons', e.key, cur.filter(x => x !== OTHER_REASON))
+    emit('set-note', e.key, '')
+  } else {
+    emit('set-reasons', e.key, [...cur, OTHER_REASON])
+  }
+}
 
 const OPTIONS = [
   {

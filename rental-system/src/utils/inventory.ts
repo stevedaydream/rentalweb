@@ -34,6 +34,8 @@ export interface InspectionItem {
 
 // 首次使用的預設品項（房東可在 Settings 增刪改價）
 export const DEFAULT_CATALOG: CatalogItem[] = [
+  // 髒汙、發霉、殘膠、打洞都要油漆修補，依程度賠不同金額，故列為可賠償品項
+  { name: '牆面與天花板（油漆修補）', unitPrice: 6000 },
   { name: '冷氣', unitPrice: 8000 },
   { name: '冰箱', unitPrice: 6000 },
   { name: '洗衣機', unitPrice: 5000 },

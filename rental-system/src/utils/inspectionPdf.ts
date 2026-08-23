@@ -5,7 +5,7 @@
  * 而在「哪幾項雙方談過、怎麼談的、結論是什麼」——退租吵起來時看的就是這一段。
  */
 import {
-  CONDITION_LABELS, effectiveCondition, contestedItems,
+  CONDITION_LABELS, effectiveCondition, contestedItems, composeNote,
   type Inspection, type InspectionEntry,
 } from './inspection'
 import type { Condition } from './inventory'
@@ -27,16 +27,26 @@ const tag = (c?: Condition): string => {
 
 const money = (n: number): string => `NT$ ${(Number(n) || 0).toLocaleString('en-US')}`
 
+/**
+ * 單價一律標「/件」並在多件時附全損上限。
+ * 只印「NT$ 8,000」而數量是 2 時，看的人無從得知這是單件價還是總價。
+ */
+const priceCell = (e: InspectionEntry): string => {
+  const unit = `${money(e.unitPrice)} <span class="sub">/件</span>`
+  if ((Number(e.quantity) || 1) <= 1) return unit
+  return `${unit}<br><span class="sub">上限 ${money(e.unitPrice * e.quantity)}</span>`
+}
+
 /** 明細表列；屋況項不列單價，避免看起來像可以求償 */
 export const buildItemRows = (items: InspectionEntry[]): string =>
   items.map(e => {
     const isAsset = e.kind === 'asset'
-    const note = [e.note, e.landlordNote].filter(Boolean).map(escapeHtml).join('／')
+    const note = [composeNote(e), e.landlordNote].filter(Boolean).map(escapeHtml).join('／')
     return `<tr>
       <td class="ctr">${isAsset ? '物品' : '屋況'}</td>
       <td>${escapeHtml(e.name)}${note ? `<br><span class="sub">${note}</span>` : ''}</td>
       <td class="num">${isAsset ? e.quantity : '—'}</td>
-      <td class="num">${isAsset ? money(e.unitPrice) : '—'}</td>
+      <td class="num">${isAsset ? priceCell(e) : '—'}</td>
       <td class="ctr">${tag(e.tenantCondition)}</td>
       <td class="ctr">${tag(effectiveCondition(e))}</td>
     </tr>`

@@ -40,7 +40,7 @@
           <span class="px-2 py-0.5 rounded-full text-xs font-bold" :class="badge(entry.tenantCondition)">
             {{ label(entry.tenantCondition) }}
           </span>
-          <span v-if="entry.note" class="text-xs text-text-secondary-light truncate">「{{ entry.note }}」</span>
+          <span v-if="composeNote(entry)" class="text-xs text-text-secondary-light truncate">「{{ composeNote(entry) }}」</span>
         </div>
 
         <div v-if="entry.photos.length" class="flex flex-wrap gap-2 mt-2">
@@ -147,7 +147,7 @@
 import { ref, computed, reactive } from 'vue'
 import PhotoLightbox from './PhotoLightbox.vue'
 import {
-  unresolvedCount, CONDITION_LABELS,
+  unresolvedCount, CONDITION_LABELS, composeNote,
   type InspectionEntry, type InspectionPhoto,
 } from '../../utils/inspection'
 import type { Condition } from '../../utils/inventory'

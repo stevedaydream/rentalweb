@@ -15,7 +15,8 @@
 
       <div class="space-y-2">
         <div v-for="row in group.rows" :key="row.key"
-          class="flex gap-2 items-center p-2 rounded-xl border border-ink-100 dark:border-ink-700">
+          class="p-2 rounded-xl border border-ink-100 dark:border-ink-700">
+          <div class="flex gap-2 items-center">
           <input
             :value="row.name"
             @input="patch(row.key, { name: ($event.target as HTMLInputElement).value })"
@@ -28,19 +29,26 @@
               @input="patch(row.key, { quantity: Math.max(1, Number(($event.target as HTMLInputElement).value) || 1) })"
               type="number" min="1" class="form-input w-16 text-sm shrink-0" aria-label="數量"
             >
-            <div class="relative w-28 shrink-0">
+            <div class="relative w-36 shrink-0">
               <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] font-bold">NT$</span>
               <input
                 :value="row.unitPrice"
                 @input="patch(row.key, { unitPrice: Math.max(0, Number(($event.target as HTMLInputElement).value) || 0) })"
-                type="number" min="0" class="form-input w-full pl-9 text-sm" aria-label="賠償基準單價"
+                type="number" min="0" class="form-input w-full pl-9 pr-8 text-sm" aria-label="賠償基準單價（每件）"
               >
+              <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]">/件</span>
             </div>
           </template>
           <button @click="remove(row.key)" class="text-red-400 hover:text-red-600 shrink-0 p-1"
             :aria-label="`移除 ${row.name || '此項'}`">
             <span class="material-symbols-outlined text-[18px]" aria-hidden="true">close</span>
           </button>
+        </div>
+        <p v-if="group.kind === 'asset' && row.quantity > 1"
+          class="mt-1 pl-1 text-[11px] text-text-secondary-light tabular-nums">
+          全損上限 {{ row.quantity }} × NT$ {{ row.unitPrice.toLocaleString('en-US') }}
+          = NT$ {{ (row.quantity * row.unitPrice).toLocaleString('en-US') }}
+        </p>
         </div>
 
         <p v-if="!group.rows.length" class="px-2 py-3 text-xs text-text-secondary-light">

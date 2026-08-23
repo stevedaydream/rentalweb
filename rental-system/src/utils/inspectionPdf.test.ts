@@ -29,6 +29,28 @@ describe('buildItemRows', () => {
     expect(html).toContain('NT$ 8,000')
   })
 
+  it('單價一律標示單位，避免被誤讀為總價', () => {
+    const html = buildItemRows([entry({ tenantCondition: 'normal' })])
+    expect(html).toContain('/件')
+  })
+
+  it('數量大於一時附上全損上限', () => {
+    const html = buildItemRows([entry({ quantity: 2, tenantCondition: 'normal' })])
+    expect(html).toContain('NT$ 8,000')
+    expect(html).toContain('上限 NT$ 16,000')
+  })
+
+  it('單件不顯示上限，免得每一列都多一行雜訊', () => {
+    expect(buildItemRows([entry({ tenantCondition: 'normal' })])).not.toContain('上限')
+  })
+
+  it('說明含快捷原因與自由文字', () => {
+    const html = buildItemRows([entry({
+      tenantCondition: 'minor', reasons: ['髒汙', '打洞'], note: '靠窗那面',
+    })])
+    expect(html).toContain('髒汙、打洞、靠窗那面')
+  })
+
   it('屋況項不列單價，避免看起來像可以求償', () => {
     const html = buildItemRows([entry({ kind: 'condition', name: '牆面', unitPrice: 0, tenantCondition: 'minor' })])
     expect(html).toContain('屋況')

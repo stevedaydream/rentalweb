@@ -5,8 +5,9 @@ import {
   canHandToTenant, canReturnToLandlord, unresolvedCount, canSign,
   effectiveCondition, contestedItems,
   markDispute, resolveDispute, clearDispute,
-  toSummaryItems, cleanupAtFrom,
-  TENANT_PAGE_SIZE, RETENTION_YEARS,
+  toSummaryItems, cleanupAtFrom, composeNote,
+  TENANT_PAGE_SIZE, RETENTION_YEARS, DEFECT_REASONS, OTHER_REASON,
+  DEFAULT_CONDITION_CATALOG,
   type InspectionEntry,
 } from './inspection'
 import type { InspectionItem } from './inventory'
@@ -265,6 +266,46 @@ describe('toSummaryItems', () => {
 
   it('回寫的品項一律 present true，退租儀才會逐項點交', () => {
     expect(toSummaryItems(items)[0]!.present).toBe(true)
+  })
+})
+
+describe('composeNote', () => {
+  it('只有快捷原因時以頓號串接', () => {
+    expect(composeNote({ reasons: ['髒汙', '打洞'] })).toBe('髒汙、打洞')
+  })
+
+  it('自由文字接在快捷原因之後', () => {
+    expect(composeNote({ reasons: ['髒汙', OTHER_REASON], note: '整面都是' }))
+      .toBe('髒汙、其他、整面都是')
+  })
+
+  it('只有自由文字時單獨呈現', () => {
+    expect(composeNote({ note: '左下角刮痕' })).toBe('左下角刮痕')
+  })
+
+  it('全空時回空字串，呼叫端才好用 v-if 隱藏', () => {
+    expect(composeNote({})).toBe('')
+    expect(composeNote({ reasons: [], note: '   ' })).toBe('')
+  })
+
+  it('自由文字前後空白會被修掉', () => {
+    expect(composeNote({ note: '  刮痕  ' })).toBe('刮痕')
+  })
+})
+
+describe('瑕疵原因與主檔歸屬', () => {
+  it('快捷原因涵蓋牆面常見狀況', () => {
+    for (const r of ['髒汙', '發霉', '殘膠', '打洞']) {
+      expect(DEFECT_REASONS).toContain(r)
+    }
+  })
+
+  it('「其他」不在快捷清單內，由畫面另外呈現', () => {
+    expect(DEFECT_REASONS).not.toContain(OTHER_REASON)
+  })
+
+  it('牆面與天花板已移出屋況主檔（改列可賠償物品）', () => {
+    expect(DEFAULT_CONDITION_CATALOG.some(n => n.includes('牆面'))).toBe(false)
   })
 })
 

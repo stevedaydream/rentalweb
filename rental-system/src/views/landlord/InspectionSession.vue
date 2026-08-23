@@ -66,6 +66,7 @@
           :previews="photos.previews.value"
           :busy-key="compressingKey"
           @set-condition="setCondition"
+          @set-reasons="setReasons"
           @set-note="setNote"
           @add-photo="addPhoto"
           @remove-photo="removePhoto"
@@ -318,6 +319,8 @@ const setCondition = (key: string, condition: Condition) =>
   patchEntry(key, { tenantCondition: condition })
 
 const setNote = (key: string, note: string) => patchEntry(key, { note })
+
+const setReasons = (key: string, reasons: string[]) => patchEntry(key, { reasons })
 
 /** 上傳完成後把真正的 URL 寫回對應照片 */
 const applyPhotoPatch = (photoId: string, patch: Record<string, any>) => {

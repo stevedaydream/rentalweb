@@ -47,7 +47,9 @@ export interface InspectionEntry {
   /** 協調後共識，僅 dispute === 'resolved' 時有值 */
   finalCondition?: Condition
   dispute: DisputeState
-  /** 租客的瑕疵說明 */
+  /** 租客勾選的瑕疵原因（快捷選項） */
+  reasons?: string[]
+  /** 租客自行補充的說明（選「其他」時） */
   note?: string
   /** 房東標歧異／註記共識時的說明 */
   landlordNote?: string
@@ -94,7 +96,7 @@ export const RETENTION_YEARS = 2
 
 /** 首次點交某房間時的屋況檢查項預設（房東可在設定增刪） */
 export const DEFAULT_CONDITION_CATALOG: string[] = [
-  '牆面與天花板',
+  // 牆面與天花板改列可賠償物品（見 inventory.ts）：髒汙／發霉／殘膠／打洞須油漆修補
   '地板',
   '門窗與鎖具',
   '衛浴設備',
@@ -103,6 +105,22 @@ export const DEFAULT_CONDITION_CATALOG: string[] = [
   '照明',
   '電錶與瓦斯錶讀數',
 ]
+
+/**
+ * 瑕疵原因快捷選項。
+ *
+ * 現場請人打字最容易得到空白或「有問題」三個字，給按鈕才問得出可用的描述；
+ * 保留「其他」讓真的講不清楚的情況有出口。
+ */
+export const DEFECT_REASONS: string[] = [
+  '髒汙', '發霉', '殘膠', '打洞', '刮痕', '凹損', '掉漆', '鬆動', '缺件', '功能異常',
+]
+
+export const OTHER_REASON = '其他'
+
+/** 顯示與列印用的完整說明：快捷原因在前，自由文字在後 */
+export const composeNote = (e: Pick<InspectionEntry, 'reasons' | 'note'>): string =>
+  [...(e.reasons || []), (e.note || '').trim()].filter(Boolean).join('、')
 
 // ── 建構 ────────────────────────────────────────────────────
 
