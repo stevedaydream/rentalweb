@@ -85,12 +85,17 @@
     </div>
 
     <Teleport to="body">
-    <div v-if="showNewRequest" class="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showNewRequest = false"></div>
-      <div class="relative bg-white dark:bg-card-dark w-full max-w-lg rounded-t-3xl sm:rounded-3xl flex flex-col max-h-[92dvh] sm:max-h-[85dvh]">
+    <div v-if="showNewRequest"
+      class="fixed inset-0 z-[100] flex items-end sm:items-center justify-center overflow-y-auto overscroll-contain">
+      <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" @click="showNewRequest = false"></div>
+      <!-- 高度上限先寫 vh 再寫 dvh：dvh 不支援時整條會被丟掉，面板就沒有上限、內容捲不動也就被裁掉 -->
+      <div
+        class="relative bg-white dark:bg-card-dark w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col sm:my-6"
+        style="max-height: 92vh; max-height: 92dvh;"
+      >
         <h2 class="text-xl font-bold px-6 pt-6 pb-4 shrink-0">填寫報修單</h2>
 
-        <div class="flex-1 overflow-y-auto px-6">
+        <div class="flex-1 min-h-0 overflow-y-auto px-6">
         <div v-if="roomNumber" class="mb-4 text-sm text-blue-600 bg-blue-50 p-2 rounded-lg flex items-center">
           <span class="material-symbols-outlined text-base mr-1">home</span>
           <span>自動帶入房號：{{ roomNumber }}</span>
@@ -135,7 +140,8 @@
 
         </div>
 
-        <div class="shrink-0 flex gap-3 px-6 pt-4 pb-6 border-t border-gray-100 dark:border-gray-800">
+        <div class="shrink-0 flex gap-3 px-6 pt-4 border-t border-gray-100 dark:border-gray-800"
+          style="padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));">
           <button @click="showNewRequest = false" class="flex-1 py-3 text-gray-500 font-medium">取消</button>
           <button 
             @click="submitRequest" 

@@ -51,7 +51,17 @@
       <!-- Mobile minimal top bar (< lg) -->
       <header class="lg:hidden flex items-center justify-between px-4 py-3 bg-ink-800 border-b border-ink-700">
         <img :src="logoSrc" alt="Logo" class="h-8 w-auto brightness-0 invert" />
-        <span class="text-[10px] px-2 py-0.5 bg-gold-500/20 text-gold-300 rounded-full font-bold">租客版</span>
+        <div class="flex items-center gap-2">
+          <span class="text-[10px] px-2 py-0.5 bg-gold-500/20 text-gold-300 rounded-full font-bold">租客版</span>
+          <!-- 登出原本只在 lg+ 的側邊欄裡，平板與手機沒有側邊欄＝完全沒有登出入口 -->
+          <button
+            @click="handleLogout"
+            aria-label="登出系統"
+            class="p-1.5 rounded-lg text-ink-300 hover:bg-ink-700 hover:text-red-400 transition-colors"
+          >
+            <span class="material-symbols-outlined text-[20px]" aria-hidden="true">logout</span>
+          </button>
+        </div>
       </header>
 
       <!-- Gmail 綁定提示 Banner（房東建立的帳號且尚未綁定 Google） -->

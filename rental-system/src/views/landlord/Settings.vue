@@ -445,6 +445,51 @@
           </div>
         </div>
       </div>
+
+      <!-- 圖文選單 -->
+      <div class="mt-6 pt-6 border-t border-gray-100 dark:border-gray-800">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+          <div>
+            <h3 class="font-bold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2">
+              <span class="material-symbols-outlined text-[18px] text-[#06C755]" aria-hidden="true">grid_view</span>
+              圖文選單（Rich Menu）
+            </h3>
+            <p class="text-sm text-text-secondary-light mt-0.5">
+              在租客的聊天室下方長駐六格按鈕：查帳單、看電費、報修進度、我的合約、社區公告、線上系統。點一下就查，不必記指令。
+            </p>
+          </div>
+          <span class="text-xs px-2 py-1 rounded-full font-medium shrink-0"
+            :class="richMenuReady ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'">
+            {{ richMenuReady ? '已啟用' : '未建立' }}
+          </span>
+        </div>
+
+        <div class="grid grid-cols-3 gap-1.5 max-w-md mb-4">
+          <div v-for="b in richMenuPreview" :key="b.title"
+            class="flex flex-col items-center justify-center gap-0.5 py-3 rounded-lg bg-[#FBF6EA] dark:bg-gray-800 border border-[#E4D6B4] dark:border-gray-700">
+            <span class="text-xl leading-none">{{ b.icon }}</span>
+            <span class="text-[11px] font-bold text-text-primary-light dark:text-text-primary-dark">{{ b.title }}</span>
+            <span class="text-[9px] text-text-secondary-light">{{ b.sub }}</span>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <button @click="setupRichMenu" :disabled="richMenuBusy || !lineConfig.isEnabled"
+            class="px-4 py-2 bg-[#06C755] hover:bg-[#05a848] text-white text-sm font-bold rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50">
+            <span class="material-symbols-outlined text-[18px]" :class="richMenuBusy ? 'animate-spin' : ''" aria-hidden="true">
+              {{ richMenuBusy ? 'progress_activity' : 'add_to_home_screen' }}
+            </span>
+            {{ richMenuBusy ? '處理中…' : (richMenuReady ? '重新產生選單' : '建立圖文選單') }}
+          </button>
+          <button v-if="richMenuReady" @click="removeRichMenu" :disabled="richMenuBusy"
+            class="px-4 py-2 border border-red-200 dark:border-red-900 text-red-500 text-sm font-medium rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50">
+            移除選單
+          </button>
+        </div>
+        <p v-if="!lineConfig.isEnabled" class="text-xs text-amber-600 dark:text-amber-400 mt-2">
+          請先完成上方 LINE Bot 設定（Channel secret／access token）才能建立圖文選單。
+        </p>
+      </div>
     </section>
 
     <!-- ===== 點交物品主檔 ===== -->
@@ -626,7 +671,8 @@ import { ref, computed, watchEffect, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '../../firebase/config';
+import { db, functions } from '../../firebase/config';
+import { httpsCallable } from 'firebase/functions';
 import { DEFAULT_CATALOG, type CatalogItem } from '../../utils/inventory';
 import { DEFAULT_CONDITION_CATALOG } from '../../utils/inspection';
 import { fileToResizedDataUrl } from '../../utils/signature';
@@ -925,6 +971,46 @@ const lineConfig = ref({
 });
 const isSavingLine = ref(false);
 
+// 圖文選單（實際版面由 Cloud Function 產圖，這裡只是同一份內容的預覽）
+const richMenuPreview = [
+  { icon: '💰', title: '查帳單',  sub: '未繳・到期' },
+  { icon: '⚡', title: '看電費',  sub: '度數・金額' },
+  { icon: '🔧', title: '報修進度', sub: '處理到哪了' },
+  { icon: '📋', title: '我的合約', sub: '租期・租金' },
+  { icon: '📢', title: '社區公告', sub: '最新消息' },
+  { icon: '🏠', title: '線上系統', sub: '上傳截圖' },
+];
+const richMenuReady = ref(false);
+const richMenuBusy = ref(false);
+
+const setupRichMenu = async () => {
+  richMenuBusy.value = true;
+  try {
+    await httpsCallable(functions, 'setupLineRichMenu')({});
+    richMenuReady.value = true;
+    toast.success('圖文選單已建立，租客重開聊天室即可看到');
+  } catch (e: any) {
+    console.error('建立圖文選單失敗:', e);
+    toast.error(e?.message || '建立失敗，請確認 LINE 設定是否正確');
+  } finally {
+    richMenuBusy.value = false;
+  }
+};
+
+const removeRichMenu = async () => {
+  richMenuBusy.value = true;
+  try {
+    await httpsCallable(functions, 'removeLineRichMenu')({});
+    richMenuReady.value = false;
+    toast.success('已移除圖文選單');
+  } catch (e: any) {
+    console.error('移除圖文選單失敗:', e);
+    toast.error(e?.message || '移除失敗，請稍後再試');
+  } finally {
+    richMenuBusy.value = false;
+  }
+};
+
 // 每位房東的 Webhook URL 帶有自己的 ?lid= 參數
 const webhookUrl = computed(() =>
   `https://${FUNCTIONS_REGION}-${FIREBASE_PROJECT_ID}.cloudfunctions.net/lineWebhook?lid=${authStore.effectiveUid}`
@@ -952,6 +1038,7 @@ onMounted(async () => {
     if (lineSnap.exists()) {
       const data = lineSnap.data();
       lineConfig.value.isEnabled = !!(data.channelSecret && data.channelAccessToken);
+      richMenuReady.value = !!data.richMenuId;
       if (data.ownerLineUserId) {
         ownerLineBound.value = { bound: true, displayName: data.ownerLineDisplayName || 'LINE 用戶' };
       }

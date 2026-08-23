@@ -24,15 +24,22 @@
     <div v-else class="space-y-5">
       <div v-for="c in contracts" :key="c.id"
         class="bg-white dark:bg-card-dark rounded-2xl shadow-sm overflow-hidden"
-        :class="!c.tenantAcknowledgedAt
+        :class="!c.tenantAcknowledgedAt && c._linked
           ? 'border-2 border-amber-400 dark:border-amber-600'
           : 'border border-gray-100 dark:border-gray-800'">
 
         <!-- Pending banner -->
-        <div v-if="!c.tenantAcknowledgedAt"
+        <div v-if="!c.tenantAcknowledgedAt && c._linked"
           class="px-5 py-2.5 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-700 flex items-center gap-2">
           <span class="material-symbols-outlined text-amber-500 text-[18px]">pending_actions</span>
           <span class="text-sm font-semibold text-amber-800 dark:text-amber-300">需要您確認合約內容</span>
+        </div>
+
+        <!-- 房東尚未把這份合約連結到您的帳號：可查閱，但線上確認要等連結完成 -->
+        <div v-else-if="!c._linked"
+          class="px-5 py-2.5 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+          <span class="material-symbols-outlined text-gray-400 text-[18px]">visibility</span>
+          <span class="text-sm font-medium text-gray-600 dark:text-gray-300">僅供查閱（房東尚未完成帳號連結）</span>
         </div>
 
         <div class="p-5 space-y-4">
@@ -105,8 +112,13 @@
             </div>
           </div>
 
+          <!-- 未連結：說明為何還不能確認 -->
+          <p v-if="!c._linked" class="text-sm text-text-secondary-light pt-4 border-t border-gray-100 dark:border-gray-800">
+            這份合約尚未與您的帳號連結，暫時無法在線上完成確認。請透過「聯繫房東」告知，房東於合約頁按一次「連結」即可。
+          </p>
+
           <!-- Confirmation section -->
-          <div v-if="!c.tenantAcknowledgedAt"
+          <div v-else-if="!c.tenantAcknowledgedAt"
             class="pt-4 border-t border-amber-100 dark:border-amber-900/40 space-y-3">
             <p class="text-sm text-gray-600 dark:text-gray-300">
               請先查閱上方合約內容，確認無誤後勾選並完成確認。此記錄將作為您已收到並同意合約的電子憑據。
@@ -156,7 +168,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp, orderBy } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp, orderBy, limit } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useAuthStore } from '../../stores/auth'
 import { useToastStore } from '../../stores/toast'
@@ -179,17 +191,67 @@ const formatDate = (val) => {
   return new Intl.DateTimeFormat('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
 }
 
+const signedAtMs = (c) => c?.signedAt?.seconds ? c.signedAt.seconds * 1000 : 0
+
+/** 依 tenantUid 查詢；缺複合索引時 Firestore 回 failed-precondition，退回不排序版本自己排 */
+const fetchLinked = async (uid) => {
+  const base = [collection(db, 'signed_contracts'), where('tenantUid', '==', uid)]
+  try {
+    const snap = await getDocs(query(...base, orderBy('signedAt', 'desc')))
+    return snap.docs
+  } catch (e) {
+    console.warn('合約排序查詢失敗（多半是索引未建立），改用不排序查詢:', e)
+    const snap = await getDocs(query(...base))
+    return snap.docs
+  }
+}
+
+/**
+ * 房東尚未完成「租客連結」的合約。
+ * 這類合約沒有 tenantUid，依 UID 查一定查不到，但房東端明明看得到——
+ * 以本人的證件號碼／姓名房號比對撈回來，至少先讓租客讀得到內容。
+ * 規則不允許租客寫 tenantUid，故只能唯讀，確認仍須房東先連結。
+ */
+const fetchUnlinked = async (uid, landlordId) => {
+  if (!landlordId) return []
+  const meSnap = await getDocs(
+    query(collection(db, 'tenants'), where('uid', '==', uid), limit(1)))
+  const me = meSnap.docs[0]?.data() || {}
+  const myId = (me.idNumber || '').trim()
+  const myName = (me.name || authStore.userProfile?.name || '').trim()
+  const myRoom = (me.room || me.roomNumber || '').trim()
+  if (!myId && !myName) return []
+
+  const snap = await getDocs(
+    query(collection(db, 'signed_contracts'), where('landlordUid', '==', landlordId)))
+  return snap.docs.filter(d => {
+    const c = d.data()
+    if (c.tenantUid) return false
+    if (myId && (c.tenantId || '').trim()) return (c.tenantId || '').trim() === myId
+    if (!myName || (c.tenant || '').trim() !== myName) return false
+    // 只靠姓名容易撞名，房號有值就一併比對
+    return !myRoom || !c.roomNo || String(c.roomNo).trim() === myRoom
+  })
+}
+
 const loadContracts = async () => {
   loading.value = true
   try {
     const uid = authStore.user?.uid
     if (!uid) return
-    const snap = await getDocs(
-      query(collection(db, 'signed_contracts'),
-        where('tenantUid', '==', uid),
-        orderBy('signedAt', 'desc'))
-    )
-    contracts.value = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    const landlordId = authStore.userProfile?.landlordId
+
+    const linked = (await fetchLinked(uid)).map(d => ({ id: d.id, ...d.data(), _linked: true }))
+
+    let unlinked = []
+    try {
+      unlinked = (await fetchUnlinked(uid, landlordId))
+        .map(d => ({ id: d.id, ...d.data(), _linked: false }))
+    } catch (e) {
+      console.warn('比對未連結合約失敗（不影響已連結的合約）:', e)
+    }
+
+    contracts.value = [...linked, ...unlinked].sort((a, b) => signedAtMs(b) - signedAtMs(a))
     contracts.value.forEach(c => { acknowledgeChecked.value[c.id] = false })
   } catch (e) {
     console.error('載入合約失敗:', e)

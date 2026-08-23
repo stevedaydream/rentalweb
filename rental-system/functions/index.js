@@ -341,6 +341,94 @@ const COMMAND_KEYWORDS = new Set([
   '選單', '功能', '說明', 'help', 'menu',
 ]);
 
+const SITE_URL = "https://rental-system-7675e.web.app";
+
+/**
+ * 快捷選項（Quick Reply）：掛在 bot 回覆下方的一排按鈕。
+ * 租客不必記指令、也不必打字，點一下就能查下一項——這是「查帳單更直覺」的主力。
+ * LINE 限制：最多 13 顆、label 最長 20 字，且只能掛在該批訊息的最後一則。
+ */
+const TENANT_QUICK_REPLY = {
+  items: [
+    { type: "action", action: { type: "message", label: "💰 帳單", text: "帳單" } },
+    { type: "action", action: { type: "message", label: "⚡ 電費", text: "電費" } },
+    { type: "action", action: { type: "message", label: "📋 合約", text: "合約" } },
+    { type: "action", action: { type: "message", label: "📢 公告", text: "公告" } },
+    { type: "action", action: { type: "message", label: "🔧 報修", text: "報修" } },
+    { type: "action", action: { type: "message", label: "📖 選單", text: "選單" } },
+  ],
+};
+
+const LANDLORD_QUICK_REPLY = {
+  items: [
+    { type: "action", action: { type: "message", label: "💸 欠費", text: "欠費" } },
+    { type: "action", action: { type: "message", label: "📅 到期", text: "到期" } },
+    { type: "action", action: { type: "message", label: "🔧 報修", text: "報修" } },
+    { type: "action", action: { type: "message", label: "📖 選單", text: "選單" } },
+  ],
+};
+
+const withQuickReply = (messages, quickReply) => {
+  const list = Array.isArray(messages) ? messages : [messages];
+  const last = list[list.length - 1];
+  if (last && !last.quickReply) last.quickReply = quickReply;
+  return list;
+};
+
+/** 包一層 client：既有的每個 replyMessage 都自動帶上快捷選項，不必逐處改 */
+const quickReplyClient = (client, quickReply) => ({
+  replyMessage: ({ replyToken, messages }) =>
+    client.replyMessage({ replyToken, messages: withQuickReply(messages, quickReply) }),
+});
+
+/**
+ * 帳單改用 Flex 卡片：金額與到期日一眼可見，底部直接給「上傳繳費截圖」的按鈕，
+ * 不必先看懂一整段文字再自己找路進系統。
+ */
+const buildBillFlex = (bills, total, nearestDue) => {
+  const rows = bills.slice(0, 5).map((b) => ({
+    type: "box", layout: "vertical", margin: "md", spacing: "xs",
+    contents: [
+      {
+        type: "box", layout: "baseline", contents: [
+          { type: "text", text: String(b.description || b.date || "帳單"), size: "sm", color: "#333333", flex: 5, wrap: true },
+          { type: "text", text: "NT$" + Number(b.totalAmount || 0).toLocaleString(), size: "sm", weight: "bold", align: "end", flex: 3, color: b.status === "overdue" ? "#C0392B" : "#333333" },
+        ],
+      },
+      {
+        type: "text",
+        text: (b.status === "overdue" ? "⚠️ 已逾期 ・ " : "待繳 ・ ") + "到期 " + (b.dueDate || "-"),
+        size: "xxs", color: b.status === "overdue" ? "#C0392B" : "#999999",
+      },
+    ],
+  }));
+  return {
+    type: "flex",
+    altText: "未繳帳單 " + bills.length + " 筆，合計 NT$" + total.toLocaleString(),
+    contents: {
+      type: "bubble",
+      header: {
+        type: "box", layout: "vertical", backgroundColor: "#A8792E", paddingAll: "16px", spacing: "xs",
+        contents: [
+          { type: "text", text: "未繳帳單", size: "sm", color: "#FFFFFFCC" },
+          { type: "text", text: "NT$" + total.toLocaleString(), size: "xxl", weight: "bold", color: "#FFFFFF" },
+          { type: "text", text: "最近到期 " + (nearestDue || "-"), size: "xs", color: "#FFFFFFCC" },
+        ],
+      },
+      body: { type: "box", layout: "vertical", paddingAll: "16px", contents: rows },
+      footer: {
+        type: "box", layout: "vertical", spacing: "sm", paddingAll: "12px",
+        contents: [
+          {
+            type: "button", style: "primary", color: "#A8792E", height: "sm",
+            action: { type: "uri", label: "前往繳費／上傳截圖", uri: SITE_URL + "/tenant/bills" },
+          },
+        ],
+      },
+    },
+  };
+};
+
 /**
  * Handle a command from a tenant via LINE.
  * Returns true if handled (caller should skip saving to Firestore), false otherwise.
@@ -348,6 +436,7 @@ const COMMAND_KEYWORDS = new Set([
 async function handleCommand(cmd, tenantUid, config, client, replyToken, db) {
   const t = cmd.trim();
   if (!COMMAND_KEYWORDS.has(t)) return false;
+  client = quickReplyClient(client, TENANT_QUICK_REPLY);
 
   const unbound = [{ type: 'text', text: '⚠️ 您尚未綁定帳號，請先至系統取得綁定碼完成綁定。\n\n傳送「選單」查看可用指令。' }];
 
@@ -381,13 +470,7 @@ async function handleCommand(cmd, tenantUid, config, client, replyToken, db) {
       const bills = snap.docs.map(d => d.data());
       const total = bills.reduce((s, b) => s + (Number(b.totalAmount) || 0), 0);
       const nearestDue = bills.reduce((m, b) => (!m || b.dueDate < m) ? b.dueDate : m, '');
-      const lines = bills.map(b => {
-        const flag = b.status === 'overdue' ? '⚠️逾期' : '待繳';
-        return `• ${b.description || b.date || '帳單'} [${flag}]\n  NT$${Number(b.totalAmount||0).toLocaleString()} | 到期 ${b.dueDate||'-'}`;
-      }).join('\n');
-      await client.replyMessage({ replyToken, messages: [{ type: 'text', text:
-        `💰 您的未繳帳單\n━━━━━━━━━━\n${lines}\n━━━━━━━━━━\n合計：NT$${total.toLocaleString()}\n最近到期：${nearestDue||'-'}`,
-      }] });
+      await client.replyMessage({ replyToken, messages: [buildBillFlex(bills, total, nearestDue)] });
       return true;
     }
 
@@ -546,6 +629,7 @@ async function handleLandlordCommand(cmd, config, client, replyToken, db) {
   const arg = rest.join(' ').trim();
   const lid = config.landlordId;
   const today = new Date().toISOString().split('T')[0];
+  client = quickReplyClient(client, LANDLORD_QUICK_REPLY);
 
   const menu = () => client.replyMessage({ replyToken, messages: [{ type: 'text', text:
     '🏠 房東查詢指令\n━━━━━━━━━━\n' +
@@ -921,6 +1005,170 @@ exports.lineWebhook = onRequest(
     res.status(200).json({ status: 'ok' });
   }
 );
+
+// ============================================================
+// LINE Rich Menu（圖文選單）
+// ============================================================
+
+/**
+ * 圖文選單的六格按鈕。動作一律用 message action 送出既有指令關鍵字，
+ * 沿用 handleCommand 那套邏輯——不必再多一條 postback 分支，也就不會兩邊走鐘。
+ */
+const RICH_MENU_BUTTONS = [
+  { icon: '💰', title: '查帳單',  sub: '未繳金額・到期日', text: '帳單' },
+  { icon: '⚡', title: '看電費',  sub: '本期度數・金額',   text: '電費' },
+  { icon: '🔧', title: '報修進度', sub: '處理到哪了',      text: '報修' },
+  { icon: '📋', title: '我的合約', sub: '租期・租金',      text: '合約' },
+  { icon: '📢', title: '社區公告', sub: '最新消息',        text: '公告' },
+  { icon: '🏠', title: '線上系統', sub: '上傳繳費截圖',    uri: SITE_URL + '/tenant/bills' },
+];
+
+const RICH_MENU_W = 2500;
+const RICH_MENU_H = 1686;
+
+/** 3 欄 × 2 列；最後一欄補足餘數，讓六格加起來剛好等於 2500 */
+const richMenuAreas = () => {
+  const colW = Math.floor(RICH_MENU_W / 3);
+  const rowH = Math.floor(RICH_MENU_H / 2);
+  return RICH_MENU_BUTTONS.map((btn, i) => {
+    const col = i % 3;
+    const row = Math.floor(i / 3);
+    return {
+      bounds: {
+        x: col * colW,
+        y: row * rowH,
+        width: col === 2 ? RICH_MENU_W - colW * 2 : colW,
+        height: row === 1 ? RICH_MENU_H - rowH : rowH,
+      },
+      action: btn.uri
+        ? { type: 'uri', label: btn.title, uri: btn.uri }
+        : { type: 'message', label: btn.title, text: btn.text },
+    };
+  });
+};
+
+const richMenuHtml = (title) => `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; }
+  body { width: ${RICH_MENU_W}px; height: ${RICH_MENU_H}px; background: #FBF6EA;
+         font-family: "Noto Sans TC","Microsoft JhengHei",sans-serif; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr);
+          width: 100%; height: 100%; }
+  .cell { display: flex; flex-direction: column; align-items: center; justify-content: center;
+          gap: 28px; border: 4px solid #E4D6B4; background: #FFFDF7; }
+  .cell:nth-child(even) { background: #FBF6EA; }
+  .icon { font-size: 190px; line-height: 1; }
+  .title { font-size: 96px; font-weight: 700; color: #2A2218; letter-spacing: 4px; }
+  .sub { font-size: 54px; color: #8A7A5C; }
+  .brand { position: absolute; bottom: 24px; right: 40px; font-size: 40px; color: #C9B48A; }
+</style></head><body>
+  <div class="grid">
+    ${RICH_MENU_BUTTONS.map(b => `<div class="cell">
+      <div class="icon">${b.icon}</div>
+      <div class="title">${b.title}</div>
+      <div class="sub">${b.sub}</div>
+    </div>`).join('')}
+  </div>
+  <div class="brand">${title}</div>
+</body></html>`;
+
+/** 產生圖文選單底圖（沿用既有的 puppeteer/chromium，不必再加相依） */
+async function renderRichMenuImage(title) {
+  const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true';
+  const executablePath = isEmulator
+    ? 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+    : await chromium.executablePath();
+  const launchArgs = isEmulator ? [] : chromium.args;
+
+  const browser = await puppeteer.launch({
+    args: launchArgs,
+    executablePath,
+    headless: 'new',
+    ignoreHTTPSErrors: true,
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: RICH_MENU_W, height: RICH_MENU_H, deviceScaleFactor: 1 });
+    await page.setContent(richMenuHtml(title), { waitUntil: 'domcontentloaded', timeout: 30000 });
+    return await page.screenshot({ type: 'png' });
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
+/**
+ * setupLineRichMenu — 建立／更新房東頻道的圖文選單並設為預設。
+ * 舊的選單會一併刪除，否則每按一次就在 LINE 後台多留一份垃圾。
+ */
+exports.setupLineRichMenu = onCall(
+  { region: 'asia-east1', memory: '1GiB', timeoutSeconds: 120 },
+  async (request) => {
+    if (!request.auth) throw new Error('Unauthenticated');
+    const landlordId = request.auth.uid;
+
+    const config = await getLineConfig(landlordId);
+    const client = new line.messagingApi.MessagingApiClient({ channelAccessToken: config.channelAccessToken });
+    const blobClient = new line.messagingApi.MessagingApiBlobClient({ channelAccessToken: config.channelAccessToken });
+
+    const db = getFirestore();
+    const menuName = String(request.data?.name || '租屋小幫手選單').slice(0, 300);
+
+    const png = await renderRichMenuImage(menuName);
+
+    const { richMenuId } = await client.createRichMenu({
+      size: { width: RICH_MENU_W, height: RICH_MENU_H },
+      selected: true,
+      name: menuName,
+      chatBarText: String(request.data?.chatBarText || '開啟選單').slice(0, 14),
+      areas: richMenuAreas(),
+    });
+
+    try {
+      await blobClient.setRichMenuImage(richMenuId, new Blob([png], { type: 'image/png' }));
+      await client.setDefaultRichMenu(richMenuId);
+    } catch (e) {
+      // 圖片或設定預設失敗時，別留下一個沒有底圖的空選單
+      await client.deleteRichMenu(richMenuId).catch(() => {});
+      throw new Error('圖文選單建立失敗：' + (e.message || e));
+    }
+
+    const prevId = (await db.collection('line_configs').doc(landlordId).get()).data()?.richMenuId;
+    if (prevId && prevId !== richMenuId) {
+      await client.deleteRichMenu(prevId).catch(() => {});
+    }
+    await db.collection('line_configs').doc(landlordId).set({
+      richMenuId,
+      richMenuUpdatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    logger.info('LINE rich menu ready', { landlordId, richMenuId });
+    return { success: true, richMenuId };
+  }
+);
+
+/** removeLineRichMenu — 取消預設並刪除，聊天室回到純輸入列 */
+exports.removeLineRichMenu = onCall(
+  { region: 'asia-east1' },
+  async (request) => {
+    if (!request.auth) throw new Error('Unauthenticated');
+    const landlordId = request.auth.uid;
+
+    const config = await getLineConfig(landlordId);
+    const client = new line.messagingApi.MessagingApiClient({ channelAccessToken: config.channelAccessToken });
+    const db = getFirestore();
+
+    const richMenuId = (await db.collection('line_configs').doc(landlordId).get()).data()?.richMenuId;
+    await client.cancelDefaultRichMenu().catch(() => {});
+    if (richMenuId) await client.deleteRichMenu(richMenuId).catch(() => {});
+    await db.collection('line_configs').doc(landlordId).set({
+      richMenuId: FieldValue.delete(),
+      richMenuUpdatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    logger.info('LINE rich menu removed', { landlordId, richMenuId });
+    return { success: true };
+  }
+);
+
 
 /**
  * sendLineReply — callable function for landlord to push reply to LINE user

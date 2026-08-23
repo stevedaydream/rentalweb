@@ -172,6 +172,27 @@
                 租期：{{ c.startDate }} ～ {{ c.endDate }}
                 ・月租 NT${{ Number(c.rentfee).toLocaleString() }}
               </p>
+
+              <!-- 未連結租客帳號：租客端是以 tenantUid 查詢，沒連結就看不到這份合約 -->
+              <div v-if="!c.tenantUid"
+                class="mt-2 flex flex-wrap items-center gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2">
+                <span class="material-symbols-outlined text-amber-500 text-[16px]" aria-hidden="true">link_off</span>
+                <span class="text-xs text-amber-800 dark:text-amber-300">尚未連結租客帳號，租客端看不到這份合約</span>
+                <template v-if="linkableTenants.length">
+                  <select v-model="linkTarget[c.id]" :aria-label="`為 ${c.tenant || '此合約'} 選擇租客`"
+                    class="text-xs px-2 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500">
+                    <option value="">選擇租客…</option>
+                    <option v-for="t in linkableTenants" :key="t.id" :value="t.uid">
+                      {{ t.name }}{{ t.roomNumber || t.room ? `（${t.roomNumber || t.room}）` : '' }}
+                    </option>
+                  </select>
+                  <button @click="linkTenant(c)" :disabled="!linkTarget[c.id] || linking === c.id"
+                    class="text-xs px-3 py-1 rounded-lg bg-amber-600 text-white font-bold hover:bg-amber-700 disabled:opacity-50 transition-colors">
+                    {{ linking === c.id ? '連結中…' : '連結' }}
+                  </button>
+                </template>
+                <span v-else class="text-xs text-amber-700 dark:text-amber-400">名下租客都還沒有登入帳號，請先於租客列表建立</span>
+              </div>
             </div>
             <div class="flex flex-col items-end gap-1.5 shrink-0">
               <div class="flex items-center gap-2">
@@ -253,7 +274,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import axios from 'axios'
 import { useAuthStore } from '../../stores/auth'
@@ -296,6 +317,8 @@ const signedContracts = ref([])
 const loadingHistory = ref(false)
 const redownloading = ref(null)
 const previewContract = ref(null)
+const linkTarget = ref({})
+const linking = ref(null)
 
 // ---- 紙本 ----
 const paperFile = ref(null)
@@ -378,6 +401,26 @@ const loadHistory = async () => {
     console.error('載入合約記錄失敗:', e)
   } finally {
     loadingHistory.value = false
+  }
+}
+
+// 有登入帳號的租客才連得起來（tenantUid 就是 Firebase UID）
+const linkableTenants = computed(() => tenants.value.filter(t => t.uid))
+
+// 自動比對不到時的手動指派：房東自己挑，最直接也最不會錯
+const linkTenant = async (c) => {
+  const uid = linkTarget.value[c.id]
+  if (!uid) return
+  linking.value = c.id
+  try {
+    await updateDoc(doc(db, 'signed_contracts', c.id), { tenantUid: uid })
+    c.tenantUid = uid
+    toast.success('已連結，租客端即可查閱此合約')
+  } catch (e) {
+    console.error('連結租客失敗:', e)
+    toast.error('連結失敗，請稍後再試')
+  } finally {
+    linking.value = null
   }
 }
 
