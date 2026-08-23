@@ -27,6 +27,8 @@ export interface InspectionPhoto {
   thumbUrl: string
   /** 2560px/JPEG92，備查用；退租結清滿 RETENTION_YEARS 年後由排程刪除 */
   origUrl?: string
+  /** 尚未（完全）上傳完畢；現場沒網路時照片先落在裝置的待傳佇列 */
+  pending?: boolean
   at?: any
 }
 

@@ -60,6 +60,17 @@
           @update:items="items = $event"
         />
 
+        <TenantConfirmStep
+          v-else-if="inspection?.status === 'tenant'"
+          :items="items"
+          :previews="photos.previews.value"
+          :busy-key="compressingKey"
+          @set-condition="setCondition"
+          @set-note="setNote"
+          @add-photo="addPhoto"
+          @remove-photo="removePhoto"
+        />
+
         <div v-else class="py-16 text-center">
           <span class="material-symbols-outlined text-4xl text-ink-200 block mb-3" aria-hidden="true">construction</span>
           <p class="text-sm font-medium text-text-primary-light dark:text-text-primary-dark">
@@ -73,6 +84,21 @@
         </div>
       </div>
     </main>
+
+    <footer v-if="!loading && !error && inspection?.status === 'tenant'"
+      class="shrink-0 px-4 py-3 bg-white dark:bg-card-dark border-t border-ink-100 dark:border-ink-700">
+      <div class="max-w-3xl mx-auto flex items-center gap-3">
+        <p v-if="photos.pendingCount.value" class="text-[11px] text-amber-700 dark:text-amber-400 flex items-center gap-1">
+          <span class="material-symbols-outlined text-[14px]" aria-hidden="true">cloud_upload</span>
+          {{ photos.pendingCount.value }} 張待上傳
+        </p>
+        <button @click="handBackOpen = true"
+          class="ml-auto px-6 py-2.5 rounded-xl bg-ink-700 text-white text-sm font-bold hover:bg-ink-800 transition-colors flex items-center justify-center gap-2">
+          <span class="material-symbols-outlined text-[18px]" aria-hidden="true">swipe_left</span>
+          交還房東
+        </button>
+      </div>
+    </footer>
 
     <footer v-if="!loading && !error && inspection?.status === 'draft'"
       class="shrink-0 px-4 py-3 bg-white dark:bg-card-dark border-t border-ink-100 dark:border-ink-700">
@@ -88,6 +114,14 @@
         </button>
       </div>
     </footer>
+    <HandBackModal
+      v-if="handBackOpen && inspection"
+      :landlord-id="inspection.landlordId"
+      :complete="tenantDone"
+      :remaining="remainingCount"
+      @close="handBackOpen = false"
+      @verified="onHandBack"
+    />
   </div>
 </template>
 
@@ -96,10 +130,18 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToastStore } from '../../stores/toast'
 import DraftStep from '../../components/inspection/DraftStep.vue'
+import TenantConfirmStep from '../../components/inspection/TenantConfirmStep.vue'
+import HandBackModal from '../../components/inspection/HandBackModal.vue'
+import { useInspectionPhotos } from '../../composables/useInspectionPhotos'
+import { useSignatureVault } from '../../composables/useSignatureVault'
 import {
   getInspection, saveItems, handToTenant, setStatus,
 } from '../../services/inspectionService'
-import { canHandToTenant, type Inspection, type InspectionEntry } from '../../utils/inspection'
+import {
+  canHandToTenant, canReturnToLandlord, tenantProgress,
+  type Inspection, type InspectionEntry,
+} from '../../utils/inspection'
+import type { Condition } from '../../utils/inventory'
 
 const route = useRoute()
 const router = useRouter()
@@ -119,7 +161,18 @@ const inspection = ref<Inspection | null>(null)
 const items = ref<InspectionEntry[]>([])
 const sourceLabel = ref('')
 
+const handBackOpen = ref(false)
+const compressingKey = ref('')
+
+const photos = useInspectionPhotos(String(route.params.inspectionId || ''))
+const vault = useSignatureVault()
+
 const canHand = computed(() => canHandToTenant(items.value))
+const tenantDone = computed(() => canReturnToLandlord(items.value))
+const remainingCount = computed(() => {
+  const p = tenantProgress(items.value)
+  return p.total - p.done
+})
 const stageIndex = computed(() => STAGES.findIndex(s => s.key === inspection.value?.status))
 const typeLabel = computed(() => (inspection.value?.type === 'moveout' ? '退租點交' : '入住點交'))
 
@@ -142,6 +195,8 @@ onMounted(async () => {
     inspection.value = found
     items.value = (found.items || []).map(e => ({ ...e }))
     sourceLabel.value = String(route.query.from || '')
+    await photos.init()
+    void photos.drain(applyPhotoPatch)
   } catch (e: any) {
     error.value = e?.message || '載入失敗'
   } finally {
@@ -150,6 +205,87 @@ onMounted(async () => {
 })
 
 const leave = () => router.push({ name: 'TenantList' })
+
+/**
+ * 租客每動一次就存，中途沒電或誤觸重整都不會整輪重來。
+ * 用防抖是因為連點三個按鈕不該打三次 Firestore。
+ */
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+const queueSave = () => {
+  if (!inspection.value) return
+  if (saveTimer) clearTimeout(saveTimer)
+  const id = inspection.value.id
+  saveTimer = setTimeout(() => { void saveItems(id, items.value) }, 800)
+}
+
+const patchEntry = (key: string, part: Partial<InspectionEntry>) => {
+  items.value = items.value.map(e => (e.key === key ? { ...e, ...part } : e))
+  queueSave()
+}
+
+// 改回正常時保留說明與照片：租客改來改去不必重拍
+const setCondition = (key: string, condition: Condition) =>
+  patchEntry(key, { tenantCondition: condition })
+
+const setNote = (key: string, note: string) => patchEntry(key, { note })
+
+/** 上傳完成後把真正的 URL 寫回對應照片 */
+const applyPhotoPatch = (photoId: string, patch: Record<string, any>) => {
+  items.value = items.value.map(e => ({
+    ...e,
+    photos: e.photos.map(p => (p.id === photoId ? { ...p, ...patch } : p)),
+  }))
+  queueSave()
+}
+
+const addPhoto = async (key: string, file: File) => {
+  compressingKey.value = key
+  try {
+    const photo = await photos.capture(key, file)
+    const entry = items.value.find(e => e.key === key)
+    patchEntry(key, { photos: [...(entry?.photos || []), photo] })
+    void photos.drain(applyPhotoPatch)
+  } catch (e: any) {
+    toast.error(e?.message || '照片處理失敗')
+  } finally {
+    compressingKey.value = ''
+  }
+}
+
+const removePhoto = async (key: string, photoId: string) => {
+  const entry = items.value.find(e => e.key === key)
+  const photo = entry?.photos.find(p => p.id === photoId)
+  if (photo) await photos.discard(photo, key)
+  // 讀刪除後的最新狀態再過濾：等待期間背景補傳可能已經回填了其他照片的 URL
+  items.value = items.value.map(e =>
+    (e.key === key ? { ...e, photos: e.photos.filter(p => p.id !== photoId) } : e))
+  queueSave()
+}
+
+/**
+ * 房東以 PIN 取回裝置。
+ * 全部確認完才進二次確認；沒做完就先離開，狀態留在租客輪，之後接得回來。
+ */
+const onHandBack = async () => {
+  handBackOpen.value = false
+  if (!inspection.value) return
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null }
+  saving.value = true
+  try {
+    await saveItems(inspection.value.id, items.value)
+    if (!tenantDone.value) {
+      toast.info('已保留 ' + tenantProgress(items.value).done + ' 項，稍後可從租客抽屜接回')
+      leave()
+      return
+    }
+    await setStatus(inspection.value.id, 'review')
+    inspection.value = { ...inspection.value, status: 'review', items: items.value }
+  } catch (e: any) {
+    toast.error(e?.message || '操作失敗')
+  } finally {
+    saving.value = false
+  }
+}
 
 const saveAndLeave = async () => {
   if (!inspection.value) return
@@ -170,6 +306,8 @@ const handOver = async () => {
   saving.value = true
   try {
     await handToTenant(inspection.value.id, items.value)
+    // 裝置要交到租客手上，先把工作階段裡的明文簽名鎖回去
+    vault.lock()
     inspection.value = { ...inspection.value, status: 'tenant', items: items.value }
   } catch (e: any) {
     toast.error(e?.message || '操作失敗')
