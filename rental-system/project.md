@@ -241,6 +241,9 @@ rental-system/
 - 公益出租人免稅額一律以 12 個月計；年度中途取得或失去資格時，試算金額會偏高
 - 綜所稅試算未比較「43% 標準扣除 vs 列舉實額」，亦未含折舊與房貸利息等系統沒有的必要費用。房屋稅、地價稅、火險本身即為可列舉項目，列舉實額若高於 43% 改採列舉更有利
 - 綜所稅「免稅額先扣、再扣 43%」的順序未經稅務專業確認，僅依常識推定（「免納所得稅」意謂該部分不計入所得）。報稅前建議向會計師或國稅局查證
+- ~~部署後手機白畫面（`/` 被快取 1 小時 ＋ SPA rewrite 把缺失的 JS 回成 HTML）~~（2026-08-24 已解決，`firebase.json` 的 `hosting.headers` 改為廣泛規則在前、專屬規則覆蓋在後，見 BF-014）
+- Storage bucket CORS（`cors.json`）對本專案**沒有作用**：前端一律用 `getDownloadURL()`，走的是 `firebasestorage.googleapis.com`，該端點無條件送 `ACAO: *`；bucket CORS 只管 `storage.googleapis.com` 原生端點。bucket 已於 2026-08-24 清空，`cors.json` 僅為歷史殘留（見 BF-013 更正）
+- `firebase deploy --only functions` 直接在終端機執行會撞 discovery 10 秒逾時；`dev.bat` 有設 `FUNCTIONS_DISCOVERY_TIMEOUT=120`，手動部署時需自行帶上（見 BF-011）
 
 ---
 

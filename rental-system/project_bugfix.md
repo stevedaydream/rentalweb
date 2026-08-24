@@ -324,10 +324,83 @@ html2canvas 解析顏色時遇到不認得的函式就拋例外，於是每一�
   失敗才就地補 `SKIP_ATTR` 排除該張圖，擷取後還原。`Bills.vue` 移除截圖上的
   `data-capture-skip`。
 
-前提是 Storage 的 CORS 要含部署網域（`cors.json`），否則兩者都會退回原本行為。
+**更正（2026-08-24）**
+原本這裡寫「前提是 Storage 的 CORS 要含部署網域（`cors.json`）」，**這句是錯的**。
+實測兩個端點：
+
+```
+firebasestorage.googleapis.com/v0/b/<bucket>/o/…  →  Access-Control-Allow-Origin: *
+storage.googleapis.com/<bucket>/…                 →  （無 ACAO，此端點才吃 bucket CORS）
+```
+
+`getDownloadURL()` 回傳的一律是前者，它**無條件送 `ACAO: *`，與 bucket 的 CORS 設定無關**；
+全案也沒有任何地方直連 `storage.googleapis.com`。因此 `cors.json` 對本專案自始至終
+沒有作用，內嵌圖片能不能成功與它無涉。bucket CORS 已於 2026-08-24 清空，
+列印與存圖的遠端圖片照常內嵌。
+
+> **避坑**：Firebase Storage 有兩條下載路徑，只有 GCS 原生端點吃 bucket CORS。
+> 在動 `gsutil cors` 之前，先確認前端實際打的是哪一個 host——用 `getDownloadURL()`
+> 就代表 bucket CORS 根本不在鏈路上。
 
 **牽扯檔案**
 - `src/utils/contractRender.ts`（inlinePrintImages / waitImages / printHtmlPdf）
 - `src/utils/captureImage.ts`（inlineRemoteImages / captureElementPng）
 - `src/views/tenant/Bills.vue`（匯款截圖的 data-capture-skip）
-- `cors.json`（Storage CORS 來源）
+
+---
+
+## BF-014 部署後手機白畫面：SPA rewrite 把缺失的 JS 回成 HTML ＋ `/` 沒吃到 no-cache
+
+**問題描述**
+手機瀏覽器開站一片空白，console 只有一行 module parse error，桌機正常。
+症狀出現在一次部署之後，容易被誤判成該次程式碼改動造成的。
+
+**根本原因（三項皆以 curl 實測確認）**
+
+1. `firebase.json` 的 SPA rewrite `"**" → "/index.html"` 會把**任何找不到的檔案**
+   都改送 index.html，包含 hashed JS chunk：
+
+   ```
+   GET /assets/index-OLDHASH.js  →  200 text/html（1699 bytes = index.html）
+   ```
+
+   瀏覽器拿 `<script type="module">` 去解析一份 HTML → 語法錯 → `#app` 永不掛載 → 全白。
+
+2. 原本那條 `{"source": "/index.html", Cache-Control: no-cache}` **只吃字面路徑**，
+   使用者實際開的 `/` 命中不到，落到 Firebase 預設的 `max-age=3600`：
+
+   ```
+   GET /            →  Cache-Control: max-age=3600       ← 沒被規則命中
+   GET /index.html  →  Cache-Control: no-cache, …        ← 規則只對它生效
+   ```
+
+   於是每次部署後有長達 1 小時的窗口，客戶端拿舊 index.html 去要已被刪除的
+   asset hash，直接觸發第 1 點。SPA 深連結（`/tenant/dashboard`）同樣受影響。
+
+3. `**/*.@(js|…)` 的 immutable 規則把 `sw.js` 一起吃掉，service worker 腳本被標成
+   `max-age=31536000, immutable`（Workbox 官方明確警告不可如此），讓舊 SW 連同它
+   precache 的舊 index.html 在手機上格外黏。
+
+**最終解法**
+`firebase.json` 的 `headers` 改為「廣泛規則在前、專屬規則在後」——Firebase Hosting
+會套用**所有**命中的規則，同一個 header key **後者覆蓋前者**（已實測驗證）：
+
+1. `**` → 原有安全標頭 ＋ `Cache-Control: no-cache`（涵蓋 `/` 與所有 SPA 深連結）
+2. `**/*.@(js|mjs|css|woff2|woff|ttf|eot)` → `max-age=31536000, immutable`（覆蓋回長快取）
+3. `**/*.@(png|jpg|…)` → `max-age=604800`
+4. `/@(sw.js|registerSW.js|index.html)` → `no-cache`（覆蓋掉第 2 條對 SW 的誤傷）
+
+部署後六路徑實測：`/`、深連結、`sw.js` 為 `no-cache`；`assets/*.js`、`assets/*.css`
+維持 `immutable`；`*.png` 維持 `604800`。
+
+**牽扯檔案**
+- `firebase.json`（`hosting.headers` 順序與內容）
+
+> **避坑**：
+> 1. Firebase Hosting 的 header `source` 是比對**請求路徑**，`/index.html` 不等於 `/`。
+>    要保護首頁，規則必須涵蓋 `/` 本身，或用廣泛規則打底。
+> 2. header 規則是**累加＋後者覆蓋**，跟 rewrites／redirects 的「第一條命中即停」相反。
+> 3. SPA catch-all rewrite 會讓 404 的靜態資源回 200 HTML，錯誤訊息因此完全看不出
+>    「檔案不存在」。看到 module parse error 先 curl 一下那支 JS 的 content-type。
+> 4. Firebase Hosting 的 `Last-Modified` 依**內容**決定，內容沒變就沿用最早上傳的
+>    時間戳。**不能拿它判斷最後部署時間**，要驗版本請直接探測新版才有的 chunk 檔名。
