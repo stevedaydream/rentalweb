@@ -404,3 +404,35 @@ storage.googleapis.com/<bucket>/…                 →  （無 ACAO，此端點
 >    「檔案不存在」。看到 module parse error 先 curl 一下那支 JS 的 content-type。
 > 4. Firebase Hosting 的 `Last-Modified` 依**內容**決定，內容沒變就沿用最早上傳的
 >    時間戳。**不能拿它判斷最後部署時間**，要驗版本請直接探測新版才有的 chunk 檔名。
+
+---
+
+## BF-015 手機簽名板：畫布不滿版、「確認簽名」按鈕被推出可視範圍
+
+**問題描述**
+手機開啟簽名板（合約簽署、押金收據、雙方點交、退租儀皆共用 `components/Signature.vue`），
+簽名區只有中間一小條，底部「清除／返回／確認簽名」整列看不到也按不到，桌機正常。
+
+**根本原因（兩項疊加）**
+
+1. `.signature-modal-content` 在 ≤900px 設 `height: 100vh`。行動瀏覽器的 `100vh` 是**網址列收起後**的
+   高度，比實際可視區高出一截；容器又是 `justify-content: center` 且不可捲動，按鈕列因此落在可視範圍下方。
+   iOS 另有底部 home indicator 再吃掉一段。
+2. 畫布高度寫死 `height: 220px`（inline style）。`vue3-signature` 的畫布尺寸由 `w`／`h` props 相對
+   **父層 clientWidth/clientHeight** 換算，父層被釘死 220px，模態框放到全螢幕也不會跟著長。
+
+**最終解法**
+- 外層高度改 `height: 100vh; height: 100dvh;`（不支援 dvh 的瀏覽器自動沿用前一行）。
+- 內容改為 flex column：畫布包一層 `.pad { flex:1 1 auto; min-height:0 }` 吃掉剩餘空間，
+  `.btns { flex:0 0 auto }` 永遠留在畫面內；手機版 padding-bottom 加 `env(safe-area-inset-bottom)`。
+- 畫布改用 `w="100%" h="100%"` props（移除 inline 的固定寬高），隨 `.pad` 伸縮。
+- `visible` 轉 true 後 `nextTick` 補送一次 `window.dispatchEvent(new Event('resize'))`：
+  `vue3-signature` 只在自身 onMounted 與 window resize 時重新量父層，改成百分比高度後
+  掛載當下可能量到未定案的尺寸。該套件 `clearOnResize` 預設 false，重量不會清掉已畫的筆跡。
+- 移除只為切 `.landscape` class 而存在的 `isMobile` 判斷（含未解除的 resize 監聽），全交給 media query。
+
+**牽扯檔案**
+- `src/components/Signature.vue`（template 結構、`.signature-modal-content`／`.pad`／`.btns` 樣式）
+
+> **避坑**：手機上的滿版容器一律用 `dvh` 而非 `vh`，且底部操作列要留 `env(safe-area-inset-bottom)`；
+> 這個模態框被四個流程共用，改一處就是四處一起修。

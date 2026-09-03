@@ -878,6 +878,17 @@
                   <label for="drawer-email" class="block text-sm font-medium text-text-secondary-light mb-1">電子郵件 (選填)</label>
                   <input id="drawer-email" v-model="form.email" type="email" class="form-input" autocomplete="email">
                 </div>
+                <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
+                  <p class="text-xs font-bold text-blue-700 dark:text-blue-300 mb-2 flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[15px]">key</span>
+                    租客登入帳號
+                  </p>
+                  <label for="drawer-id-number" class="block text-sm font-medium text-text-secondary-light mb-1">身分證號碼</label>
+                  <input id="drawer-id-number" v-model="form.idNumber" type="text" class="form-input font-mono uppercase" placeholder="A123456789"
+                    autocomplete="off" spellcheck="false"
+                    @input="form.idNumber = (form.idNumber || '').toUpperCase()">
+                  <p class="text-xs text-blue-600 dark:text-blue-400 mt-2">租客以「手機號碼 + 身分證號」登入。改號碼後登入密碼不會跟著變，請回「基本資料」按一次「重設密碼為證件號碼」。</p>
+                </div>
                 <div class="border-t border-gray-100 dark:border-gray-800 pt-2">
                   <p class="text-xs font-bold text-text-secondary-light uppercase mb-3">租約設定</p>
                   <div class="grid grid-cols-2 gap-4">
