@@ -187,8 +187,9 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth'
-import { collection, doc, getDoc, getDocs, limit, onSnapshot, query, updateDoc, where } from 'firebase/firestore'
-import { auth, db } from '../../firebase/config'
+import { doc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore'
+import { httpsCallable } from 'firebase/functions'
+import { auth, db, functions } from '../../firebase/config'
 import { useAuthStore } from '../../stores/auth'
 import { useToastStore } from '../../stores/toast'
 import { getTenantByUid, updateTenantContact } from '../../services/tenantService'
@@ -296,28 +297,22 @@ const loadLandlordName = async () => {
   }
 }
 
+// 邀請碼的查驗與 landlordId 的寫入都在伺服端：規則已鎖住租客自改 landlordId，
+// 否則前端比對邀請碼形同虛設，改一行就能把自己掛到任意房東名下。
 const bindLandlord = async () => {
   if (!landlordCode.value || !authStore.user) return
   binding.value = true
   try {
-    const snap = await getDocs(query(
-      collection(db, 'users'),
-      where('landlordCode', '==', landlordCode.value),
-      where('role', '==', 'landlord'),
-      limit(1),
-    ))
-    const landlordDoc = snap.docs[0]
-    if (!landlordDoc) {
-      toast.error('找不到此邀請碼對應的房東，請確認後再試')
-      return
-    }
-    await updateDoc(doc(db, 'users', authStore.user.uid), { landlordId: landlordDoc.id })
-    if (authStore.userProfile) authStore.userProfile.landlordId = landlordDoc.id
-    landlordName.value = landlordDoc.data().name || '房東'
+    const fn = httpsCallable(functions, 'bindLandlordByCode')
+    const res: any = await fn({ code: landlordCode.value })
+    if (authStore.userProfile) authStore.userProfile.landlordId = res.data?.landlordId
+    landlordName.value = res.data?.landlordName || '房東'
     landlordCode.value = ''
     toast.success(`已綁定房東：${landlordName.value}`)
-  } catch {
-    toast.error('綁定失敗，請稍後再試')
+  } catch (e: any) {
+    toast.error(String(e?.code || '').includes('not-found')
+      ? '找不到此邀請碼對應的房東，請確認後再試'
+      : (e?.message || '綁定失敗，請稍後再試'))
   } finally {
     binding.value = false
   }
@@ -327,12 +322,12 @@ const unbindLandlord = async () => {
   if (!authStore.user) return
   binding.value = true
   try {
-    await updateDoc(doc(db, 'users', authStore.user.uid), { landlordId: null })
+    await httpsCallable(functions, 'unbindLandlord')({})
     if (authStore.userProfile) authStore.userProfile.landlordId = ''
     landlordName.value = ''
     toast.success('已解除房東綁定')
-  } catch {
-    toast.error('操作失敗，請稍後再試')
+  } catch (e: any) {
+    toast.error(e?.message || '操作失敗，請稍後再試')
   } finally {
     binding.value = false
   }

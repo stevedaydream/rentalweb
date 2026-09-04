@@ -54,13 +54,16 @@ service cloud.firestore {
     // 任何租客在瀏覽器 console 對自己的文件寫一次 role: "landlord" 就能升級成房東，
     // 路由守衛與 isLandlord() 全部形同虛設。
     // create 仍放行本人帶 role：註冊後的 Onboarding 正是由使用者自己選身分並首次建檔。
-    // landlordId 刻意不鎖：租客在儀表板自行綁定／解除房東寫的就是這個欄位。
+    // landlordId 同樣不可自改：多處規則以它判斷「這位租客屬於哪個房東」來放行讀取
+    // properties／meter_readings 等資料，能自填就等於能挑房東看。綁定改由 callable
+    // bindLandlordByCode／unbindLandlord 於伺服端查驗邀請碼後以 Admin SDK 代寫。
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if request.auth.uid == userId || isLandlord() || isAdmin();
       allow update: if isLandlord() || isAdmin()
         || (request.auth.uid == userId
-            && request.resource.data.get('role', '') == resource.data.get('role', ''));
+            && request.resource.data.get('role', '') == resource.data.get('role', '')
+            && request.resource.data.get('landlordId', '') == resource.data.get('landlordId', ''));
       allow delete: if request.auth.uid == userId || isLandlord() || isAdmin();
     }
 

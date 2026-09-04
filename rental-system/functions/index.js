@@ -2525,3 +2525,53 @@ exports.purgeData = onCall({ region: 'asia-east1' }, async (request) => {
   logger.info('purgeData: executed', { callerUid, scope, deleted, authDeleted });
   return { mode: 'execute', deleted, authDeleted, summary, total: plan.length };
 });
+
+// ─── bindLandlordByCode / unbindLandlord ───────────────────────────────────
+// 租客綁定房東。
+//
+// 原本是租客在前端直接 updateDoc(users/{自己}, { landlordId })，邀請碼只在前端比對；
+// 規則不驗，等於任何租客改一行就能把自己掛到任意房東名下——而 properties、
+// meter_readings 等多處規則正是以 users.landlordId 判斷「這位租客屬於誰」來放行讀取。
+// 改由伺服端查驗邀請碼後代寫，firestore.rules 隨之鎖住租客自改 landlordId。
+const assertTenantCaller = async (db, request) => {
+  const { HttpsError } = require('firebase-functions/v2/https');
+  if (!request.auth) throw new HttpsError('unauthenticated', '請先登入');
+  const uid = request.auth.uid;
+  const snap = await db.collection('users').doc(uid).get();
+  if (!snap.exists) throw new HttpsError('not-found', '找不到您的帳號資料');
+  const role = snap.data().role;
+  if (role !== 'tenant') throw new HttpsError('permission-denied', '僅租客可變更房東綁定');
+  return uid;
+};
+
+exports.bindLandlordByCode = onCall({ region: 'asia-east1' }, async (request) => {
+  const { HttpsError } = require('firebase-functions/v2/https');
+  const db = getFirestore();
+  const uid = await assertTenantCaller(db, request);
+
+  const code = String((request.data || {}).code || '').trim().toUpperCase();
+  if (!code) throw new HttpsError('invalid-argument', '請輸入房東邀請碼');
+
+  const snap = await db.collection('users')
+    .where('landlordCode', '==', code)
+    .where('role', '==', 'landlord')
+    .limit(1)
+    .get();
+  const landlord = snap.docs[0];
+  if (!landlord) throw new HttpsError('not-found', '找不到此邀請碼對應的房東');
+
+  await db.collection('users').doc(uid).update({ landlordId: landlord.id });
+
+  logger.info('bindLandlordByCode', { uid, landlordId: landlord.id });
+  return { landlordId: landlord.id, landlordName: landlord.data().name || '房東' };
+});
+
+exports.unbindLandlord = onCall({ region: 'asia-east1' }, async (request) => {
+  const db = getFirestore();
+  const uid = await assertTenantCaller(db, request);
+
+  await db.collection('users').doc(uid).update({ landlordId: null });
+
+  logger.info('unbindLandlord', { uid });
+  return { success: true };
+});
