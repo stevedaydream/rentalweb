@@ -1864,6 +1864,12 @@ const closeCredentialModal = () => {
   activationError.value = '';
 };
 
+// 憑證 Modal 是 z-[110]、抽屜是 z-[150]，Modal 會被壓在抽屜底下——
+// 手機的抽屜滿版，等於完全看不到剛產生的連結。抽屜此時已無事可做，一併收起。
+watch(createdCredential, (c) => {
+  if (c && showDrawer.value) closeDrawer();
+});
+
 /**
  * 產生一次性啟用連結。
  *
