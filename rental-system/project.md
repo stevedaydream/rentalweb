@@ -182,6 +182,7 @@ rental-system/
 - 聯絡房東
 - 大樓資訊
 - 入住點交查閱（唯讀，含協調紀錄、照片與雙方簽名，可自行列印 PDF）
+- 我的資料（`/tenant/profile`）：租約資訊唯讀、自行維護顯示名稱／電話／聯絡 Email／緊急聯絡人、房東綁定與解除、變更登入密碼；入口在桌機側邊欄底部與手機頂列（底部 Tab 已滿 8 格）
 
 ### 管理員系統
 - 房東管理（列表、詳情）
@@ -243,6 +244,7 @@ rental-system/
 - 綜所稅「免稅額先扣、再扣 43%」的順序未經稅務專業確認，僅依常識推定（「免納所得稅」意謂該部分不計入所得）。報稅前建議向會計師或國稅局查證
 - ~~部署後手機白畫面（`/` 被快取 1 小時 ＋ SPA rewrite 把缺失的 JS 回成 HTML）~~（2026-08-24 已解決，`firebase.json` 的 `hosting.headers` 改為廣泛規則在前、專屬規則覆蓋在後，見 BF-014）
 - Storage bucket CORS（`cors.json`）對本專案**沒有作用**：前端一律用 `getDownloadURL()`，走的是 `firebasestorage.googleapis.com`，該端點無條件送 `ACAO: *`；bucket CORS 只管 `storage.googleapis.com` 原生端點。bucket 已於 2026-08-24 清空，`cors.json` 僅為歷史殘留（見 BF-013 更正）
+- 租客可自行改寫 `users.landlordId`（儀表板的「綁定房東」就是直接 `updateDoc`，邀請碼只在前端比對，規則不驗），而多處規則以 `users.landlordId` 授予租客讀取該房東的 properties／meter_readings。要堵住需把綁定改為 Cloud Function 驗證邀請碼後代寫。2026-09-04 收緊 users 規則時刻意保留此欄位可寫，否則綁定功能會直接壞掉
 - `firebase deploy --only functions` 直接在終端機執行會撞 discovery 10 秒逾時；`dev.bat` 有設 `FUNCTIONS_DISCOVERY_TIMEOUT=120`，手動部署時需自行帶上（見 BF-011）
 
 ---
@@ -303,3 +305,4 @@ rental-system/
 | 2026-08-23 | **功能維護開關**：新增 `system_config/features`（全員可讀、僅 admin 可寫），以 `{role}.{featureId}` 記錄停用中的功能。`utils/featureFlags.ts` 定義功能清單與「路由→功能」索引，`stores/featureFlags.ts` 以 onSnapshot 即時同步並**一律 fail-open**（文件不存在／讀取失敗／尚未回來都視為全部開放，首次導航最多等 3 秒），避免這份設定自己壞掉反而把整站鎖死。房東／租客側邊選單與底部 Tab 自動隱藏維修中的項目，路由守衛擋下直接輸入網址者並導向統一的「功能維修中」頁（掛在各自 layout 下，選單仍在，租客另給「聯繫房東」出口）。管理員端新增「功能開關」頁逐項切換。儀表板與系統設定刻意不列入開關——那是登入後的落點，關掉會讓人一進站就卡在維修頁 |
 | 2026-08-24 | **LINE Bot 查帳單體驗**：①**快捷選項（Quick Reply）** —— 每則 bot 回覆下方掛一排按鈕（帳單／電費／合約／公告／報修／選單），租客不必記指令也不必打字。實作是把 `client` 包一層 `quickReplyClient()`，既有二三十處 `replyMessage` 全部自動帶上，不必逐處改也不會漏。房東指令同樣附上（欠費／到期／報修／選單）。②**帳單改用 Flex 卡片** —— 原本是一整段純文字，改為金額大字置頂、逐筆列出到期日與逾期紅標，底部直接給「前往繳費／上傳截圖」按鈕導向租客帳單頁，不必看完文字再自己找路。③**圖文選單（Rich Menu）** —— 新增 callable `setupLineRichMenu`／`removeLineRichMenu`：底圖用既有的 puppeteer/chromium 截圖產生（不必再加影像相依），建立選單、上傳圖片、設為預設，並刪除上一份避免在 LINE 後台堆垃圾；設定失敗時回頭刪掉沒有底圖的空選單。六格按鈕前五格用 message action 送出既有關鍵字（沿用 `handleCommand`，不另開 postback 分支），第六格 uri 導向網站。房東於「系統設定 → LINE Bot 整合設定 → 圖文選單」看預覽並一鍵建立 |
 | 2026-09-04 | **租客證件號碼可編輯 ＋ 簽名板手機版修正**：①**改不了租客身分證字號** —— 帶證件號碼欄位的只有「新增租客」彈窗（`showModal` 僅由 `openNewTenantModal` 開啟），實際編輯走的是抽屜內的另一份表單，該表單從姓名一路到備註都有、就是沒有這一欄，於是建檔時填錯就再也改不回來；重簽合約也沒用，`ContractForm` 的證件號碼只寫進 `signed_contracts`，不會回寫 `tenants.idNumber`。抽屜編輯表單補上該欄位（沿用彈窗的大寫轉換），並註明改號碼後 Auth 密碼不會跟著變，需按「重設密碼為證件號碼」同步。②**簽名板在手機沒滿版、確認鈕被推出畫面** —— 見 BF-015。③**產生啟用連結後看不到憑證 Modal** —— 憑證 Modal 是 `z-[110]`、租客抽屜是 `z-[150]`，Modal 被壓在抽屜底下，手機抽屜滿版等於完全看不到；改為 `createdCredential` 一有值就收起抽屜（單一 watch 涵蓋補建帳號與重發連結兩條路徑）|
+| 2026-09-04 | **租客「我的資料」頁**：租客端原本完全沒有個人資料頁——路由只有 8 個、`tenants` 規則也只允許房東與 admin 寫入，唯一能自己動的是一次性的 `/tenant/welcome`（設密碼＋綁 LINE），用完沒有入口回得去。新增 `views/tenant/Profile.vue`：①租約資訊（姓名／證件號碼遮罩／房號／租期）唯讀，明說由房東維護、有誤請走「聯繫房東」；②可自行修改聯絡 Email 與緊急聯絡人，`firestore.rules` 的 tenants 放行租客本人但以 `affectedKeys().hasOnly([email, emergencyContact, updatedAt])` 鎖死白名單，姓名／證件號碼／房號／租金／租期一概不可自改；③變更密碼**先 reauthenticate 再 updatePassword**——直接改只在剛登入時有效，租客多半開著 PWA 好幾天才想到要改，會撞 `auth/requires-recent-login`，事後才要密碼等於白填一輪表單；④Gmail／LINE 綁定已存在於「聯繫房東」頁，不重複實作，只顯示狀態並導過去。⑤**收掉儀表板的「編輯個人資料」Modal**（問候語旁的小鉛筆）：它改的是 `users.name`／`users.phone`，而房東列表讀的是 `tenants`，租客改完房東完全看不到，且與新頁面重複。Modal 內的顯示名稱／電話／房東綁定三項能力**先搬到新頁面才刪**——綁定的邀請碼輸入改為頁內欄位，取代原本的 `prompt()`（會凍住整個分頁，慣例也禁用）。儀表板「未綁定」卡片與「聯繫房東」頁的「前往儀表板綁定」一併改指向新頁。**順帶修正權限漏洞**：`users` 原本是一條不限欄位的 `allow write: if request.auth.uid == userId`，任何租客在 console 對自己的文件寫一次 `role: "landlord"` 就能升級成房東，路由守衛與 `isLandlord()` 全部形同虛設；改為拆開 create／update，update 要求 `role` 與原值相同（create 仍放行本人帶 role，Onboarding 正是使用者自己選身分首次建檔）。`landlordId` 刻意不鎖——租客在儀表板自行綁定／解除房東寫的就是該欄位，鎖了會把這個功能一起關掉|

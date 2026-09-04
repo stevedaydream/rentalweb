@@ -50,9 +50,18 @@ service cloud.firestore {
     // =========================================================
 
     // 用戶資料 (users)
+    // 本人可維護自己的資料，但 role 不得自行變更——原本是一條不限欄位的 `allow write`，
+    // 任何租客在瀏覽器 console 對自己的文件寫一次 role: "landlord" 就能升級成房東，
+    // 路由守衛與 isLandlord() 全部形同虛設。
+    // create 仍放行本人帶 role：註冊後的 Onboarding 正是由使用者自己選身分並首次建檔。
+    // landlordId 刻意不鎖：租客在儀表板自行綁定／解除房東寫的就是這個欄位。
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow write: if request.auth.uid == userId || isLandlord() || isAdmin();
+      allow create: if request.auth.uid == userId || isLandlord() || isAdmin();
+      allow update: if isLandlord() || isAdmin()
+        || (request.auth.uid == userId
+            && request.resource.data.get('role', '') == resource.data.get('role', ''));
+      allow delete: if request.auth.uid == userId || isLandlord() || isAdmin();
     }
 
     // 報修單 (repair_requests)
@@ -184,7 +193,12 @@ service cloud.firestore {
         || isOwner('uid')
         || safeField('landlordId') == request.auth.uid;
       allow create: if isAdmin() || isCreatingAsLandlord();
-      allow update, delete: if isAdmin() || isLandlordData();
+      // 租客本人只能改自己的聯絡方式；姓名／證件號碼／房號／租金／租期是房東維護的
+      // 事實，用白名單擋住，否則等於開放租客自己改租約內容。
+      allow update: if isAdmin() || isLandlordData()
+        || (isOwner('uid') && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['email', 'emergencyContact', 'updatedAt']));
+      allow delete: if isAdmin() || isLandlordData();
     }
 
     // 合約 (contracts)

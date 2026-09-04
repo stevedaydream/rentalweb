@@ -3,18 +3,9 @@
     
     <div class="flex items-center justify-between">
       <div>
-        <div class="flex items-center gap-3">
-          <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
-            {{ greeting }}，{{ authStore.userProfile?.name || '房客' }}
-          </h1>
-          <button 
-            @click="openProfileModal"
-            class="text-ink-300 hover:text-gold-600 transition-colors p-1.5 rounded-full hover:bg-surface-light dark:hover:bg-surface-dark flex items-center justify-center"
-            title="編輯個人資料"
-          >
-            <span class="material-symbols-outlined text-[20px]">edit_square</span>
-          </button>
-        </div>
+        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
+          {{ greeting }}，{{ authStore.userProfile?.name || '房客' }}
+        </h1>
         <p class="text-text-secondary-light">歡迎回到您的家</p>
       </div>
       <div class="text-right">
@@ -119,7 +110,14 @@
           <div v-else class="text-center py-8 text-gray-400">
             <span class="material-symbols-outlined text-4xl mb-2">home_work</span>
             <p>尚未綁定房東</p>
-            <p class="text-xs mt-2">請向房東索取綁定代碼後，至個人資料頁綁定</p>
+            <p class="text-xs mt-2">請向房東索取綁定代碼</p>
+            <RouterLink
+              :to="{ name: 'TenantProfile' }"
+              class="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gold-500 text-white text-sm font-medium hover:bg-gold-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
+            >
+              <span class="material-symbols-outlined text-[18px]" aria-hidden="true">link</span>
+              前往綁定
+            </RouterLink>
           </div>
         </div>
       </div>
@@ -369,98 +367,6 @@
 
     </div>
 
-    <div v-if="isProfileModalOpen" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="isProfileModalOpen = false"></div>
-      
-      <div class="relative bg-white dark:bg-card-dark rounded-2xl w-full max-w-md shadow-2xl flex flex-col animate-in fade-in zoom-in duration-200">
-        <div class="p-6 border-b border-ink-100 dark:border-ink-700 flex justify-between items-center">
-          <h2 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">編輯個人資料</h2>
-          <button @click="isProfileModalOpen = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-            <span class="material-symbols-outlined">close</span>
-          </button>
-        </div>
-
-        <div class="p-6 space-y-4">
-          <div>
-            <label for="profile-name" class="block text-sm font-medium text-text-secondary-light mb-1">顯示名稱</label>
-            <input
-              id="profile-name"
-              v-model="editForm.name"
-              type="text"
-              autocomplete="name"
-              class="w-full px-4 py-2 rounded-xl border border-ink-100 dark:border-ink-700 bg-white dark:bg-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:border-transparent transition-all"
-              placeholder="請輸入您的姓名"
-            >
-          </div>
-          
-          <div>
-            <label class="block text-sm font-medium text-text-secondary-light mb-1">所屬房東</label>
-            <div class="flex items-center justify-between p-3 bg-surface-light dark:bg-surface-dark rounded-xl border border-ink-100 dark:border-ink-700">
-               <div class="flex items-center gap-2">
-                  <span class="material-symbols-outlined text-gray-400">person</span>
-                  <span :class="userProfile.landlordName ? 'text-text-primary-light font-medium' : 'text-gray-400'">
-                    {{ userProfile.landlordName || '尚未綁定房東' }}
-                  </span>
-               </div>
-               <button 
-                  v-if="!userProfile.landlordName"
-                  @click="handleBindLandlord"
-                  class="text-xs px-3 py-1.5 bg-gold-500 text-white rounded-lg hover:bg-gold-600 transition-colors shadow-sm"
-               >
-                  綁定
-               </button>
-               <button 
-                  v-else
-                  @click="handleUnbindLandlord"
-                  class="text-xs px-3 py-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-               >
-                  解除
-               </button>
-            </div>
-          </div>
-
-          <div>
-            <label for="profile-phone" class="block text-sm font-medium text-text-secondary-light mb-1">聯絡電話</label>
-            <input
-              id="profile-phone"
-              v-model="editForm.phone"
-              type="tel"
-              autocomplete="tel"
-              class="w-full px-4 py-2 rounded-xl border border-ink-100 dark:border-ink-700 bg-white dark:bg-ink-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:border-transparent transition-all"
-              placeholder="09xx-xxx-xxx"
-            >
-          </div>
-          <div>
-            <label for="profile-email" class="block text-sm font-medium text-text-secondary-light mb-1">Email (登入帳號)</label>
-            <input
-              id="profile-email"
-              v-model="editForm.email"
-              type="email"
-              disabled
-              autocomplete="email"
-              class="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 text-gray-500 cursor-not-allowed outline-none transition-all"
-            >
-          </div>
-        </div>
-
-        <div class="p-6 border-t border-ink-100 dark:border-ink-700 flex justify-end gap-3">
-          <button 
-            @click="isProfileModalOpen = false"
-            class="px-5 py-2 rounded-xl text-ink-500 hover:bg-surface-light dark:text-ink-300 dark:hover:bg-surface-dark font-medium transition-colors"
-          >
-            取消
-          </button>
-          <button 
-            @click="saveProfile"
-            :disabled="isSaving"
-            class="px-5 py-2 rounded-xl bg-gold-500 text-white font-bold shadow-md shadow-gold-500/20 hover:bg-gold-600 transition-colors disabled:opacity-50"
-          >
-            {{ isSaving ? '儲存中...' : '儲存變更' }}
-          </button>
-        </div>
-      </div>
-    </div>
-
   </div>
 
   <!-- 合約查閱 Modal -->
@@ -503,7 +409,6 @@ import { httpsCallable } from 'firebase/functions';
 import Preview from '../../components/Preview.vue';
 import {
   doc,
-  updateDoc,
   collection,
   query,
   where,
@@ -531,7 +436,6 @@ const loading = reactive({
   bill: true,
   announcement: true
 });
-const isSaving = ref(false);
 
 // --- 用戶資料 ---
 // 注意：這裡增加了 landlordId 用於後續查詢
@@ -542,94 +446,6 @@ const userProfile = reactive({
   landlordName: '',
   landlordId: '' 
 });
-
-// --- Modal 相關 ---
-const isProfileModalOpen = ref(false);
-const editForm = reactive({ name: '', phone: '', email: '' });
-
-// --- 綁定房東邏輯 (資料庫對接版) ---
-const handleBindLandlord = async () => {
-  const code = prompt('請輸入房東提供的邀請碼 (例如房東 ID 或專屬代碼)');
-  if (!code) return;
-
-  try {
-    // 1. 在 users 集合中搜尋符合 landlordCode 的房東
-    const q = query(collection(db, 'users'), where('landlordCode', '==', code), where('role', '==', 'landlord'));
-    const querySnapshot = await getDocs(q);
-
-    if (querySnapshot.empty) {
-      toast.error('找不到此邀請碼對應的房東，請確認後再試');
-      return;
-    }
-
-    const landlordDoc = querySnapshot.docs[0]!;
-    const landlordData = landlordDoc.data();
-
-    if (authStore.user) {
-      const userRef = doc(db, 'users', authStore.user.uid);
-      await updateDoc(userRef, { landlordId: landlordDoc.id });
-      userProfile.landlordId = landlordDoc.id;
-      userProfile.landlordName = landlordData.name || '房東';
-      fetchDashboardData();
-      toast.success(`已綁定房東：${userProfile.landlordName}`);
-    }
-  } catch (error) {
-    toast.error('發生錯誤，請稍後再試');
-  }
-};
-
-const handleUnbindLandlord = async () => {
-  if (!confirm('確定要解除與此房東的綁定嗎？')) return;
-  try {
-    if (authStore.user) {
-      const userRef = doc(db, 'users', authStore.user.uid);
-      await updateDoc(userRef, { landlordId: null });
-      userProfile.landlordId = '';
-      userProfile.landlordName = '';
-      announcements.value = [];
-      toast.success('已解除房東綁定');
-    }
-  } catch (error) {
-    toast.error('操作失敗，請稍後再試');
-  }
-};
-
-const openProfileModal = () => {
-  editForm.name = userProfile.name;
-  editForm.phone = userProfile.phone;
-  editForm.email = userProfile.email;
-  isProfileModalOpen.value = true;
-};
-
-const saveProfile = async () => {
-  if (!authStore.user) return;
-  isSaving.value = true;
-  
-  try {
-    const userRef = doc(db, 'users', authStore.user.uid);
-    await updateDoc(userRef, {
-      name: editForm.name,
-      phone: editForm.phone
-    });
-    
-    // 更新本地顯示
-    userProfile.name = editForm.name;
-    userProfile.phone = editForm.phone;
-    
-    // 同步回 Store
-    if (authStore.userProfile) {
-      authStore.userProfile.name = editForm.name;
-      authStore.userProfile.phone = editForm.phone;
-    }
-    
-    isProfileModalOpen.value = false;
-    toast.success('個人資料已儲存');
-  } catch (error) {
-    toast.error('儲存失敗，請稍後再試');
-  } finally {
-    isSaving.value = false;
-  }
-};
 
 // --- 資料模型 (Data Models) ---
 

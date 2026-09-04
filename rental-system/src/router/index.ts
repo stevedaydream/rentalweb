@@ -122,6 +122,8 @@ const routes = [
       { path: 'contract', name: 'TenantMyContract', component: TenantMyContract },
       { path: 'inspection', name: 'TenantInspection', component: () => import('../views/tenant/Inspection.vue') },
       { path: 'maintenance', name: 'TenantMaintenance', component: Maintenance },
+      // 帳號設定性質，比照儀表板不納入功能維護開關——關掉會讓租客連改密碼都做不到
+      { path: 'profile', name: 'TenantProfile', component: () => import('../views/tenant/Profile.vue') },
     ]
   },
   {

@@ -194,6 +194,13 @@ export interface Tenant {
   roomId?: string;
   roomName?: string;
   boundLandlordCode?: string;
+  /** 房號（房東手動建立的租客存這個欄位，roomName 為線上綁定者所用） */
+  room?: string;
+  idNumber?: string;
+  emergencyContact?: string;
+  leaseStart?: string;
+  leaseEnd?: string;
+  rent?: number;
   tenantId?: string;
   status?: 'active' | 'inactive';
   moveInDate?: any;
