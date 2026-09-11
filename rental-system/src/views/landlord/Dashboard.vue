@@ -120,6 +120,7 @@ import { getProperties } from '../../services/propertyService';
 import { getPropertyCosts } from '../../services/propertyCostService';
 import { getRooms } from '../../services/roomService';
 import { buildReminders, type Reminder } from '../../utils/financials/reminders';
+import { collectedOf } from '../../utils/financials/payments';
 
 const authStore = useAuthStore();
 const isLoading = ref(true);
@@ -354,14 +355,20 @@ const fetchDashboardData = async () => {
         financial.paidCount++;
         financial.paidAmount += amount;
         billDetails.paid.push(billLite);
-      } else if (data.dueDate && data.dueDate < todayStr) {
+        return;
+      }
+      // 部分付款：已收的部分算已繳，未繳／逾期只計剩下的
+      const collected = collectedOf({ amount, status: data.status, paidAmount: data.paidAmount });
+      financial.paidAmount += collected;
+      billLite.amount = amount - collected;
+      if (data.dueDate && data.dueDate < todayStr) {
         financial.overdueCount++;
-        financial.overdueAmount += amount;
+        financial.overdueAmount += billLite.amount;
         if (billLite.groupKey) unpaidTenantIds.add(billLite.groupKey);
         billDetails.overdue.push(billLite);
       } else {
         financial.unpaidCount++;
-        financial.unpaidAmount += amount;
+        financial.unpaidAmount += billLite.amount;
         if (billLite.groupKey) unpaidTenantIds.add(billLite.groupKey);
         billDetails.unpaid.push(billLite);
       }

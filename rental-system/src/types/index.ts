@@ -215,6 +215,13 @@ export interface Bill {
   roomId?: string;
   roomName?: string;
   amount: number;
+  /** 部分付款的已收金額；未設者依 status 判斷（completed 視為全額） */
+  paidAmount?: number;
+  /** 逐筆收款紀錄 */
+  payments?: { amount: number; date: string; source: 'manual' | 'credit'; note?: string; at: string }[];
+  /** 租金單涵蓋的起訖月（YYYY-MM） */
+  coverFrom?: string;
+  coverTo?: string;
   status: BillStatus;
   month?: string;
   dueDate?: any;

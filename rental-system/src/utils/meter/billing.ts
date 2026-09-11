@@ -72,3 +72,92 @@ export const getBillingDescription = (tenant: BillingTenant, month: string): str
   const label = freq === 'quarterly' ? '季度房租' : '半年度房租'
   return `${month}～${endY}-${String(endM).padStart(2, '0')} ${label}`
 }
+
+// --- 租金涵蓋期間 ---
+//
+// 出帳不能只憑「起租月 + 目前的繳費方式」推算：改過繳費方式後，
+// 季繳改月繳會把季繳單已涵蓋的月份再收一次，月繳改季繳則會因對不上起租月而空窗。
+// 所以先看本月是否已被某張租金單涵蓋。
+
+export interface RentBillLike {
+  id?: string
+  date?: string
+  description?: string
+  /** 涵蓋起訖月（YYYY-MM）；新出的租金單才有 */
+  coverFrom?: string
+  coverTo?: string
+}
+
+export interface Coverage {
+  from: string
+  to: string
+}
+
+/** YYYY-MM 加減月數，跨年由 Date 自行進位 */
+export const addMonths = (yearMonth: string, n: number): string => {
+  const [y, m] = yearMonth.split('-').map(Number) as [number, number]
+  const d = new Date(y, m - 1 + n, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+/** 以指定繳費方式、從 month 起算的一期 */
+export const coveragePeriod = (freq: string | undefined, month: string): Coverage => ({
+  from: month,
+  to: addMonths(month, (CYCLE_MONTHS[freq || 'monthly'] ?? 1) - 1),
+})
+
+/**
+ * 租金單涵蓋的月份。
+ *
+ * 新單直接存 coverFrom／coverTo；舊單由 getBillingDescription 產生的摘要反推
+ * （格式固定），解析不了的（手動新增的租金）視為只涵蓋帳單當月。
+ */
+export const rentCoverage = (b: RentBillLike): Coverage | null => {
+  if (b.coverFrom && b.coverTo) return { from: b.coverFrom, to: b.coverTo }
+  const month = (b.date || '').slice(0, 7)
+  if (!/^\d{4}-\d{2}$/.test(month)) return null
+  const desc = b.description || ''
+  const range = desc.match(/^(\d{4}-\d{2})～(\d{4}-\d{2}) (?:季度|半年度)房租/)
+  if (range) return { from: range[1]!, to: range[2]! }
+  if (/^\d{4} 年度房租/.test(desc)) return { from: month, to: addMonths(month, 11) }
+  return { from: month, to: month }
+}
+
+export const isMonthCovered = (rentBills: RentBillLike[], month: string) =>
+  rentBills.some(b => {
+    const c = rentCoverage(b)
+    return !!c && c.from <= month && month <= c.to
+  })
+
+/**
+ * 本月是否該為此租客出租金（取代直接呼叫 shouldGenerateBill）。
+ *
+ * 1. 已被既有租金單涵蓋 → 不出
+ * 2. 有更早的租金單（涵蓋已結束）→ 從本月起接續出一期
+ * 3. 從未出過 → 沿用起租月推算，讓新租客對齊合約週期
+ *
+ * @param rentBills 此租客的租金單，至少要涵蓋近 12 個月（年繳單的涵蓋期最長）
+ */
+export const shouldGenerateRent = (
+  tenant: BillingTenant, month: string, rentBills: RentBillLike[],
+): boolean => {
+  if (isMonthCovered(rentBills, month)) return false
+  const hasHistory = rentBills.some(b => {
+    const c = rentCoverage(b)
+    return !!c && c.to < month
+  })
+  return hasHistory || shouldGenerateBill(tenant, month)
+}
+
+/** 把一張租金單改成目前繳費方式的一期（起始月不變），供改繳費方式後重新出帳 */
+export const rebillRent = (tenant: BillingTenant, bill: RentBillLike) => {
+  const cur = rentCoverage(bill)
+  if (!cur) return null
+  const next = coveragePeriod(tenant.paymentFrequency, cur.from)
+  return {
+    amount: getBillingAmount(tenant),
+    description: getBillingDescription(tenant, cur.from),
+    coverFrom: next.from,
+    coverTo: next.to,
+  }
+}

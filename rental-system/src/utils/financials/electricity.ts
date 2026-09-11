@@ -10,7 +10,7 @@
  */
 import { UNGROUPED_ID } from '../../components/meter/types'
 import type { TaipowerBill, ElectricityStats } from '../../components/financials/types'
-import { isCollected } from './tenantGroups'
+import { collectedOf } from './payments'
 
 /** 電費盈虧只看得懂的帳單欄位 */
 export interface ElecBill {
@@ -19,6 +19,8 @@ export interface ElecBill {
   date?: string
   amount: number
   status?: string
+  /** 部分付款的已收金額 */
+  paidAmount?: number
   /** 所屬台電總表；生成帳單時寫入，舊資料沒有 */
   groupId?: string
   relatedTenantDocId?: string
@@ -139,8 +141,7 @@ export const buildElectricityStatsList = (input: ElectricityStatsInput): Electri
     )
     const estimated = inPeriod.reduce((s, b) => s + b.amount, 0)
     const collected = inPeriod
-      .filter(b => isCollected({ status: b.status ?? '' }))
-      .reduce((s, b) => s + b.amount, 0)
+      .reduce((s, b) => s + collectedOf({ ...b, status: b.status ?? '' }), 0)
 
     return {
       groupId: group.id,

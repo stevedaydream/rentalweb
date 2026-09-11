@@ -83,6 +83,14 @@
                 <strong>NT$ {{ unpaidBillAmount.toLocaleString() }}</strong>，退租後仍可手動結清。
               </p>
             </div>
+
+            <div v-if="!loadingData && creditBalance > 0"
+              class="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl text-sm">
+              <span class="material-symbols-outlined text-blue-500 text-[20px] shrink-0 mt-0.5" aria-hidden="true">savings</span>
+              <p class="text-blue-700 dark:text-blue-300">
+                此租客有預收餘額 <strong>NT$ {{ creditBalance.toLocaleString() }}</strong>，將併入退款。
+              </p>
+            </div>
           </template>
 
           <!-- ── STEP 2: 物品點交 ── -->
@@ -339,6 +347,10 @@
                   <span>{{ d.label }}</span>
                   <span>NT$ {{ d.amount.toLocaleString() }}</span>
                 </div>
+                <div v-if="creditBalance > 0" class="flex justify-between text-blue-600 dark:text-blue-400">
+                  <span>預收餘額退還</span>
+                  <span>＋ NT$ {{ creditBalance.toLocaleString() }}</span>
+                </div>
                 <div class="flex justify-between font-bold pt-2 border-t border-gray-200 dark:border-gray-700">
                   <span>應退押金</span>
                   <span class="text-gold-700 dark:text-gold-400">NT$ {{ finalRefundAmount.toLocaleString() }}</span>
@@ -456,8 +468,9 @@ import { db } from '../firebase/config';
 import { useToastStore } from '../stores/toast';
 import {
   collection, query, where, getDocs, getDoc, addDoc, updateDoc,
-  doc, serverTimestamp, orderBy, limit,
+  doc, serverTimestamp, orderBy, limit, arrayUnion,
 } from 'firebase/firestore';
+import { outstandingOf, type PayableBill } from '../utils/financials/payments';
 import { printHtmlPdf } from '../utils/contractRender';
 import { amountToChineseCapital } from '../utils/chineseAmount';
 import moveoutSummaryTemplate from '../templates/moveoutSummary.html?raw';
@@ -482,6 +495,8 @@ interface Tenant {
   contractId?: string;
   uid?: string;
   moveInInspection?: { inspectedAt?: any; items?: InspectionItem[] };
+  /** 預收餘額（溢繳），退租時併入退款 */
+  credit?: number;
 }
 
 interface DepositItem {
@@ -513,6 +528,8 @@ const moveOutReasonLabel = computed(() =>
 const loadingData = ref(true);
 const unpaidBillCount = ref(0);
 const unpaidBillAmount = ref(0);
+// 預收餘額是租客的錢，退租時要一併退還，否則會無聲地留在系統裡
+const creditBalance = computed(() => Math.max(0, Math.round(Number(props.tenant.credit) || 0)));
 
 // ── Step 2: Deposits ──
 const paidDeposits = ref<DepositItem[]>([]);
@@ -624,7 +641,7 @@ const totalDeductions = computed(() => effectiveDeductions.value.reduce((s, d) =
 
 // ── Step 2: Refund ──
 const computedRefund = computed(() =>
-  Math.max(0, totalDepositPaid.value - effectiveElecAmount.value - (waterAmount.value || 0) - totalDeductions.value)
+  Math.max(0, totalDepositPaid.value + creditBalance.value - effectiveElecAmount.value - (waterAmount.value || 0) - totalDeductions.value)
 );
 const overrideRefund = ref(false);
 const depositRefundOverride = ref(0);
@@ -678,7 +695,7 @@ const loadUnpaidBills = async () => {
     where('type', '==', 'income'),
   ));
   unpaidBillCount.value = snap.size;
-  unpaidBillAmount.value = snap.docs.reduce((s, d) => s + (Number(d.data().amount) || 0), 0);
+  unpaidBillAmount.value = snap.docs.reduce((s, d) => s + outstandingOf(d.data() as PayableBill), 0);
 };
 
 const loadDeposits = async () => {
@@ -728,7 +745,10 @@ const nextStep = () => {
 // ── 退租結清單預覽 / 下載 ──
 const fmtAmt = (v: any) => (v != null && v !== '') ? `NT$ ${Number(v).toLocaleString()}` : '—';
 const buildSettlementData = () => {
-  const deductionsHtml = effectiveDeductions.value
+  const creditHtml = creditBalance.value > 0
+    ? `<tr><td class="k">預收餘額退還</td><td class="v">＋ ${fmtAmt(creditBalance.value)}</td></tr>`
+    : '';
+  const deductionsHtml = creditHtml + effectiveDeductions.value
     .map(d => `<tr><td class="k neg">扣款：${d.label || '其他'}</td><td class="v neg">－ ${fmtAmt(d.amount)}</td></tr>`)
     .join('');
   const refund = Number(finalRefundAmount.value) || 0;
@@ -837,6 +857,7 @@ const execute = async () => {
       waterSettlement: waterAmount.value || 0,
       deductions: effectiveDeductions.value,
       depositPaid: totalDepositPaid.value,
+      creditRefund: creditBalance.value,
       depositRefund: finalRefundAmount.value,
       notes: notes.value,
       moveOutInspection: {
@@ -875,6 +896,12 @@ const execute = async () => {
       leaseEnd: '',
       rent: 0,
       contractId: '',
+      ...(creditBalance.value > 0 ? {
+        credit: 0,
+        creditLog: arrayUnion({
+          amount: -creditBalance.value, date: today, note: '退租併入退款', at: new Date().toISOString(),
+        }),
+      } : {}),
       moveOutSummary: {
         room: props.tenant.room,
         leaseStart: props.tenant.leaseStart || '',

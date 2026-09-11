@@ -145,6 +145,45 @@
             </div>
           </div>
 
+          <!-- 選了租客的收入：是收到錢（沖銷欠款）還是另開一筆應收 -->
+          <div v-if="canReceive" class="space-y-3">
+            <div class="flex gap-2">
+              <button type="button" @click="mode = 'payment'" :aria-pressed="mode === 'payment'"
+                class="flex-1 py-2 rounded-xl text-xs font-bold border-2 transition-all"
+                :class="mode === 'payment' ? 'bg-green-50 text-green-700 border-green-400 dark:bg-green-900/20 dark:text-green-300' : 'border-ink-100 dark:border-ink-700 text-ink-400'">
+                收到租客付款
+              </button>
+              <button type="button" @click="mode = 'charge'" :aria-pressed="mode === 'charge'"
+                class="flex-1 py-2 rounded-xl text-xs font-bold border-2 transition-all"
+                :class="mode === 'charge' ? 'bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-900/20 dark:text-orange-300' : 'border-ink-100 dark:border-ink-700 text-ink-400'">
+                新增一筆應收
+              </button>
+            </div>
+
+            <div v-if="mode === 'payment'" class="rounded-xl bg-surface-light dark:bg-surface-dark p-3 text-xs space-y-1.5">
+              <p v-if="tenantOpen.length === 0" class="text-text-secondary-light">
+                此租客目前沒有未繳帳單，這筆會全數存為預收餘額，下次生成帳單時自動沖抵。
+              </p>
+              <template v-else>
+                <p class="text-text-secondary-light">
+                  此租客尚欠 NT$ {{ tenantOwed.toLocaleString() }}（{{ tenantOpen.length }} 筆），先扣{{ local.category }}，其餘由最舊的開始：
+                </p>
+                <ul class="space-y-0.5">
+                  <li v-for="row in receiptRows" :key="row.id" class="flex justify-between gap-2">
+                    <span class="truncate text-text-secondary-light">{{ row.date }} {{ row.category }}</span>
+                    <span class="shrink-0 font-bold" :class="row.settles ? 'text-green-600' : 'text-orange-600'">
+                      扣 {{ row.apply.toLocaleString() }}{{ row.settles ? '（繳清）' : `（剩 ${row.left.toLocaleString()}）` }}
+                    </span>
+                  </li>
+                </ul>
+                <p v-if="receipt.leftover > 0" class="font-medium text-blue-600 dark:text-blue-300">
+                  多收 NT$ {{ receipt.leftover.toLocaleString() }} 存為預收餘額
+                </p>
+              </template>
+            </div>
+            <p v-else class="text-xs text-text-secondary-light">會另外新增一張帳單（例如補收清潔費），不會沖銷既有欠款。</p>
+          </div>
+
           <!-- Description -->
           <div>
             <label for="bill-description" class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-2">備註</label>
@@ -157,8 +196,8 @@
             ></textarea>
           </div>
 
-          <!-- Status (editing only) -->
-          <div v-if="isEditing">
+          <!-- Status：新增時也看得到，已收的錢才不會被默默存成「待收款」 -->
+          <div v-if="!isReceiving">
             <label class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-2">狀態</label>
             <div class="flex gap-2">
               <button
@@ -186,7 +225,7 @@
             :class="local.type === 'income'
               ? 'bg-green-600 hover:bg-green-700 shadow-green-500/20'
               : 'bg-red-500 hover:bg-red-600 shadow-red-500/20'">
-            {{ isEditing ? '更新' : '儲存' }}
+            {{ isEditing ? '更新' : isReceiving ? '登記收款' : '儲存' }}
           </button>
         </div>
 
@@ -198,20 +237,25 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import type { TransactionForm } from './types'
+import { allocatePayment, outstandingOf, type PayableBill } from '../../utils/financials/payments'
 
 interface TenantOption { id: string; name: string; room: string; uid?: string | null }
+interface OpenBill extends PayableBill { relatedTenantDocId?: string; tenantId?: string }
 
 const props = defineProps<{
   show: boolean
   modelValue: TransactionForm
   isEditing: boolean
   tenants?: TenantOption[]
+  /** 所有未繳帳單；選了租客時用來判斷這筆是不是收款 */
+  openBills?: OpenBill[]
 }>()
 
 const emit = defineEmits<{
   'update:show': [value: boolean]
   'update:modelValue': [value: TransactionForm]
   'save': []
+  'receive': [payload: { tenantDocId: string; label: string; amount: number; date: string; category: string; note: string }]
 }>()
 
 const local = ref<TransactionForm>(JSON.parse(JSON.stringify(props.modelValue)))
@@ -235,8 +279,15 @@ watch(() => props.show, (val) => {
 watch(targetSearch, (v) => {
   local.value.target = v
   if (v === openedTarget.value) return // 未改動，維持載入時的綁定
-  const picked = (props.tenants ?? []).find(t => targetLabel(t) === v)
-  if (!picked) unbindTenant()
+  const list = props.tenants ?? []
+  const picked = list.find(t => targetLabel(t) === v)
+  if (picked) { bindTenant(picked); return }
+  // 直接打房號或姓名也認得出是哪位租客（恰好一位吻合時）；
+  // 沒綁到租客的帳單，電費盈虧歸不到棟、收款也沖不到欠款
+  const q = v.trim()
+  const hits = q ? list.filter(t => t.room === q || t.name === q) : []
+  if (hits.length === 1) bindTenant(hits[0]!)
+  else unbindTenant()
 })
 
 // 用空值而非 delete：編輯既有帳單時 updateDoc 才會真的清掉舊的綁定
@@ -252,6 +303,38 @@ const bindTenant = (t: TenantOption) => {
   local.value.relatedTenantDocId = t.id
   local.value.tenantId = t.uid ?? null
 }
+
+// --- 收款模式 ---
+// 房東「記一筆收入」多半是收到了錢；若照舊另開一張帳單，原本的欠款不會減少
+const mode = ref<'payment' | 'charge'>('charge')
+
+const boundTenant = computed(() =>
+  (props.tenants ?? []).find(t => t.id === local.value.relatedTenantDocId))
+
+const tenantOpen = computed(() => {
+  const t = boundTenant.value
+  if (!t) return []
+  return (props.openBills ?? []).filter(b =>
+    b.type === 'income' && outstandingOf(b) > 0 &&
+    (b.relatedTenantDocId === t.id || (!!t.uid && b.tenantId === t.uid)))
+})
+const tenantOwed = computed(() => tenantOpen.value.reduce((s, b) => s + outstandingOf(b), 0))
+
+const canReceive = computed(() => !props.isEditing && local.value.type === 'income' && !!boundTenant.value)
+const isReceiving = computed(() => canReceive.value && mode.value === 'payment')
+
+// 換了租客就重新判斷預設：有欠款預設當收款，沒有則當一般應收
+watch(() => local.value.relatedTenantDocId, () => {
+  mode.value = canReceive.value && tenantOpen.value.length > 0 ? 'payment' : 'charge'
+})
+
+const receipt = computed(() =>
+  allocatePayment(tenantOpen.value, local.value.amount ?? 0, { preferCategory: local.value.category }))
+const receiptRows = computed(() =>
+  receipt.value.allocations.map(a => {
+    const b = tenantOpen.value.find(x => x.id === a.billId)!
+    return { id: a.billId, date: b.date, category: b.category, apply: a.apply, settles: a.settles, left: outstandingOf(b) - a.apply }
+  }))
 
 const filteredTenants = computed(() => {
   const q = targetSearch.value.toLowerCase()
@@ -331,6 +414,19 @@ const statusOptions = [
 const close = () => emit('update:show', false)
 
 const handleSave = () => {
+  if (isReceiving.value && boundTenant.value) {
+    const amount = Math.round(Number(local.value.amount) || 0)
+    if (amount <= 0 || !local.value.date) return
+    emit('receive', {
+      tenantDocId: boundTenant.value.id,
+      label: local.value.target,
+      amount,
+      date: local.value.date,
+      category: local.value.category,
+      note: local.value.description,
+    })
+    return
+  }
   emit('update:modelValue', JSON.parse(JSON.stringify(local.value)))
   emit('save')
 }

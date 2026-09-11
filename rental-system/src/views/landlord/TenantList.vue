@@ -353,6 +353,15 @@
       </div>
     </div>
 
+    <RebillRentModal
+      :show="!!rebillState"
+      :tenant-name="rebillState?.tenantName || ''"
+      :items="rebillState?.rows || []"
+      :busy="rebillBusy"
+      @confirm="applyRebill"
+      @skip="rebillState = null"
+    />
+
     <PurgeConfirmModal
       :request="purgeRequest"
       @close="purgeRequest = null"
@@ -537,8 +546,8 @@
                 >{{ accountStateOf(drawerTenant || {}, accountStatuses).label }}</span>
                 <span v-if="!drawerTenant?.isHistorical"
                   class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium"
-                  :class="paymentStatusStyles[drawerTenant?.paymentStatus || 'pending']"
-                >{{ paymentStatusLabels[drawerTenant?.paymentStatus || 'pending'] }}</span>
+                  :class="paymentStatusStyles[drawerPayStatus]"
+                >{{ paymentStatusLabels[drawerPayStatus] }}</span>
               </div>
               <p class="text-sm text-text-secondary-light truncate">
                 {{ drawerTenant?.isHistorical ? (drawerTenant.moveOutSummary?.room || '已退租') : (drawerTenant?.room || '未設定房源') }}
@@ -969,6 +978,11 @@
 
             <!-- Tab: 帳單紀錄 -->
             <div v-if="drawerTab === 'bills'" class="p-4 space-y-3">
+              <div v-if="(drawerTenant?.credit || 0) > 0"
+                class="flex items-center gap-2 px-4 py-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-300">
+                <span class="material-symbols-outlined text-[18px] shrink-0" aria-hidden="true">savings</span>
+                預收餘額 NT$ {{ (drawerTenant?.credit || 0).toLocaleString() }}，下次生成帳單時自動沖抵
+              </div>
               <div v-if="drawerBillsLoading" class="py-12 text-center text-text-secondary-light">
                 <span class="material-symbols-outlined animate-spin text-3xl mb-2">sync</span>
                 <p class="text-sm">載入帳單中...</p>
@@ -991,6 +1005,9 @@
                     </div>
                     <div class="flex items-center gap-3 mt-1 flex-wrap">
                       <span class="text-xs text-text-secondary-light">NT$ {{ bill.amount.toLocaleString() }}</span>
+                      <span v-if="isPartial(bill)" class="text-xs font-medium text-orange-600">
+                        已收 {{ collectedOf(bill).toLocaleString() }}・尚欠 {{ (bill.amount - collectedOf(bill)).toLocaleString() }}
+                      </span>
                       <span v-if="bill.dueDate" class="text-xs text-text-secondary-light">截止 {{ bill.dueDate }}</span>
                       <span v-if="bill.status === 'completed' && billLateDays(bill) > 0"
                         class="inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 font-medium">
@@ -1002,13 +1019,13 @@
                     <span
                       class="text-xs px-2 py-1 rounded-full font-medium"
                       :class="bill.status === 'completed' ? 'bg-green-100 text-green-700' : bill.status === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'"
-                    >{{ bill.status === 'completed' ? '已收款' : bill.status === 'overdue' ? '已逾期' : '待收款' }}</span>
+                    >{{ bill.status === 'completed' ? '已收款' : isPartial(bill) ? '部分收款' : bill.status === 'overdue' ? '已逾期' : '待收款' }}</span>
                     <button
                       v-if="bill.status !== 'completed'"
                       @click="markDrawerBillPaid(bill)"
                       :disabled="markingBillId === bill.id"
                       class="text-xs px-3 py-1.5 bg-gold-500 text-white rounded-lg hover:bg-gold-600 disabled:opacity-50 transition-colors font-medium"
-                    >{{ markingBillId === bill.id ? '處理中' : '標記已收' }}</button>
+                    >{{ markingBillId === bill.id ? '處理中' : isPartial(bill) ? '收餘款' : '標記已收' }}</button>
                   </div>
                 </div>
               </div>
@@ -1204,8 +1221,16 @@ import {
   orderBy,
   limit,
   deleteField,
+  writeBatch,
+  arrayUnion,
+  increment,
 } from 'firebase/firestore';
 import RentSubsidyFields from '../../components/tenants/RentSubsidyFields.vue';
+import RebillRentModal, { type RebillRow } from '../../components/tenants/RebillRentModal.vue';
+import {
+  collectedOf, isPartial, outstandingOf, paymentUpdate, paymentEntry, planRebills, type RebillItem,
+} from '../../utils/financials/payments';
+import { addMonths, isMonthCovered } from '../../utils/meter/billing';
 import type { RentSubsidy } from '../../types/index';
 import {
   accountStateOf, summarizeAccounts, ACCOUNT_BADGE,
@@ -1231,7 +1256,7 @@ interface Tenant {
   leaseDuration?: number;
   rent?: number;
   depositMonths?: number;
-  paymentStatus: 'normal' | 'overdue' | 'unpaid' | 'pending';
+  paymentStatus: 'normal' | 'overdue' | 'unpaid' | 'pending' | 'nobill';
   emergencyContact?: string;
   note?: string;
   idNumber?: string;
@@ -1252,6 +1277,8 @@ interface Tenant {
   rentSubsidy?: RentSubsidy;
   /** 測試資料標記；衍生資料不帶旗標，清除時靠關聯反查 */
   isTest?: boolean;
+  /** 預收餘額（溢繳），下次生成帳單時自動沖抵 */
+  credit?: number;
   createdAt?: any;
 }
 
@@ -1268,7 +1295,9 @@ interface DrawerBill {
   monthStr: string;
   category: string;
   amount: number;
-  status: 'completed' | 'pending' | 'overdue';
+  /** 部分付款的已收金額 */
+  paidAmount?: number;
+  status: 'completed' | 'pending' | 'overdue' | 'waiting_confirmation';
   dueDate?: string;
   paidAt?: string;
   paymentDate?: string;
@@ -1283,6 +1312,8 @@ const availableRooms = ref<Room[]>([]);
 const loading = ref(true);
 const isSaving = ref(false);
 const billStatusMap = ref<Record<string, 'normal' | 'unpaid' | 'overdue'>>({});
+// 帳單狀態查回來之前不判定「本月未出帳」，否則一載入全部租客都閃一下黃色
+const billStatusLoaded = ref(false);
 const sendingReminderId = ref<string | null>(null);
 
 // --- Subscription Handlers ---
@@ -1326,18 +1357,21 @@ const paymentStatusLabels: any = {
   normal: '繳費正常',
   unpaid: '本期未繳',
   overdue: '逾期欠費',
-  pending: '未設定租約'
+  pending: '未設定租約',
+  nobill: '本月未出帳'
 };
 
 const paymentStatusStyles: any = {
   normal: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
   unpaid: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
   overdue: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
-  pending: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+  pending: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400',
+  nobill: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300'
 };
 
 const paymentDotStyles: any = {
   normal: 'bg-green-500',
+  nobill: 'bg-amber-400',
   unpaid: 'bg-yellow-500',
   overdue: 'bg-red-500',
   pending: 'bg-gray-400'
@@ -1367,34 +1401,52 @@ const sendBillReminder = async (tenant: Tenant) => {
   }
 };
 
-// 讀取本月帳單狀態，建立 tenantDocId -> status 對照表
+// 建立 tenantDocId -> 繳費狀態對照表。
+// 欠款不分月份：上個月沒繳清的，這個月照樣要顯示欠費，不能因為本月已繳就變成正常。
 const refreshBillStatuses = async () => {
   const uid = authStore.effectiveUid;
   const today = new Date().toISOString().split('T')[0] as string;
   const currentMonth = today.slice(0, 7);
   try {
-    const snap = await getDocs(query(
-      collection(db, 'bills'),
-      where('landlordId', '==', uid),
-      where('date', '>=', `${currentMonth}-01`),
-      where('date', '<=', `${currentMonth}-31`),
-      where('type', '==', 'income')
-    ));
+    const [recentSnap, openSnap] = await Promise.all([
+      // 本月帳單，以及可能涵蓋本月的季繳／年繳租金單
+      getDocs(query(
+        collection(db, 'bills'),
+        where('landlordId', '==', uid),
+        where('date', '>=', `${addMonths(currentMonth, -11)}-01`),
+        where('date', '<=', `${currentMonth}-31`),
+        where('type', '==', 'income')
+      )),
+      // 所有月份的未繳
+      getDocs(query(
+        collection(db, 'bills'),
+        where('landlordId', '==', uid),
+        where('type', '==', 'income'),
+        where('status', 'in', ['pending', 'overdue', 'waiting_confirmation'])
+      )),
+    ]);
     const map: Record<string, 'normal' | 'unpaid' | 'overdue'> = {};
-    snap.forEach(d => {
+    recentSnap.forEach(d => {
       const data = d.data();
       const tid = data.relatedTenantDocId as string;
       if (!tid) return;
-      const cur = map[tid];
-      if (data.status === 'completed') {
-        if (!cur) map[tid] = 'normal';
-      } else if (data.status === 'overdue' || (data.dueDate && data.dueDate < today)) {
+      const thisMonth = String(data.date || '').startsWith(currentMonth);
+      const covers = data.category === '租金收入' && isMonthCovered([data], currentMonth);
+      if (thisMonth || covers) map[tid] = 'normal';
+    });
+    openSnap.forEach(d => {
+      const data = d.data();
+      const tid = data.relatedTenantDocId as string;
+      if (!tid) return;
+      if (outstandingOf({ type: 'income', amount: data.amount, status: data.status, paidAmount: data.paidAmount }) <= 0) return;
+      if (data.status === 'overdue' || (data.dueDate && data.dueDate < today)) {
         map[tid] = 'overdue';
-      } else {
-        if (cur !== 'overdue') map[tid] = 'unpaid';
+      } else if (map[tid] !== 'overdue') {
+        map[tid] = 'unpaid';
       }
     });
     billStatusMap.value = map;
+    billStatusLoaded.value = true;
   } catch (e) {
     console.warn('Bill status fetch error:', e);
   }
@@ -1525,6 +1577,8 @@ const saveTenant = async () => {
   if (!form.value.room) { toast.warning('請選擇房源'); return; }
 
   isSaving.value = true;
+  // 繳費方式改了要回頭檢查既有租金單：季繳改月繳時，已開出的季繳單不會自己變
+  const before = isEditing.value && form.value.id ? tenants.value.find(t => t.id === form.value.id) : undefined;
 
   try {
     const tenantData: any = {
@@ -1670,6 +1724,14 @@ const saveTenant = async () => {
     showModal.value = false;
     drawerEditing.value = false;
 
+    if (before && form.value.id &&
+        (before.paymentFrequency || 'monthly') !== (form.value.paymentFrequency || 'monthly')) {
+      checkRebill(form.value.id, form.value.name, {
+        paymentFrequency: form.value.paymentFrequency,
+        rent: Number(form.value.rent) || 0,
+      });
+    }
+
     // 若在 drawer 編輯模式，回到 view 模式並刷新 drawer tenant
     if (showDrawer.value && drawerTenant.value) {
       // onSnapshot 會自動更新 tenants.value，drawer tenant 會在下一 tick 反映
@@ -1688,9 +1750,103 @@ const tenantsWithStatus = computed(() => {
   const map = billStatusMap.value;
   return tenants.value.map(t => {
     const billStatus = map[t.id];
-    return billStatus ? { ...t, paymentStatus: billStatus } : t;
+    if (billStatus) return { ...t, paymentStatus: billStatus };
+    // 沒有帳單不等於繳費正常：文件上的 paymentStatus 是建檔時寫死的 'normal'，之後從未更新。
+    // 本月沒出帳（例如非月繳又沒填起租日）必須看得出來，不能顯示成綠色的「繳費正常」
+    if (billStatusLoaded.value && !t.isHistorical && t.paymentStatus !== 'pending') {
+      return { ...t, paymentStatus: 'nobill' as const };
+    }
+    return t;
   });
 });
+
+/** 抽屜標題的繳費狀態，與列表同一套判定 */
+const drawerPayStatus = computed(() =>
+  tenantsWithStatus.value.find(t => t.id === drawerTenant.value?.id)?.paymentStatus
+  || drawerTenant.value?.paymentStatus || 'pending');
+
+// --- 改繳費方式後重新出帳（規則實作於 src/utils/financials/payments.ts 的 planRebills） ---
+const rebillState = ref<{
+  tenantDocId: string; tenantName: string; plans: RebillItem<any>[]; rows: RebillRow[];
+} | null>(null);
+const rebillBusy = ref(false);
+
+const checkRebill = async (
+  tenantDocId: string, tenantName: string, billing: { paymentFrequency?: string; rent?: number },
+) => {
+  try {
+    const snap = await getDocs(query(
+      collection(db, 'bills'),
+      where('landlordId', '==', authStore.effectiveUid),
+      where('relatedTenantDocId', '==', tenantDocId),
+      where('type', '==', 'income'),
+      orderBy('date', 'desc'),
+      limit(24)
+    ));
+    const rentBills = snap.docs
+      .map(d => ({ id: d.id, ...d.data() } as any))
+      .filter(b => b.category === '租金收入');
+    const plans = planRebills(billing, rentBills, new Date().toISOString().slice(0, 7));
+    if (plans.length === 0) return;
+    rebillState.value = {
+      tenantDocId, tenantName, plans,
+      rows: plans.map(p => ({
+        id: p.bill.id,
+        oldDescription: p.bill.description || p.bill.date || '租金',
+        oldAmount: Number(p.bill.amount) || 0,
+        description: p.description,
+        amount: p.amount,
+        collected: p.collected,
+        settles: p.settles,
+        excess: p.excess,
+      })),
+    };
+  } catch (e) {
+    console.warn('檢查租金單失敗:', e);
+  }
+};
+
+const applyRebill = async (ids: string[]) => {
+  const st = rebillState.value;
+  if (!st) return;
+  rebillBusy.value = true;
+  try {
+    const today = new Date().toISOString().split('T')[0]!;
+    const batch = writeBatch(db);
+    let excess = 0;
+    for (const p of st.plans.filter(x => ids.includes(x.bill.id))) {
+      const b = p.bill;
+      const rec: any = { modifiedAt: new Date().toISOString(), data: { ...b } };
+      delete rec.data.history; delete rec.data.id;
+      batch.update(doc(db, 'bills', b.id), {
+        amount: p.amount,
+        description: p.description,
+        coverFrom: p.coverFrom,
+        coverTo: p.coverTo,
+        ...(p.settles ? { status: 'completed', paidAmount: p.amount, paidAt: today } : {}),
+        history: [rec, ...(b.history || [])],
+        updatedAt: serverTimestamp(),
+      });
+      excess += p.excess;
+    }
+    // 已收的錢超過改完後的金額：多的是租客的，轉成預收餘額
+    if (excess > 0) {
+      batch.update(doc(db, 'tenants', st.tenantDocId), {
+        credit: increment(excess),
+        creditLog: arrayUnion(paymentEntry(excess, today, 'manual', '改繳費方式，已收超過新帳單金額')),
+      });
+    }
+    await batch.commit();
+    toast.success(`已更新 ${ids.length} 張租金單`);
+    rebillState.value = null;
+    refreshBillStatuses();
+  } catch (e) {
+    console.error('更新租金單失敗:', e);
+    toast.error('更新帳單失敗，請稍後再試');
+  } finally {
+    rebillBusy.value = false;
+  }
+};
 
 const statTenants = computed<Record<TenantStatCategory, Tenant[]>>(() => {
   const activeTenants = tenantsWithStatus.value.filter(t => !t.isHistorical && t.paymentStatus !== 'pending');
@@ -1726,7 +1882,7 @@ const filteredTenants = computed(() => {
     if (t.isHistorical) return false; // 歷史租客只在 historical 分頁顯示
     if (currentFilter.value === 'all') return true;
     if (currentFilter.value === 'normal') return t.paymentStatus === 'normal';
-    if (currentFilter.value === 'issue') return ['overdue', 'unpaid', 'pending'].includes(t.paymentStatus);
+    if (currentFilter.value === 'issue') return ['overdue', 'unpaid', 'pending', 'nobill'].includes(t.paymentStatus);
     if (currentFilter.value === 'renewal') return t.renewalStatus === 'pending';
     return true;
   });
@@ -2171,6 +2327,7 @@ const fetchDrawerBills = async () => {
         monthStr: data.date ? data.date.slice(0, 7).replace('-', '年 ') + '月' : '—',
         category: data.category || '—',
         amount: Number(data.amount) || 0,
+        paidAmount: Number(data.paidAmount) || 0,
         status: data.status || 'pending',
         dueDate: data.dueDate || '',
         paidAt: data.paidAt || '',
@@ -2188,14 +2345,17 @@ const markDrawerBillPaid = async (bill: DrawerBill) => {
   markingBillId.value = bill.id;
   try {
     const today = new Date().toISOString().split('T')[0]!;
+    // 繳過一部分的只收剩下的，收款紀錄才對得起來
+    const remaining = bill.amount - collectedOf(bill);
     await updateDoc(doc(db, 'bills', bill.id), {
-      status: 'completed',
-      paidAt: today,
+      ...paymentUpdate({ ...bill, type: 'income' }, remaining, today, today),
       paymentDate: today,
+      payments: arrayUnion(paymentEntry(remaining, today, 'manual')),
       updatedAt: serverTimestamp()
     });
     bill.status = 'completed';
     bill.paidAt = today;
+    bill.paidAmount = bill.amount;
     toast.success('已標記收款完成');
     refreshBillStatuses();
   } catch {

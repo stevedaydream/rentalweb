@@ -7,7 +7,7 @@
  * 淨利採實收減實付：待收的租金列出來但不計入淨利，與帳務頁月度統計
  * 的口徑一致（該頁 income 只計已收，pending 另計）。
  */
-import { isCollected } from './tenantGroups'
+import { collectedOf } from './payments'
 
 export const UNASSIGNED_PROPERTY_ID = '__unassigned__'
 export const UNASSIGNED_PROPERTY_LABEL = '未指定建物'
@@ -17,6 +17,8 @@ export interface AnnualBill {
   category: string
   amount: number
   status?: string
+  /** 部分付款的已收金額 */
+  paidAmount?: number
   /** 落帳時寫入；租金與電費等舊帳單沒有，需回溯歸屬 */
   propertyId?: string
   relatedTenantDocId?: string
@@ -123,12 +125,11 @@ export const buildAnnualSummary = (input: AnnualSummaryInput): PropertySummary[]
     }
 
     tally(b.income, bill.category, amount)
-    if (isCollected({ status: bill.status ?? '' })) {
-      b.collected += amount
-      if (bill.category === RENT_CATEGORY) b.rentCollected += amount
-    } else {
-      b.pending += amount
-    }
+    // 部分付款：已收的部分計入實收，剩下的才是待收
+    const collected = collectedOf({ ...bill, status: bill.status ?? '' })
+    b.collected += collected
+    if (bill.category === RENT_CATEGORY) b.rentCollected += collected
+    b.pending += amount - collected
   }
 
   const nameOf = (id: string) =>

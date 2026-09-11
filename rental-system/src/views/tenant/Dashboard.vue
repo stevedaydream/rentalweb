@@ -404,6 +404,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
+import { outstandingOf } from '../../utils/financials/payments';
 import { db, auth, functions } from '../../firebase/config';
 import { httpsCallable } from 'firebase/functions';
 import Preview from '../../components/Preview.vue';
@@ -744,7 +745,11 @@ const fetchDashboardData = async () => {
         currentBill.hasData = true;
         currentBill.rentAmount = Number(rentBill?.amount) || 0;
         currentBill.electricAmount = Number(electricBill?.amount) || 0;
-        currentBill.totalAmount = currentBill.rentAmount + currentBill.electricAmount;
+        // 繳了一部分時，應繳總額只算還沒繳的
+        const owed = (b: any) => (b ? outstandingOf(b) : 0);
+        currentBill.totalAmount = pool.every((b: any) => b.status === 'completed')
+          ? currentBill.rentAmount + currentBill.electricAmount
+          : owed(rentBill) + owed(electricBill);
         currentBill.dueDate = anyBill.dueDate || '';
 
         // 狀態：任一未繳即為 unpaid

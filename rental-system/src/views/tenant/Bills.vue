@@ -88,7 +88,8 @@
                   </div>
                 </div>
                 <div class="flex flex-col items-end gap-2 shrink-0">
-                  <p class="text-lg font-extrabold text-text-primary-light dark:text-text-primary-dark">NT$ {{ bill.amount.toLocaleString() }}</p>
+                  <p class="text-lg font-extrabold text-text-primary-light dark:text-text-primary-dark">NT$ {{ (isPartial(bill) ? outstandingOf(bill) : bill.amount).toLocaleString() }}</p>
+                  <p v-if="isPartial(bill)" class="text-[11px] text-text-secondary-light -mt-1.5">已繳 {{ collectedOf(bill).toLocaleString() }}／共 {{ bill.amount.toLocaleString() }}</p>
                   <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" :class="statusStyles[bill.status]">
                     <span class="w-1.5 h-1.5 rounded-full mr-1.5" :class="statusDotStyles[bill.status]"></span>
                     {{ statusLabels[bill.status] }}
@@ -129,7 +130,8 @@
                     {{ bill.dueDate || '無期限' }}
                   </td>
                   <td class="px-6 py-4 text-right font-bold text-lg text-text-primary-light">
-                    NT$ {{ bill.amount.toLocaleString() }}
+                    NT$ {{ (isPartial(bill) ? outstandingOf(bill) : bill.amount).toLocaleString() }}
+                    <p v-if="isPartial(bill)" class="text-[11px] font-normal text-text-secondary-light">已繳 {{ collectedOf(bill).toLocaleString() }}／共 {{ bill.amount.toLocaleString() }}</p>
                   </td>
                   <td class="px-6 py-4 text-center">
                     <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium" :class="statusStyles[bill.status]">
@@ -226,7 +228,7 @@
           </div>
           <div class="flex justify-between border-t border-gray-100 dark:border-gray-700 pt-2">
             <span class="font-bold">應繳金額</span>
-            <span class="font-extrabold text-gold-600">NT$ {{ billToConfirm?.amount.toLocaleString() }}</span>
+            <span class="font-extrabold text-gold-600">NT$ {{ (billToConfirm ? outstandingOf(billToConfirm) : 0).toLocaleString() }}</span>
           </div>
         </div>
 
@@ -281,7 +283,7 @@
           
           <div class="text-center">
             <p class="text-sm text-text-secondary-light mb-1">應繳總金額</p>
-            <p class="text-4xl font-extrabold text-gold-600">NT$ {{ selectedBill?.amount.toLocaleString() }}</p>
+            <p class="text-4xl font-extrabold text-gold-600">NT$ {{ (selectedBill ? (selectedBill.status === 'completed' ? selectedBill.amount : outstandingOf(selectedBill)) : 0).toLocaleString() }}</p>
             <div class="mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium" 
                  :class="selectedBill ? statusStyles[selectedBill.status] : ''">
                {{ selectedBill ? statusLabels[selectedBill.status] : '' }}
@@ -301,6 +303,16 @@
                <p class="text-sm font-bold text-text-secondary-light">合計</p>
                <p class="font-bold">NT$ {{ selectedBill.amount.toLocaleString() }}</p>
             </div>
+            <template v-if="isPartial(selectedBill)">
+              <div class="flex justify-between items-center text-sm text-green-600">
+                <p>已繳</p>
+                <p>－ NT$ {{ collectedOf(selectedBill).toLocaleString() }}</p>
+              </div>
+              <div class="flex justify-between items-center">
+                <p class="text-sm font-bold text-text-secondary-light">尚需繳納</p>
+                <p class="font-bold text-gold-600">NT$ {{ outstandingOf(selectedBill).toLocaleString() }}</p>
+              </div>
+            </template>
           </div>
 
           <div v-if="selectedBill?.status !== 'completed'" class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl text-sm space-y-2">
@@ -386,6 +398,7 @@ import {
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { captureElementPng, downloadImage as saveImageFile } from '../../utils/captureImage';
 import { tenantCategoryLabel } from '../../utils/billLabels';
+import { outstandingOf, collectedOf, isPartial } from '../../utils/financials/payments';
 
 // --- Type Definitions ---
 // 對應 Firebase 'bills' collection 結構
@@ -400,6 +413,8 @@ interface Bill {
   target: string;
   description: string;
   amount: number;
+  /** 部分付款的已收金額 */
+  paidAmount?: number;
   status: 'completed' | 'pending' | 'overdue' | 'waiting_confirmation';
   dueDate?: string;
   paymentDate?: string;
@@ -563,7 +578,7 @@ const summary = computed(() => {
 
   return {
     unpaidCount: unpaidBills.length,
-    unpaidTotal: unpaidBills.reduce((sum, b) => sum + b.amount, 0),
+    unpaidTotal: unpaidBills.reduce((sum, b) => sum + outstandingOf(b), 0),
     nextDueDate: nextDue?.dueDate || null,
     lastPaymentDate: lastPaid?.paymentDate || lastPaid?.date || '尚無紀錄'
   };

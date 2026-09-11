@@ -82,7 +82,7 @@ export interface TenantLite {
   room: string;
   phone: string;
   leaseEnd: string;
-  paymentStatus: 'normal' | 'overdue' | 'unpaid' | 'pending';
+  paymentStatus: 'normal' | 'overdue' | 'unpaid' | 'pending' | 'nobill';
   pendingRenewal?: { startDate: string; endDate: string; rent: number } | null;
 }
 
@@ -103,14 +103,16 @@ const paymentStatusLabels: Record<string, string> = {
   normal: '繳費正常',
   unpaid: '本期未繳',
   overdue: '逾期欠費',
-  pending: '未設定租約'
+  pending: '未設定租約',
+  nobill: '本月未出帳'
 };
 
 const paymentStatusStyles: Record<string, string> = {
   normal: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
   unpaid: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
   overdue: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
-  pending: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+  pending: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400',
+  nobill: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300'
 };
 
 const remainingDays = (dateStr: string) => {

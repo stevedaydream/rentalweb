@@ -185,3 +185,58 @@ describe('不變量', () => {
     expect(uncollectedIncome(other)).toHaveLength(0)
   })
 })
+
+describe('buildTenantGroups：部分付款與前期未繳', () => {
+  it('部分付款只計剩餘金額', () => {
+    const [g] = buildTenantGroups([bill({ amount: 7000, paidAmount: 5000 })])
+    expect(g!.unpaid).toBe(2000)
+    expect(g!.owed).toBe(2000)
+  })
+
+  it('本月繳清但上個月還欠 2000：併入同一位租客', () => {
+    const [g] = buildTenantGroups(
+      [bill({ relatedTenantDocId: 't1', amount: 7000, status: 'completed' })],
+      [bill({ relatedTenantDocId: 't1', amount: 7000, paidAmount: 5000, date: '2026-07-01' })],
+    )
+    expect(g!.allCollected).toBe(true)
+    expect(g!.priorOutstanding).toBe(2000)
+    expect(g!.owed).toBe(2000)
+  })
+
+  it('本月沒有帳單、只有前期欠款的租客也會出現', () => {
+    const groups = buildTenantGroups([], [
+      bill({ relatedTenantDocId: 't9', target: '王小明 501', date: '2026-07-01' }),
+    ])
+    expect(groups).toHaveLength(1)
+    expect(groups[0]!.label).toBe('王小明 501')
+    expect(groups[0]!.items).toHaveLength(0)
+    expect(groups[0]!.owed).toBe(1000)
+  })
+
+  it('本月已繳清但前期還欠的租客排在前面', () => {
+    const groups = buildTenantGroups(
+      [
+        bill({ relatedTenantDocId: 'a', target: 'A', status: 'completed' }),
+        bill({ relatedTenantDocId: 'b', target: 'B', status: 'completed' }),
+      ],
+      [bill({ relatedTenantDocId: 'b', target: 'B', date: '2026-07-01' })],
+    )
+    expect(groups.map(g => g.key)).toEqual(['b', 'a'])
+  })
+
+  it('前期中已結清與支出不列入', () => {
+    const [g] = buildTenantGroups(
+      [bill({ relatedTenantDocId: 't1' })],
+      [bill({ relatedTenantDocId: 't1', status: 'completed' }), bill({ type: 'expense', relatedTenantDocId: 't1' })],
+    )
+    expect(g!.prior).toHaveLength(0)
+  })
+
+  it('批次收款時最舊的在最前面', () => {
+    const [g] = buildTenantGroups(
+      [bill({ id: 'now', date: '2026-08-01' })],
+      [bill({ id: 'jun', date: '2026-06-01' }), bill({ id: 'may', date: '2026-05-01' })],
+    )
+    expect(uncollectedIncome(g!).map(b => b.id)).toEqual(['may', 'jun', 'now'])
+  })
+})

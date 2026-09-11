@@ -375,6 +375,13 @@ const withQuickReply = (messages, quickReply) => {
   return list;
 };
 
+/** 帳單尚欠金額：扣掉部分付款的已收（paidAmount）；已結清為 0 */
+const billOutstanding = (b) => {
+  if (b.status === 'completed' || b.status === 'paid') return 0;
+  const amount = Number(b.totalAmount || b.amount || 0);
+  return Math.max(0, amount - (Number(b.paidAmount) || 0));
+};
+
 /** 包一層 client：既有的每個 replyMessage 都自動帶上快捷選項，不必逐處改 */
 const quickReplyClient = (client, quickReply) => ({
   replyMessage: ({ replyToken, messages }) =>
@@ -392,7 +399,7 @@ const buildBillFlex = (bills, total, nearestDue) => {
       {
         type: "box", layout: "baseline", contents: [
           { type: "text", text: String(b.description || b.date || "帳單"), size: "sm", color: "#333333", flex: 5, wrap: true },
-          { type: "text", text: "NT$" + Number(b.totalAmount || 0).toLocaleString(), size: "sm", weight: "bold", align: "end", flex: 3, color: b.status === "overdue" ? "#C0392B" : "#333333" },
+          { type: "text", text: "NT$" + billOutstanding(b).toLocaleString(), size: "sm", weight: "bold", align: "end", flex: 3, color: b.status === "overdue" ? "#C0392B" : "#333333" },
         ],
       },
       {
@@ -468,7 +475,7 @@ async function handleCommand(cmd, tenantUid, config, client, replyToken, db) {
         return true;
       }
       const bills = snap.docs.map(d => d.data());
-      const total = bills.reduce((s, b) => s + (Number(b.totalAmount) || 0), 0);
+      const total = bills.reduce((s, b) => s + billOutstanding(b), 0);
       const nearestDue = bills.reduce((m, b) => (!m || b.dueDate < m) ? b.dueDate : m, '');
       await client.replyMessage({ replyToken, messages: [buildBillFlex(bills, total, nearestDue)] });
       return true;
@@ -690,7 +697,7 @@ async function handleLandlordCommand(cmd, config, client, replyToken, db) {
       let owe = 0, overdueN = 0;
       billSnap.docs.forEach(d => {
         const b = d.data();
-        owe += Number(b.totalAmount ?? b.amount ?? 0);
+        owe += billOutstanding(b);
         if (b.status === 'overdue' || (b.dueDate && b.dueDate < today)) overdueN++;
       });
       const payLine = billSnap.empty ? '✅ 無未繳' : `⚠️ 未繳 ${billSnap.size} 筆 / NT$${owe.toLocaleString()}${overdueN ? `（逾期 ${overdueN}）` : ''}`;
@@ -735,7 +742,7 @@ async function handleLandlordCommand(cmd, config, client, replyToken, db) {
         if (!isOverdue) return;
         const key = b.tenantName || b.relatedTenantDocId || '租客';
         byTenant[key] = byTenant[key] || { amount: 0, count: 0, due: '' };
-        byTenant[key].amount += Number(b.totalAmount ?? b.amount ?? 0);
+        byTenant[key].amount += billOutstanding(b);
         byTenant[key].count++;
         if (!byTenant[key].due || (b.dueDate && b.dueDate < byTenant[key].due)) byTenant[key].due = b.dueDate || '';
       });
@@ -1243,23 +1250,23 @@ exports.sendLineBillNotifications = onCall(
       channelAccessToken: config.channelAccessToken,
     });
 
-    // 查詢帳單：單一租客模式查全部待收/逾期，批次模式只查當月
+    // 查詢帳單：單一租客模式查全部待收/逾期；批次模式以當月待收為主，另附前期未繳
     let billsQuery = db.collection('bills')
       .where('landlordId', '==', config.landlordId)
-      .where('type', '==', 'income');
+      .where('type', '==', 'income')
+      .where('status', 'in', ['pending', 'overdue']);
 
     if (tenantId) {
       // 單一租客：查該租客所有未繳帳單
-      billsQuery = billsQuery.where('tenantId', '==', tenantId).where('status', 'in', ['pending', 'overdue']);
-    } else {
-      billsQuery = billsQuery.where('status', '==', 'pending');
+      billsQuery = billsQuery.where('tenantId', '==', tenantId);
     }
 
     const billsSnap = await billsQuery.get();
 
-    let targetBills = billsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const openBills = billsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(b => billOutstanding(b) > 0);
+    let targetBills = openBills;
     if (!tenantId && month) {
-      targetBills = targetBills.filter(b => b.date && b.date.startsWith(month));
+      targetBills = openBills.filter(b => b.status === 'pending' && b.date && b.date.startsWith(month));
     }
 
     if (targetBills.length === 0) {
@@ -1277,17 +1284,24 @@ exports.sendLineBillNotifications = onCall(
       if (!userData.lineUserId) continue;
 
       const tenantBills = targetBills.filter(b => b.tenantId === uid);
-      const totalAmount = tenantBills.reduce((sum, b) => sum + (Number(b.totalAmount || b.amount) || 0), 0);
+      const totalAmount = tenantBills.reduce((sum, b) => sum + billOutstanding(b), 0);
       const nearestDue = tenantBills.reduce((m, b) => (!m || b.dueDate < m) ? b.dueDate : m, '');
       const name = userData.name || '您';
 
       let text;
       if (tenantId) {
         // 單一租客提醒：列出各筆帳單
-        const lines = tenantBills.map(b => `• ${b.description || b.date || '帳單'} NT$${Number(b.totalAmount||b.amount||0).toLocaleString()}${b.status === 'overdue' ? '（已逾期）' : ''}`).join('\n');
+        const lines = tenantBills.map(b => `• ${b.description || b.date || '帳單'} NT$${billOutstanding(b).toLocaleString()}${b.status === 'overdue' ? '（已逾期）' : ''}`).join('\n');
         text = `💰 帳單繳費提醒\n\n${name}，您有 ${tenantBills.length} 筆未繳帳單：\n${lines}\n\n合計：NT$ ${totalAmount.toLocaleString()} 元\n最近截止：${nearestDue || '-'}\n\n如有疑問請直接回覆此訊息聯繫房東。`;
       } else {
-        text = `💰 ${month.replace('-', ' 年 ')} 月帳單提醒\n\n${name}，本月帳單共 NT$ ${totalAmount.toLocaleString()} 元，請於 ${nearestDue || '-'} 前完成繳費。\n\n如有疑問請直接回覆此訊息聯繫房東。`;
+        // 前期欠款要一起講，否則租客只繳本月的，舊欠款一直掛著沒人提
+        const priorTotal = openBills
+          .filter(b => b.tenantId === uid && b.date && b.date < `${month}-01`)
+          .reduce((s, b) => s + billOutstanding(b), 0);
+        const priorText = priorTotal > 0
+          ? `，另有前期未繳 NT$ ${priorTotal.toLocaleString()} 元，合計 NT$ ${(totalAmount + priorTotal).toLocaleString()} 元`
+          : '';
+        text = `💰 ${month.replace('-', ' 年 ')} 月帳單提醒\n\n${name}，本月帳單共 NT$ ${totalAmount.toLocaleString()} 元${priorText}，請於 ${nearestDue || '-'} 前完成繳費。\n\n如有疑問請直接回覆此訊息聯繫房東。`;
       }
 
       try {
@@ -1319,6 +1333,8 @@ exports.notifyBillCreated = onDocumentCreated(
 
     // Only notify for income bills (收費單) with a tenant and landlord
     if (bill.type !== 'income' || !bill.tenantId || !bill.landlordId) return;
+    // 預收餘額已全額沖抵的帳單，沒有要繳的錢
+    if (billOutstanding(bill) <= 0) return;
 
     let config;
     try {
@@ -1338,7 +1354,7 @@ exports.notifyBillCreated = onDocumentCreated(
       channelAccessToken: config.channelAccessToken,
     });
 
-    const amount = Number(bill.totalAmount || bill.amount || 0);
+    const amount = billOutstanding(bill);
     const name = userData.name || '您';
     const month = (bill.date || '').substring(0, 7).replace('-', ' 年 ') + ' 月';
     const dueDate = bill.dueDate || '-';
@@ -1534,7 +1550,8 @@ exports.scheduledReminderDaily = onSchedule(
         const ud = userSnap.data();
         if (!ud.lineUserId) continue;
 
-        const amount = Number(bill.totalAmount || bill.amount || 0);
+        const amount = billOutstanding(bill);
+        if (amount <= 0) continue;
         const name = ud.name || '您';
         const text =
           `⏰ 帳單繳費提醒\n━━━━━━━━━━\n${name}，您有一筆帳單將於 3 天後（${due3}）到期：\n\n` +

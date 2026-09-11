@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   publicMeterShare, sumPublicShares,
   shouldGenerateBill, getBillingAmount, getBillingDescription,
+  addMonths, rentCoverage, isMonthCovered, shouldGenerateRent, rebillRent,
 } from './billing'
 import { buildSections } from './sections'
 import type { MeterEntry, SubGroup } from '../../components/meter/types'
@@ -189,5 +190,88 @@ describe('getBillingDescription：帳單摘要', () => {
         expect(endM).toBe(((m + span - 2) % 12) + 1)
       }
     }
+  })
+})
+
+describe('addMonths：月份加減', () => {
+  it.each([
+    ['2026-08', 2, '2026-10'],
+    ['2026-11', 3, '2027-02'],
+    ['2026-01', -1, '2025-12'],
+    ['2026-08', -12, '2025-08'],
+  ])('%s %+d → %s', (ym, n, expected) => {
+    expect(addMonths(ym, n)).toBe(expected)
+  })
+})
+
+describe('rentCoverage：租金單涵蓋期間', () => {
+  it('新單直接讀 coverFrom／coverTo', () => {
+    expect(rentCoverage({ date: '2026-07-01', coverFrom: '2026-07', coverTo: '2026-09' }))
+      .toEqual({ from: '2026-07', to: '2026-09' })
+  })
+
+  // 舊單沒有涵蓋欄位，只能從 getBillingDescription 的固定格式反推
+  it.each([
+    ['monthly', '2026-08', { from: '2026-08', to: '2026-08' }],
+    ['quarterly', '2026-11', { from: '2026-11', to: '2027-01' }],
+    ['semiannual', '2026-08', { from: '2026-08', to: '2027-01' }],
+    ['yearly', '2026-03', { from: '2026-03', to: '2027-02' }],
+  ])('舊的 %s 單由摘要反推（%s 起）', (freq, month, expected) => {
+    const description = getBillingDescription({ paymentFrequency: freq }, month)
+    expect(rentCoverage({ date: `${month}-01`, description })).toEqual(expected)
+  })
+
+  it('解析不了的手動租金單只涵蓋當月', () => {
+    expect(rentCoverage({ date: '2026-08-15', description: '補收房租' }))
+      .toEqual({ from: '2026-08', to: '2026-08' })
+  })
+
+  it('沒有日期的資料不涵蓋任何月份', () => {
+    expect(rentCoverage({ description: '2026-07～2026-09 季度房租' })).toBeNull()
+  })
+})
+
+describe('shouldGenerateRent：依涵蓋期間決定是否出租金', () => {
+  const q = { date: '2026-07-01', description: '2026-07～2026-09 季度房租' }
+
+  it('季繳改月繳：季繳單涵蓋的月份不再出帳，期滿後接月繳', () => {
+    const monthly = { paymentFrequency: 'monthly' }
+    expect(shouldGenerateRent(monthly, '2026-08', [q])).toBe(false)
+    expect(shouldGenerateRent(monthly, '2026-09', [q])).toBe(false)
+    expect(shouldGenerateRent(monthly, '2026-10', [q])).toBe(true)
+  })
+
+  it('月繳改季繳：不必對齊起租月，上一張到期的下個月就接季繳', () => {
+    // 起租月推算的出帳月是 2、5、8、11 月；舊邏輯在 9 月改季繳會空窗到 11 月
+    const quarterly = { paymentFrequency: 'quarterly', leaseStart: '2026-02-15' }
+    const aug = { date: '2026-08-01', description: '2026-08 月份房租' }
+    expect(shouldGenerateRent(quarterly, '2026-09', [aug])).toBe(true)
+  })
+
+  it('從未出過租金：沿用起租月推算', () => {
+    const quarterly = { paymentFrequency: 'quarterly', leaseStart: '2026-02-15' }
+    expect(shouldGenerateRent(quarterly, '2026-08', [])).toBe(true)
+    expect(shouldGenerateRent(quarterly, '2026-09', [])).toBe(false)
+  })
+
+  it('本月已有手動新增的租金單時不重複出帳', () => {
+    const manual = { date: '2026-08-10', description: '房租' }
+    expect(shouldGenerateRent({ paymentFrequency: 'monthly' }, '2026-08', [manual])).toBe(false)
+  })
+
+  it('isMonthCovered 只看涵蓋區間', () => {
+    expect(isMonthCovered([q], '2026-06')).toBe(false)
+    expect(isMonthCovered([q], '2026-09')).toBe(true)
+  })
+})
+
+describe('rebillRent：改成新繳費方式的一期', () => {
+  it('季繳單改月繳：起始月不變，金額與摘要改為一個月', () => {
+    expect(rebillRent(
+      { paymentFrequency: 'monthly', rent: 7000 },
+      { date: '2026-07-01', description: '2026-07～2026-09 季度房租' },
+    )).toEqual({
+      amount: 7000, description: '2026-07 月份房租', coverFrom: '2026-07', coverTo: '2026-07',
+    })
   })
 })

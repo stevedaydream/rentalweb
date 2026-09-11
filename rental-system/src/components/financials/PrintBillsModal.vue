@@ -90,6 +90,7 @@ import { useAuthStore } from '../../stores/auth'
 import { useToastStore } from '../../stores/toast'
 import { printHtmlPdf } from '../../utils/contractRender'
 import { tenantCategoryLabel } from '../../utils/billLabels'
+import { isCollected, collectedOf, outstandingOf } from '../../utils/financials/payments'
 // @ts-expect-error pdfHelper.js 為既有 JS 模組，無型別宣告
 import { downloadPdfFromBlob } from '../../views/pdfHelper.js'
 import billStatementTemplate from '../../templates/billStatement.html?raw'
@@ -117,12 +118,13 @@ const busy = computed(() => printing.value || exporting.value)
 interface BillLite {
   id: string
   date: string
-  type: string
+  type: 'income' | 'expense'
   category: string
   target: string
   description: string
   amount: number
   status: string
+  paidAmount?: number
   dueDate?: string
   relatedTenantDocId?: string
   relatedUsageId?: string
@@ -154,8 +156,6 @@ const toggleAll = () => {
   const target = !allChecked.value
   roomRows.value.forEach(r => { if (!r.disabled) r.checked = target })
 }
-
-const isCollected = (b: BillLite) => b.status === 'completed' || b.status === 'paid'
 
 // target 字串在系統內有兩種寫法：自動生成為「姓名 房號」，手動新增的下拉選單為「房號 姓名」，
 // 兩種都要認，否則舊的手動帳單會漏印。新資料一律有 relatedTenantDocId，優先用它比對。
@@ -196,7 +196,7 @@ const loadData = async () => {
     const monthBills = monthBillsSnap.docs.map(d => ({ id: d.id, ...d.data() } as BillLite))
       .filter(b => b.type === 'income')
     const prevUnpaidBills = prevBillsSnap.docs.map(d => ({ id: d.id, ...d.data() } as BillLite))
-      .filter(b => b.type === 'income' && !isCollected(b))
+      .filter(b => b.type === 'income' && outstandingOf(b) > 0)
 
     readingsMap.value = new Map(readingsSnap.docs.map(d => [d.id, { id: d.id, ...d.data() }]))
 
@@ -219,7 +219,7 @@ const loadData = async () => {
           disabled,
           billCount: mine.length,
           monthAmount: mine.reduce((s, b) => s + (Number(b.amount) || 0), 0),
-          prevUnpaid: prev.reduce((s, b) => s + (Number(b.amount) || 0), 0),
+          prevUnpaid: prev.reduce((s, b) => s + outstandingOf(b), 0),
           monthBills: mine,
           prevBills: prev,
         }
@@ -270,7 +270,11 @@ const buildPage = (fragment: string, row: RoomRow): string => {
       <td>${esc(tenantCategoryLabel(b.category))}</td>
       <td class="desc">${esc(b.description)}</td>
       <td class="amt">NT$ ${fmt(b.amount)}</td>
-      <td class="st">${isCollected(b) ? '<span class="paid">已繳 ✓</span>' : '<span class="unpaid">未繳</span>'}</td>
+      <td class="st">${isCollected(b)
+        ? '<span class="paid">已繳 ✓</span>'
+        : collectedOf(b) > 0
+          ? `<span class="unpaid">已繳 ${fmt(collectedOf(b))}<br>尚欠 ${fmt(outstandingOf(b))}</span>`
+          : '<span class="unpaid">未繳</span>'}</td>
     </tr>`).join('')
     || '<tr><td colspan="4" class="desc">本期無帳單項目</td></tr>'
 
@@ -281,15 +285,16 @@ const buildPage = (fragment: string, row: RoomRow): string => {
         ${row.prevBills.map(b => `
         <tr class="overdue">
           <td style="width:22mm">${esc(b.date)}</td>
-          <td class="desc">${esc(tenantCategoryLabel(b.category))}｜${esc(b.description)}</td>
-          <td class="amt" style="width:26mm">NT$ ${fmt(b.amount)}</td>
+          <td class="desc">${esc(tenantCategoryLabel(b.category))}｜${esc(b.description)}${collectedOf(b) > 0
+            ? `（原 NT$ ${fmt(b.amount)}，已繳 ${fmt(collectedOf(b))}）` : ''}</td>
+          <td class="amt" style="width:26mm">NT$ ${fmt(outstandingOf(b))}</td>
           <td class="st"><span class="unpaid">未繳</span></td>
         </tr>`).join('')}
       </tbody>
     </table>` : ''
 
   const monthTotal = row.monthAmount
-  const paidTotal = row.monthBills.filter(isCollected).reduce((s, b) => s + (Number(b.amount) || 0), 0)
+  const paidTotal = row.monthBills.reduce((s, b) => s + collectedOf(b), 0)
   const prevTotal = row.prevUnpaid
   const dueTotal = monthTotal - paidTotal + prevTotal
 

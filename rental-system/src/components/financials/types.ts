@@ -37,6 +37,8 @@ export interface TransactionForm {
   // 從下拉選單挑到租客時填入，讓手動新增的帳單能與自動生成的一樣正確歸戶
   relatedTenantDocId?: string
   tenantId?: string | null
+  /** 手動新增電費時依租客房號推得，電費盈虧才歸得到棟 */
+  groupId?: string
 }
 
 export interface TaipowerForm {
