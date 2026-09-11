@@ -1,10 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
+import { createRequire } from 'node:module'
 import { initializeApp } from 'firebase-admin/app'
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 import { handleBilling } from './service.mjs'
 import { hash } from './planner.mjs'
+const { HttpsError } = createRequire(import.meta.url)('firebase-functions/v2/https')
 
 // Hard stop before initializing an SDK unless this is the disposable demo emulator.
 const projectId = process.env.GCLOUD_PROJECT
@@ -47,6 +49,7 @@ test('preview is read-only and server rejects unauthenticated and cross-owner re
   assert.equal((await owned('bills', owner)).size, 0)
   assert.equal((await owned('billing_runs', owner)).size, 0)
   await assert.rejects(invoke(owner, { mode: 'preview' }, null), { code: 'unauthenticated' })
+  await assert.rejects(invoke(owner, { mode: 'preview' }, null), e => e instanceof HttpsError && e.httpErrorCode.status === 401)
   const other = await seed()
   await assert.rejects(invoke(owner, { mode: 'preview' }, { uid: other }), { code: 'permission-denied' })
   await db.doc(`users/${other}`).update({ role: 'admin', settings: { paymentDay: 5 } })

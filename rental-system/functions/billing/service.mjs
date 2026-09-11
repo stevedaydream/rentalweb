@@ -1,6 +1,10 @@
-import { HttpsError } from 'firebase-functions/v2/https'
+import { createRequire } from 'node:module'
 import { buildPlan, publicPlan, hash } from './planner.mjs'
 import { validMonth, monthEnd } from './rules.mjs'
+
+// index.js loads onCall through CommonJS. Use that same export condition so the
+// callable wrapper recognizes instanceof HttpsError even with dual ESM/CJS SDK builds.
+const { HttpsError } = createRequire(import.meta.url)('firebase-functions/v2/https')
 
 const rows = snap => snap.docs.map(d => ({ ...d.data(), id: d.id }))
 const fail = message => { throw new HttpsError('invalid-argument', message) }
