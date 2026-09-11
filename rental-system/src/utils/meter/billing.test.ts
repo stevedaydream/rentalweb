@@ -12,9 +12,9 @@ describe('publicMeterShare：單表每房分攤', () => {
     expect(publicMeterShare(1200, 3)).toBe(400)
   })
 
-  it('除不盡時四捨五入', () => {
+  it('除不盡時向下取整，尾差由房東負擔', () => {
     expect(publicMeterShare(100, 3)).toBe(33)
-    expect(publicMeterShare(101, 3)).toBe(34)
+    expect(publicMeterShare(101, 3)).toBe(33)
   })
 
   it.each([
@@ -31,18 +31,18 @@ describe('publicMeterShare：單表每房分攤', () => {
 
 describe('sumPublicShares：子群組合計', () => {
   it('逐表各自除後相加（與帳單生成一致）', () => {
-    // 三表各 50 元 ÷ 3 房：逐表 round(50/3)=17，合計 51
-    expect(sumPublicShares([50, 50, 50], 3)).toBe(51)
+    // 三表各 50 元 ÷ 3 房：逐表 floor(50/3)=16，合計 48
+    expect(sumPublicShares([50, 50, 50], 3)).toBe(48)
   })
 
   it('與「先加總再除」的結果可能不同，此處採逐表制', () => {
-    expect(sumPublicShares([50, 50, 50], 3)).toBe(51)
+    expect(sumPublicShares([50, 50, 50], 3)).toBe(48)
     expect(Math.round((50 + 50 + 50) / 3)).toBe(50) // 先加總再除的結果
   })
 
   it('單顆公共表時兩種算法一致', () => {
     for (const cost of [1318, 100, 7, 999]) {
-      expect(sumPublicShares([cost], 3)).toBe(Math.round(cost / 3))
+      expect(sumPublicShares([cost], 3)).toBe(Math.floor(cost / 3))
     }
   })
 
@@ -166,8 +166,8 @@ describe('getBillingDescription：帳單摘要', () => {
       .toBe('2026-08～2027-01 半年度房租')
   })
 
-  it('年繳標示年度', () => {
-    expect(getBillingDescription({ paymentFrequency: 'yearly' }, '2026-08')).toBe('2026 年度房租')
+  it('年繳明列跨年涵蓋期間', () => {
+    expect(getBillingDescription({ paymentFrequency: 'yearly' }, '2026-08')).toBe('2026-08～2027-07 年度房租')
   })
 
   // 跨年區間。抽出前以 `m + span > 12 ? m + span - 12 : m + span` 計算，

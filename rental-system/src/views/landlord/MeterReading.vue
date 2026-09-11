@@ -213,7 +213,7 @@
                     <span class="text-[11px] text-blue-600/80 dark:text-blue-300/80 flex items-center gap-3">
                       <span>用量 {{ section.totalUsage }} 度</span>
                       <span>電費 NT$ {{ section.totalCost.toLocaleString() }}</span>
-                      <span v-if="section.publicShare > 0" class="font-bold">公共分攤預覽 NT$ {{ section.publicShare.toLocaleString() }}/房</span>
+                      <span v-if="section.publicShare > 0" class="font-bold">公共分攤預覽 NT$ {{ section.publicShare.toLocaleString() }}/房（尾差房東負擔）</span>
                     </span>
                   </div>
                 </td>

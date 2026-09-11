@@ -10,7 +10,7 @@
       <div v-if="activeTab === 'month'" class="flex gap-2 flex-wrap items-center">
         <MonthPicker v-model="currentMonth" />
         <div class="flex items-center gap-1">
-          <button @click="showGenerateConfirm = true" :disabled="loading"
+          <button @click="prepareGenerateBills" :disabled="loading || preparingBills || generatingBills"
             class="px-3 py-2 bg-ink-700 text-white rounded-lg text-sm font-medium flex items-center gap-1 hover:bg-ink-800 disabled:opacity-50 transition-colors">
             <span class="material-symbols-outlined text-[18px]" aria-hidden="true">magic_button</span>
             一鍵生成帳單
@@ -557,53 +557,59 @@
     <PropertyCostsModal v-model:show="showPropertyCostsModal" :properties="propertiesList" />
     <BillHistoryModal v-model:show="showHistoryModal" :history="selectedHistory" />
 
-    <!-- 一鍵生成帳單確認 Modal -->
+    <!-- 出帳前取得伺服端完整預覽 -->
     <div v-if="showGenerateConfirm" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showGenerateConfirm = false"></div>
-      <div class="relative bg-white dark:bg-ink-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-            <span class="material-symbols-outlined text-amber-600">receipt_long</span>
-          </div>
-          <div>
-            <h3 class="font-bold text-text-primary-light dark:text-text-primary-dark">確認生成帳單</h3>
-            <p class="text-xs text-text-secondary-light">{{ currentMonth }} 月份</p>
-          </div>
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="closeBillingPreview"></div>
+      <div role="dialog" aria-modal="true" aria-labelledby="billing-preview-title"
+        :aria-busy="preparingBills || generatingBills"
+        class="relative bg-white dark:bg-ink-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90dvh] flex flex-col">
+        <div class="p-6 pb-3 shrink-0">
+          <h3 id="billing-preview-title" class="font-bold text-text-primary-light dark:text-text-primary-dark">出帳預覽</h3>
+          <p class="text-xs text-text-secondary-light mt-1">{{ billingPreview?.month || currentMonth }} 月份</p>
         </div>
-        <p class="text-sm text-text-secondary-light">
-          系統將為所有在租房客生成 <strong class="text-text-primary-light dark:text-text-primary-dark">{{ currentMonth }}</strong> 月份的租金與電費帳單。已存在的帳單不會重複建立。
-        </p>
-        <div v-if="priorSummary.groups.length > 0"
-          class="rounded-xl border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-900/10 p-3 space-y-1.5">
-          <p class="text-xs font-bold text-red-700 dark:text-red-300">
-            {{ priorSummary.groups.length }} 位租客前期還沒繳清（共 NT$ {{ priorSummary.total.toLocaleString() }}）
-          </p>
-          <ul class="text-xs text-red-700 dark:text-red-300 space-y-0.5 max-h-32 overflow-y-auto">
-            <li v-for="g in priorSummary.groups" :key="g.key" class="flex justify-between gap-2">
-              <span class="truncate">{{ g.label }}</span>
-              <span class="shrink-0 font-bold">NT$ {{ g.priorOutstanding.toLocaleString() }}</span>
-            </li>
-          </ul>
-          <p class="text-[11px] text-red-600/80 dark:text-red-300/80">前期欠款不會併進新帳單，但會列在生成摘要、繳費通知單與 LINE 提醒裡。</p>
+        <div class="px-6 overflow-y-auto space-y-4 text-sm">
+          <p v-if="preparingBills" role="status">正在核對租約、既有帳單與抄表資料…</p>
+          <p v-if="billingError" role="alert" class="text-red-600 dark:text-red-300">{{ billingError }}</p>
+          <template v-if="billingPreview">
+            <div class="rounded-xl bg-surface-light dark:bg-surface-dark p-3 space-y-1">
+              <p>預計 {{ previewItems.length }} 筆，應收 NT$ {{ previewAmount.toLocaleString() }}</p>
+              <p>預收沖抵 NT$ {{ previewCredit.toLocaleString() }}，尚需繳款 NT$ {{ (previewAmount - previewCredit).toLocaleString() }}</p>
+              <p class="text-xs text-text-secondary-light">首末月沿用整月計收。確認時若資料變更，會要求重新預覽。</p>
+            </div>
+            <ul class="divide-y divide-ink-100 dark:divide-ink-700">
+              <li v-for="(item, idx) in previewItems" :key="idx" class="py-3 space-y-1">
+                <div class="flex justify-between gap-3 font-bold"><span>{{ item.target }} · {{ item.category }}</span><span class="shrink-0">NT$ {{ item.amount.toLocaleString() }}</span></div>
+                <p class="text-xs text-text-secondary-light">{{ item.description }}</p>
+                <p class="text-xs text-text-secondary-light">截止 {{ item.dueDate }}<span v-if="item.creditApplied"> · 預收沖抵 NT$ {{ item.creditApplied.toLocaleString() }}</span></p>
+              </li>
+            </ul>
+            <p v-if="!previewItems.length" class="text-text-secondary-light">本次沒有可新增的帳單，請查看下方略過原因。</p>
+            <div v-if="billingPreview.allocations.length" class="text-xs space-y-1">
+              <p class="font-bold">公共電費核對</p>
+              <p v-for="a in billingPreview.allocations" :key="a.readingId">
+                {{ a.name }}：每房 {{ a.share }} 元，房東負擔尾差 {{ a.roundingRemainder }} 元、空房 {{ a.vacantAmount }} 元<span v-if="a.unresolvedAmount">，另有 {{ a.unresolvedAmount }} 元待確認歸屬</span>。
+              </p>
+            </div>
+            <div v-if="billingPreview.warnings.length" class="rounded-xl bg-amber-50 dark:bg-amber-900/20 p-3 text-amber-800 dark:text-amber-200">
+              <p class="font-bold mb-1">需注意</p>
+              <ul class="space-y-1 text-xs"><li v-for="w in billingPreview.warnings" :key="w">{{ w }}</li></ul>
+            </div>
+            <details v-if="billingPreview.skipped.length" class="text-xs text-text-secondary-light">
+              <summary class="cursor-pointer">略過原因（{{ billingPreview.skipped.length }}）</summary>
+              <ul class="space-y-1 mt-2"><li v-for="w in billingPreview.skipped" :key="w">{{ w }}</li></ul>
+            </details>
+            <p v-if="priorSummary.total > 0" class="text-xs text-red-600 dark:text-red-300">前期尚欠 NT$ {{ priorSummary.total.toLocaleString() }}，維持原帳單，不併入本次金額。</p>
+          </template>
         </div>
-        <div v-if="creditTenants.length > 0"
-          class="rounded-xl border border-blue-200 dark:border-blue-900/40 bg-blue-50 dark:bg-blue-900/10 p-3 space-y-1.5">
-          <p class="text-xs font-bold text-blue-700 dark:text-blue-300">以下租客有預收餘額，將自動沖抵新帳單</p>
-          <ul class="text-xs text-blue-700 dark:text-blue-300 space-y-0.5 max-h-24 overflow-y-auto">
-            <li v-for="t in creditTenants" :key="t.id" class="flex justify-between gap-2">
-              <span class="truncate">{{ t.name }} {{ t.room }}</span>
-              <span class="shrink-0 font-bold">NT$ {{ (t.credit || 0).toLocaleString() }}</span>
-            </li>
-          </ul>
-        </div>
-        <div class="flex gap-3 pt-2">
-          <button @click="showGenerateConfirm = false"
-            class="flex-1 py-2.5 rounded-xl border border-ink-200 dark:border-ink-600 text-sm font-medium text-ink-600 dark:text-ink-300 hover:bg-surface-light dark:hover:bg-surface-dark transition-colors">
-            取消
-          </button>
-          <button @click="confirmGenerateBills"
-            class="flex-1 py-2.5 rounded-xl bg-ink-700 text-white text-sm font-bold hover:bg-ink-800 transition-colors">
-            確認生成
+        <div class="p-6 shrink-0 flex flex-wrap gap-3">
+          <p v-if="generatingBills" role="status" class="w-full text-xs">已確認完成 {{ completedBillingBatches }} 批，處理中…</p>
+          <button @click="closeBillingPreview" :disabled="generatingBills || preparingBills"
+            class="flex-1 py-2.5 rounded-xl border border-ink-200 dark:border-ink-600 text-sm disabled:opacity-50">關閉</button>
+          <button v-if="billingError && !pendingBillingBatches.length" @click="prepareGenerateBills" :disabled="preparingBills || generatingBills"
+            class="flex-1 py-2.5 rounded-xl bg-ink-700 text-white text-sm disabled:opacity-50">重新預覽</button>
+          <button v-else @click="confirmGenerateBills" :disabled="preparingBills || generatingBills || !pendingBillingBatches.length"
+            class="flex-1 py-2.5 rounded-xl bg-ink-700 text-white text-sm font-bold disabled:opacity-50">
+            {{ generatingBills ? '出帳中…' : billingError ? '重試未完成批次' : '確認出帳' }}
           </button>
         </div>
       </div>
@@ -746,7 +752,7 @@ import {
   collection, onSnapshot, addDoc, updateDoc, deleteDoc,
   doc, serverTimestamp, getDocs, query, orderBy, where, limit,
   writeBatch, arrayUnion, increment,
-  type Unsubscribe, type WriteBatch,
+  type Unsubscribe,
 } from 'firebase/firestore'
 import MonthPicker from '../../components/financials/MonthPicker.vue'
 import BillTransactionModal from '../../components/financials/BillTransactionModal.vue'
@@ -757,12 +763,10 @@ import ElectricityStatsCard from '../../components/financials/ElectricityStatsCa
 import PropertyCostsModal from '../../components/financials/PropertyCostsModal.vue'
 import AnnualSummary from '../../components/financials/AnnualSummary.vue'
 import ReceivePaymentModal from '../../components/financials/ReceivePaymentModal.vue'
+import { previewBills, commitBills, type BillingPreview, type BillingBatch, type GeneratedBillItem } from '../../services/billingGenerationService'
+import { billingBatches } from '../../utils/financials/billingBatches'
 import {
-  shouldGenerateRent, getBillingAmount, getBillingDescription, publicMeterShare,
-  addMonths, coveragePeriod,
-} from '../../utils/meter/billing'
-import {
-  collectedOf, outstandingOf, isPartial, allocatePayment, paymentUpdate, paymentEntry, applyCredit,
+  collectedOf, outstandingOf, isPartial, allocatePayment, paymentUpdate, paymentEntry,
 } from '../../utils/financials/payments'
 import {
   buildTenantGroups, uncollectedIncome, isCollected, OTHER_GROUP,
@@ -773,7 +777,6 @@ import {
   type TransactionHistory, type TransactionForm, type TaipowerForm, type TaipowerBill,
   type ElectricityStats,
 } from '../../components/financials/types'
-import { getPublicMeters } from '../../services/publicMeterService'
 import { getMeterGroups } from '../../services/meterGroupService'
 import { getRooms } from '../../services/roomService'
 import { getProperties } from '../../services/propertyService'
@@ -842,17 +845,6 @@ const editingId = ref<string | null>(null)
 const activeMenuId = ref<string | null>(null)
 const selectedHistory = ref<TransactionHistory[]>([])
 
-interface GeneratedBillItem {
-  target: string
-  category: string
-  description: string
-  amount: number
-  /** tenants 文件 id，用來對前期未繳 */
-  tenantKey?: string
-  /** 預收餘額沖抵額；沒有沖抵時不帶此欄位（Firestore 不接受 undefined） */
-  creditApplied?: number
-}
-
 interface GenerateLog {
   id: string
   landlordId: string
@@ -910,6 +902,7 @@ const generatedTenantTotals = computed(() => {
 let unsubscribeBills: Unsubscribe | null = null
 let unsubscribeOpenBills: Unsubscribe | null = null
 let unsubscribeTaipower: Unsubscribe | null = null
+let unsubscribeTenants: Unsubscribe | null = null
 
 const form = ref<TransactionForm>({
   type: 'income', amount: undefined, date: '',
@@ -922,15 +915,16 @@ const initDataListeners = (uid: string) => {
   if (unsubscribeBills) unsubscribeBills()
   if (unsubscribeTaipower) unsubscribeTaipower()
   unsubscribeOpenBills?.()
+  unsubscribeTenants?.()
   loading.value = true
 
-  // 一次性讀取租客清單供表單使用
-  getDocs(query(collection(db, 'tenants'), where('landlordId', '==', uid))).then(snap => {
+  // 出帳與收款由交易更新餘額，畫面訂閱實際數值，避免保留舊預收款。
+  unsubscribeTenants = onSnapshot(query(collection(db, 'tenants'), where('landlordId', '==', uid)), snap => {
     tenantsList.value = snap.docs.map(d => {
       const data = d.data()
       return { id: d.id, name: data.name || '', room: data.room || '', uid: data.uid || null, credit: Number(data.credit) || 0 }
     })
-  })
+  }, err => { console.error('讀取租客餘額失敗:', err) })
 
   // 一次性讀取總表與房間：電費盈虧須逐台電總表（棟）各自結算，
   // 且舊帳單沒有 groupId，需靠 房號 → subGroupId → 總表 回溯歸屬
@@ -986,12 +980,13 @@ onMounted(() => {
     initLogsListener(authStore.effectiveUid, currentMonth.value)
   }
 })
-watch(() => authStore.user, (u) => {
-  if (u) {
-    initDataListeners(u.uid)
-    initLogsListener(u.uid, currentMonth.value)
+watch(() => authStore.effectiveUid, (uid) => {
+  if (uid) {
+    initDataListeners(uid)
+    initLogsListener(uid, currentMonth.value)
   } else {
     unsubscribeBills?.(); unsubscribeTaipower?.(); unsubscribeLogs?.(); unsubscribeOpenBills?.()
+    unsubscribeTenants?.(); tenantsList.value = []
     transactions.value = []; openBills.value = []; generateLogs.value = []; loading.value = false
   }
 })
@@ -1000,7 +995,7 @@ watch(currentMonth, (month) => {
   showGeneratedSummary.value = false
   generatedWarnings.value = []
 })
-onUnmounted(() => { unsubscribeBills?.(); unsubscribeTaipower?.(); unsubscribeLogs?.(); unsubscribeOpenBills?.() })
+onUnmounted(() => { unsubscribeBills?.(); unsubscribeTaipower?.(); unsubscribeLogs?.(); unsubscribeOpenBills?.(); unsubscribeTenants?.() })
 
 // --- Computed ---
 const monthlyTransactions = computed(() =>
@@ -1020,7 +1015,6 @@ const priorSummary = computed(() => {
 })
 
 const creditOf = (tenantDocId: string) => tenantsList.value.find(t => t.id === tenantDocId)?.credit || 0
-const creditTenants = computed(() => tenantsList.value.filter(t => (t.credit || 0) > 0))
 
 const stats = computed(() => {
   let income = 0, incomeCount = 0, pending = 0, pendingCount = 0, expense = 0, expenseCount = 0
@@ -1219,10 +1213,6 @@ const applyReceipt = async (opts: {
     })
   }
   await batch.commit()
-  if (leftover > 0) {
-    const t = tenantsList.value.find(x => x.id === opts.tenantDocId)
-    if (t) t.credit = (t.credit || 0) + leftover
-  }
   return leftover
 }
 
@@ -1289,201 +1279,81 @@ const billLateDays = (item: Transaction): number => {
   return diff > 0 ? diff : 0
 }
 
-// --- Generate Monthly Bills ---
-const GENERATE_ORDER: Record<string, number> = { '租金收入': 0, '電費': 1, '公共電費': 2 }
-const FREQUENCY_LABELS: Record<string, string> = { quarterly: '季繳', semiannual: '半年繳', yearly: '年繳' }
+// --- Generate Monthly Bills: server preview + atomic commits ---
+const preparingBills = ref(false)
+const generatingBills = ref(false)
+const billingPreview = ref<BillingPreview | null>(null)
+const previewOwner = ref('')
+const pendingBillingBatches = ref<BillingBatch[]>([])
+const completedBillingBatches = ref(0)
+const billingError = ref('')
+const previewItems = computed(() => billingPreview.value?.plans.flatMap(p => p.items) ?? [])
+const previewAmount = computed(() => previewItems.value.reduce((sum, i) => sum + i.amount, 0))
+const previewCredit = computed(() => billingPreview.value?.plans.reduce((sum, p) => sum + p.creditUsed, 0) ?? 0)
 
-const confirmGenerateBills = async () => {
-  showGenerateConfirm.value = false
-  await generateMonthlyBills()
+const closeBillingPreview = () => {
+  if (!generatingBills.value && !preparingBills.value) showGenerateConfirm.value = false
+}
+const prepareGenerateBills = async () => {
+  if (preparingBills.value || generatingBills.value || !authStore.user) return
+  preparingBills.value = true
+  billingError.value = ''
+  billingPreview.value = null
+  pendingBillingBatches.value = []
+  completedBillingBatches.value = 0
+  showGenerateConfirm.value = true
+  const uid = authStore.effectiveUid
+  const month = currentMonth.value
+  previewOwner.value = uid
+  try {
+    const preview = await previewBills(uid, month)
+    if (uid !== authStore.effectiveUid || month !== currentMonth.value) {
+      billingError.value = '房東或月份已變更，請重新預覽'
+      return
+    }
+    billingPreview.value = preview
+    pendingBillingBatches.value = billingBatches(preview.plans)
+  } catch (e) {
+    billingError.value = e instanceof Error ? e.message : '無法取得出帳預覽，請稍後重試'
+  } finally {
+    preparingBills.value = false
+  }
 }
 
-const generateMonthlyBills = async () => {
-  if (!authStore.user) return
-  loading.value = true
+const confirmGenerateBills = async () => {
+  if (generatingBills.value || !billingPreview.value || !pendingBillingBatches.value.length) return
+  const preview = billingPreview.value
+  if (previewOwner.value !== authStore.effectiveUid || preview.month !== currentMonth.value) {
+    billingError.value = '房東或月份已變更，請重新預覽'
+    pendingBillingBatches.value = []
+    return
+  }
+  generatingBills.value = true
+  billingError.value = ''
+  if (completedBillingBatches.value === 0) generatedSummary.value = []
+  generatedWarnings.value = [...preview.warnings, ...preview.skipped]
   try {
-    const uid = authStore.effectiveUid
-    const month = currentMonth.value
-    const payDay = String(authStore.userProfile?.settings?.paymentDay ?? 5).padStart(2, '0')
-    const dueDate = `${month}-${payDay}`
-    const [tenantsSnap, readingsSnap, roomsSnap, pubMeters, recentSnap] = await Promise.all([
-      getDocs(query(collection(db, 'tenants'), where('landlordId', '==', uid))),
-      getDocs(query(collection(db, 'meter_readings'),
-        where('landlordId', '==', uid),
-        where('periodEnd', '>=', `${month}-01`),
-        where('periodEnd', '<=', `${month}-31`))),
-      getDocs(query(collection(db, 'rooms'), where('landlordId', '==', uid))),
-      getPublicMeters(uid),
-      // 近 12 個月的帳單：季繳／年繳租金單可能涵蓋本月，且不能倚賴月度監聽（limit 200 會截斷）
-      getDocs(query(collection(db, 'bills'),
-        where('landlordId', '==', uid),
-        where('date', '>=', `${addMonths(month, -12)}-01`),
-        where('date', '<=', `${month}-31`))),
-    ])
-    const warnings: string[] = []
-    // 只對還在租的房客生成帳單（leaseEnd 為空或 >= 本月）。
-    // 退租時 leaseEnd 會被清空，不排除 isHistorical 的話已退租的人也會被出帳
-    const allTenants = tenantsSnap.docs.map(d => ({ id: d.id, ...d.data() as any }))
-    const tenants = allTenants.filter((t: any) =>
-      !t.isHistorical && (!t.leaseEnd || t.leaseEnd >= `${month}-01`))
-    allTenants
-      .filter((t: any) => !t.isHistorical && t.room && t.leaseEnd && t.leaseEnd < `${month}-01`)
-      .forEach((t: any) => warnings.push(`${t.name} ${t.room}：租約已於 ${t.leaseEnd} 到期，本月未出帳（續約後請更新租期）`))
-    const readings = readingsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
-    const roomDocs = roomsSnap.docs.map(d => ({ id: d.id, ...d.data() as any }))
-    const recentBills = recentSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction))
-    const recentRent = recentBills.filter(b => b.type === 'income' && b.category === '租金收入')
-    const billedUsageIds = new Set(recentBills.map(b => b.relatedUsageId).filter(Boolean))
-    // 電費帳單歸屬的台電總表（棟）：房間 → subGroupId → 總表。
-    // 生成時就寫死，免得日後房間改綁子群組時舊帳單跟著跑掉。
-    const sgIndex = buildSubGroupIndex(meterGroups.value)
-    const roomGroupId = (roomId: string) => {
-      const room = roomDocs.find(r => r.id === roomId)
-      return (room?.subGroupId && sgIndex.get(room.subGroupId)) || UNGROUPED_ID
+    while (pendingBillingBatches.value.length) {
+      const batch = pendingBillingBatches.value[0]!
+      // Keep this operationId on an uncertain network response; the server replays its receipt.
+      const result = await commitBills(previewOwner.value, preview.month, batch)
+      generatedSummary.value.push(...result.items)
+      pendingBillingBatches.value.shift()
+      completedBillingBatches.value++
+      showGeneratedSummary.value = generatedSummary.value.length > 0
     }
-    const newBills: { tenant: any; item: GeneratedBillItem; data: Record<string, any> }[] = []
-    const addBill = (tenant: any, item: GeneratedBillItem, extra: Record<string, any>) => {
-      newBills.push({
-        tenant,
-        item: { ...item, tenantKey: tenant.id },
-        data: {
-          tenantId: tenant.uid || null, relatedTenantDocId: tenant.id, landlordId: uid,
-          type: 'income', category: item.category, target: item.target,
-          description: item.description, amount: item.amount,
-          status: 'pending', dueDate, history: [], createdAt: serverTimestamp(),
-          ...extra,
-        },
-      })
+    showGenerateConfirm.value = false
+    toast.success('成功產生 ' + generatedSummary.value.length + ' 筆帳單')
+  } catch (e) {
+    const code = (e as { code?: string }).code
+    billingError.value = (e instanceof Error ? e.message : '出帳連線中斷，請重試未完成批次')
+      + '。已確認完成 ' + generatedSummary.value.length + ' 筆；不確定是否完成的批次可安全重試。'
+    if (code === 'functions/failed-precondition' || code === 'functions/permission-denied'
+      || code === 'functions/invalid-argument' || code === 'functions/resource-exhausted') {
+      pendingBillingBatches.value = []
     }
-
-    // 租金：先看本月是否已被既有租金單涵蓋，改過繳費方式也不會重複收或空窗
-    tenants.forEach((tenant: any) => {
-      const label = `${tenant.name} ${tenant.room}`
-      const mine = recentRent.filter(b =>
-        b.relatedTenantDocId === tenant.id || (!!tenant.uid && b.tenantId === tenant.uid))
-      if (!shouldGenerateRent(tenant, month, mine)) {
-        const freq = tenant.paymentFrequency || 'monthly'
-        if (freq !== 'monthly' && !tenant.leaseStart && mine.length === 0) {
-          warnings.push(`${label}：繳費方式為${FREQUENCY_LABELS[freq] ?? freq}但沒有起租日，無法判斷出帳月份，未出租金`)
-        }
-        return
-      }
-      const amount = getBillingAmount(tenant)
-      if (amount <= 0) {
-        warnings.push(`${label}：尚未設定租金，未出租金`)
-        return
-      }
-      const cover = coveragePeriod(tenant.paymentFrequency, month)
-      addBill(tenant,
-        { target: label, category: '租金收入', description: getBillingDescription(tenant, month), amount },
-        { date: `${month}-01`, coverFrom: cover.from, coverTo: cover.to })
-    })
-
-    readings.forEach((reading: any) => {
-      if (reading.meterType === 'public') return // 公共表抄表走下方分攤邏輯
-      const matched: any = tenants.find((t: any) => t.room === reading.roomName)
-      if (billedUsageIds.has(reading.id) || !(reading.cost > 0) || !matched) return
-      addBill(matched, {
-        target: `${matched.name} ${reading.roomName}`, category: '電費',
-        description: `${month} 電費 (${reading.periodStart}~${reading.periodEnd} 用電 ${reading.usage}度)`,
-        amount: Number(reading.cost) || 0,
-      }, { relatedUsageId: reading.id, groupId: roomGroupId(reading.roomId), date: reading.periodEnd })
-    })
-
-    // 公共電費分攤：每顆公共表費用 ÷ 子群組全部房間數（含空房，空房份額房東吸收）
-    pubMeters.forEach(pm => {
-      if (pm.landlordPays) return // 房東負擔，不出帳
-      const reading: any = readings.find((r: any) => r.meterType === 'public' && r.roomId === pm.id)
-      if (!reading) {
-        warnings.push(`公共電表「${pm.name}」本月無抄表紀錄，未生成分攤帳單`)
-        return
-      }
-      if (!(reading.cost > 0)) return
-      const sgRooms = roomDocs.filter(r => (r.subGroupId || '') === pm.subGroupId)
-      if (sgRooms.length === 0) {
-        warnings.push(`公共電表「${pm.name}」的子群組內沒有綁定房間，未生成分攤帳單`)
-        return
-      }
-      const share = publicMeterShare(reading.cost, sgRooms.length)
-      if (share <= 0) return
-      sgRooms.forEach(room => {
-        const matched: any = tenants.find((t: any) => t.room === room.name)
-        if (!matched) return // 空房份額房東吸收
-        const dedupKey = `${reading.id}_${room.id}`
-        if (billedUsageIds.has(dedupKey)) return
-        addBill(matched, {
-          target: `${matched.name} ${room.name}`, category: '公共電費',
-          description: `${month} 公共電費分攤（${pm.name} $${reading.cost} ÷ ${sgRooms.length} 房）`,
-          amount: share,
-        }, { relatedUsageId: dedupKey, groupId: pm.groupId || UNGROUPED_ID, date: reading.periodEnd })
-      })
-    })
-    generatedWarnings.value = warnings
-
-    // 預收餘額沖抵：逐租客把新帳單依租金 → 電費 → 公共電費排好，用餘額依序扣
-    const today = new Date().toISOString().split('T')[0]!
-    const creditUsed = new Map<string, number>()
-    const byTenant = new Map<string, typeof newBills>()
-    for (const nb of newBills) byTenant.set(nb.tenant.id, [...(byTenant.get(nb.tenant.id) ?? []), nb])
-    byTenant.forEach((list, tenantDocId) => {
-      const credit = Math.round(Number(list[0]!.tenant.credit) || 0)
-      if (credit <= 0) return
-      list.sort((a, b) => (GENERATE_ORDER[a.item.category] ?? 9) - (GENERATE_ORDER[b.item.category] ?? 9))
-      const { applied, remaining } = applyCredit(list.map(nb => nb.item.amount), credit)
-      list.forEach((nb, i) => {
-        const used = applied[i] ?? 0
-        if (used <= 0) return
-        nb.item.creditApplied = used
-        Object.assign(nb.data, {
-          paidAmount: used,
-          payments: [paymentEntry(used, today, 'credit', '預收餘額沖抵')],
-          ...(used >= nb.item.amount ? { status: 'completed', paidAt: today } : {}),
-        })
-      })
-      creditUsed.set(tenantDocId, credit - remaining)
-    })
-
-    // 帳單與餘額扣減同批寫入：不會發生「帳單沒建成、餘額卻已扣掉」
-    const writes: ((b: WriteBatch) => void)[] = [
-      ...newBills.map(nb => (b: WriteBatch) => { b.set(doc(collection(db, 'bills')), nb.data) }),
-      ...Array.from(creditUsed, ([id, used]) => (b: WriteBatch) => {
-        b.update(doc(db, 'tenants', id), {
-          credit: increment(-used),
-          creditLog: arrayUnion({
-            amount: -used, date: today, source: 'credit', note: `${month} 帳單沖抵`, at: new Date().toISOString(),
-          }),
-        })
-      }),
-    ]
-    for (let i = 0; i < writes.length; i += 450) {
-      const b = writeBatch(db)
-      writes.slice(i, i + 450).forEach(w => w(b))
-      await b.commit()
-    }
-    creditUsed.forEach((used, id) => {
-      const t = tenantsList.value.find(x => x.id === id)
-      if (t) t.credit = Math.max(0, (t.credit || 0) - used)
-    })
-
-    const count = newBills.length
-    const newItems = newBills.map(nb => nb.item)
-    if (count > 0) {
-      generatedSummary.value = newItems
-      showGeneratedSummary.value = true
-      await addDoc(collection(db, 'bill_generate_logs'), {
-        landlordId: uid,
-        month,
-        generatedAt: serverTimestamp(),
-        billCount: count,
-        items: newItems,
-      })
-    }
-    toast[count > 0 ? 'success' : 'info'](count > 0 ? `成功產生 ${count} 筆帳單` : '本月帳單皆已存在')
-  } catch (err) {
-    console.error('generateMonthlyBills error:', err)
-    toast.error('產生失敗，請稍後再試')
   } finally {
-    loading.value = false
+    generatingBills.value = false
   }
 }
 

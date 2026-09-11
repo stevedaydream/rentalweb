@@ -143,13 +143,13 @@ describe('publicShare：公共電費分攤', () => {
     expect(out[0]!.totalCost).toBe(220) // 但仍計入該區塊總電費
   })
 
-  it('同一子群組多顆公共表時先加總再除（取整只做一次）', () => {
+  it('同一子群組多顆公共表時逐表向下取整，尾差由房東負擔', () => {
     const entries = [
       occupiedRoom('401', '4F', 100), occupiedRoom('402', '4F', 100), occupiedRoom('403', '4F', 100),
       publicMeter('pmA', '4F', 10), publicMeter('pmB', '4F', 11),
     ]
-    // (10 + 11) ÷ 3 = 7；若逐表取整則為 round(10/3)+round(11/3) = 3+4 = 7（此例相同）
-    expect(buildSections(entries, subGroups, costOf)[0]!.publicShare).toBe(7)
+    // floor(10/3) + floor(11/3) = 3 + 3 = 6，兩表尾差共 3 元由房東負擔。
+    expect(buildSections(entries, subGroups, costOf)[0]!.publicShare).toBe(6)
   })
 
   it('沒有公共表時分攤為 0', () => {

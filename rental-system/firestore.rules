@@ -99,6 +99,12 @@ service cloud.firestore {
       allow create: if isAdmin() || isCreatingAsLandlord();
     }
 
+    // 出帳重試憑據由 Cloud Functions 與帳單同交易建立，不允許客戶端偽造或刪改。
+    match /billing_runs/{runId} {
+      allow read: if isAdmin() || isLandlordData();
+      allow write: if false;
+    }
+
     // 帳務帳單 (bills)
     match /bills/{id} {
       allow read: if isAdmin()

@@ -34,6 +34,12 @@ if (!getApps().length) {
 }
 
 // --- 輔助函式 ---
+// 出帳在伺服端交易中完成；preview 與 commit 使用同一份規劃邏輯。
+exports.generateMonthlyBills = onCall({ region: 'asia-east1', timeoutSeconds: 120 }, async request => {
+  const { handleBilling } = await import('./billing/service.mjs');
+  return handleBilling(getFirestore(), FieldValue, request);
+});
+
 function applyTemplate(template, data) {
   return template.replace(/{{(.*?)}}/g, (_, key) => {
     const value = data[key.trim()];
