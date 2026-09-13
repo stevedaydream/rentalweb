@@ -125,9 +125,11 @@ export const buildElectricityStatsList = (input: ElectricityStatsInput): Electri
     const groupTaipower = taipowerBills.filter(b => groupOfTaipower(b) === group.id)
     const groupElec = elecBills.filter(b => groupOfBill(b) === group.id)
 
-    // 錨定「迄月 ≤ 檢視月份」中最近的一張；不倚賴查詢回傳順序
+    // 錨定迄月為檢視月份或前一個月（雙月帳期的次月沿用同一期）中最近的一張；
+    // 再更早的帳單屬於已經過去的帳期，不能無限期沿用，否則漏登一期會一路顯示舊盈虧
+    const recentMonths = [viewMonth, prevMonthOf(viewMonth)]
     const bill = groupTaipower
-      .filter(b => b.month && b.month <= viewMonth)
+      .filter(b => recentMonths.includes(b.month))
       .reduce<TaipowerBill | undefined>(
         (best, b) => (!best || b.month > best.month ? b : best),
         undefined,

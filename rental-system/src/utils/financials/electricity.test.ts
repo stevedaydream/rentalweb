@@ -98,6 +98,15 @@ describe('buildElectricityStatsList - 期間錨定台電帳單迄月', () => {
     expect(aug!.profit).toBe(jul!.profit)
   })
 
+  it('迄月兩個月後（下一期迄月）不再沿用舊帳單，改為本期等待帳單', () => {
+    const [sep] = run('2026-09', [A], taipower, bills)
+    expect(sep!.taipowerBill).toBeUndefined()
+    expect(sep!.statusLabel).toBe('等待帳單')
+    expect(sep!.periodStr).toBe('2026-08 ~ 2026-09')
+    expect(sep!.profit).toBe(0)
+    expect(sep!.billCount).toBe(1) // 只有 08 一筆
+  })
+
   it('不會把尚未結算的次月電費提前算進來', () => {
     const [aug] = run('2026-08', [A], taipower, bills)
     expect(aug!.billCount).toBe(3) // 06 一筆 + 07 兩筆，不含 08
