@@ -1,26 +1,32 @@
 <template>
   <div class="max-w-4xl mx-auto space-y-6">
     
-    <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">系統設定</h1>
-        <p class="text-text-secondary-light">管理您的帳戶資訊與系統偏好</p>
-      </div>
-      <button 
-        @click="handleSave"
-        :disabled="isSaving"
-        class="px-6 py-2 bg-gold-500 text-white rounded-xl shadow-sm hover:bg-gold-600 transition-colors font-medium flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+    <div>
+      <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">系統設定</h1>
+      <p class="text-text-secondary-light">管理您的帳戶資訊與系統偏好</p>
+    </div>
+
+    <div role="tablist" aria-label="設定分類" class="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-x-auto">
+      <button
+        v-for="tab in tabs"
+        :id="`settings-tab-${tab.id}`"
+        :key="tab.id"
+        type="button"
+        role="tab"
+        :aria-selected="activeTab === tab.id"
+        :aria-controls="`settings-panel-${tab.id}`"
+        class="relative shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
+        :class="activeTab === tab.id ? 'bg-white dark:bg-card-dark shadow text-text-primary-light dark:text-white' : 'text-text-secondary-light hover:text-text-primary-light dark:hover:text-white'"
+        @click="selectTab(tab.id)"
       >
-        <span v-if="isSaving" class="material-symbols-outlined animate-spin mr-2 text-[20px]">progress_activity</span>
-        <span v-else class="material-symbols-outlined mr-2 text-[20px]">save</span>
-        {{ isSaving ? '儲存中...' : '儲存變更' }}
+        <span class="material-symbols-outlined text-[18px]" aria-hidden="true">{{ tab.icon }}</span>
+        {{ tab.label }}
+        <span v-if="tab.dirty?.value" class="w-2 h-2 rounded-full bg-amber-500" aria-label="有未儲存的變更"></span>
       </button>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      
-      <div class="lg:col-span-2 space-y-6">
-        
+    <!-- ===== 帳戶 ===== -->
+    <div v-if="activeTab === 'account'" id="settings-panel-account" role="tabpanel" aria-labelledby="settings-tab-account" class="space-y-6">
         <section class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800">
           <h2 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center mb-4">
             <span class="material-symbols-outlined mr-2 text-blue-500">person</span>
@@ -90,13 +96,52 @@
               <p class="text-xs text-text-secondary-light mt-1 text-right">{{ formData.description.length }}/200</p>
             </div>
           </div>
+          <div :class="saveBarClass">
+            <p v-if="accountDirty" class="text-xs text-amber-600 dark:text-amber-400 mr-auto">有未儲存的變更</p>
+            <button type="button" :disabled="isSaving || !accountDirty" :class="saveButtonClass" @click="handleSave">
+              <span class="material-symbols-outlined text-[18px]" :class="{ 'animate-spin': isSaving }" aria-hidden="true">{{ isSaving ? 'progress_activity' : 'save' }}</span>
+              {{ isSaving ? '儲存中...' : '儲存帳戶資料' }}
+            </button>
+          </div>
         </section>
 
         <section class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800">
           <h2 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center mb-4">
+            <span class="material-symbols-outlined mr-2 text-red-500">shield</span>
+            帳號安全
+          </h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div v-if="!authStore.impersonatingLandlord">
+              <button
+                v-if="canResetPassword"
+                type="button"
+                :disabled="sendingReset"
+                class="w-full py-2 px-4 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left flex items-center disabled:opacity-50"
+                @click="sendResetEmail"
+              >
+                <span class="material-symbols-outlined text-[18px] mr-2" aria-hidden="true">lock_reset</span>
+                {{ sendingReset ? '寄送中...' : '寄送重設密碼信' }}
+              </button>
+              <p v-else class="text-xs text-text-secondary-light py-2">您使用 Google 登入，密碼請至 Google 帳戶管理。</p>
+            </div>
+            <button
+              @click="handleLogout"
+              class="w-full py-2 px-4 border border-red-100 dark:border-red-900/30 bg-red-50 dark:bg-red-900/10 rounded-lg text-sm font-medium text-red-600 hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors text-left flex items-center"
+            >
+              <span class="material-symbols-outlined text-[18px] mr-2" aria-hidden="true">logout</span>
+              登出裝置
+            </button>
+          </div>
+        </section>
+    </div>
+
+    <!-- ===== 收款與帳單 ===== -->
+    <div v-if="activeTab === 'billing'" id="settings-panel-billing" role="tabpanel" aria-labelledby="settings-tab-billing" class="space-y-6">
+        <section class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800">
+          <h2 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center mb-4">
             <span class="material-symbols-outlined mr-2 text-green-500">account_balance</span>
             預設收款帳戶
-            <span class="ml-2 text-xs font-normal text-text-secondary-light bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">用於收據顯示</span>
+            <span class="ml-2 text-xs font-normal text-text-secondary-light bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">顯示於帳單與收據</span>
           </h2>
           <div class="space-y-4">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -135,8 +180,16 @@
                 placeholder="預設為您的姓名"
               >
             </div>
-            <div class="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-4">
-              <p class="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">每月帳單週期</p>
+          </div>
+        </section>
+
+        <section class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800">
+          <h2 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center mb-4">
+            <span class="material-symbols-outlined mr-2 text-gold-500">event_repeat</span>
+            每月帳單週期
+          </h2>
+          <div>
+            <div class="space-y-4">
 
               <div class="flex items-center gap-2">
                 <span class="material-symbols-outlined text-[18px] text-blue-400 shrink-0">electric_meter</span>
@@ -185,50 +238,20 @@
               </div>
             </div>
           </div>
-        </section>
-
-      </div>
-
-      <div class="lg:col-span-1 space-y-6">
-
-        <section class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800">
-          <h2 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center mb-4">
-            <span class="material-symbols-outlined mr-2 text-yellow-500">notifications</span>
-            通知設定
-          </h2>
-          <div class="space-y-4">
-            <label class="flex items-center justify-between cursor-pointer group">
-              <span class="text-sm font-medium text-text-secondary-light group-hover:text-text-primary-light transition-colors">接收 Email 通知</span>
-              <input type="checkbox" v-model="formData.notifyEmail" class="w-5 h-5 rounded border-gray-300 text-gold-500 focus:ring-gold-500">
-            </label>
+          <div :class="saveBarClass">
+            <p v-if="billingDirty" class="text-xs text-amber-600 dark:text-amber-400 mr-auto">有未儲存的變更</p>
+            <button type="button" :disabled="isSaving || !billingDirty" :class="saveButtonClass" @click="handleSave">
+              <span class="material-symbols-outlined text-[18px]" :class="{ 'animate-spin': isSaving }" aria-hidden="true">{{ isSaving ? 'progress_activity' : 'save' }}</span>
+              {{ isSaving ? '儲存中...' : '儲存收款與帳單設定' }}
+            </button>
           </div>
         </section>
-
-        <section class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800">
-          <h2 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center mb-4">
-            <span class="material-symbols-outlined mr-2 text-red-500">shield</span>
-            帳號安全
-          </h2>
-          <div class="space-y-3">
-             <button class="w-full py-2 px-4 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-medium text-text-secondary-light hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left flex items-center">
-               <span class="material-symbols-outlined text-[18px] mr-2">lock_reset</span>
-               重設密碼
-             </button>
-             <button 
-                @click="handleLogout"
-                class="w-full py-2 px-4 border border-red-100 dark:border-red-900/30 bg-red-50 dark:bg-red-900/10 rounded-lg text-sm font-medium text-red-600 hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors text-left flex items-center"
-              >
-               <span class="material-symbols-outlined text-[18px] mr-2">logout</span>
-               登出裝置
-             </button>
-          </div>
-        </section>
-
-      </div>
     </div>
 
+    <!-- ===== LINE：先設定 Bot，才能綁定個人通知 ===== -->
+    <div v-if="activeTab === 'line'" id="settings-panel-line" role="tabpanel" aria-labelledby="settings-tab-line" class="flex flex-col gap-6">
     <!-- LINE 個人通知綁定 -->
-    <section class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-blue-200 dark:border-blue-800">
+    <section class="order-last bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-blue-200 dark:border-blue-800">
       <div class="flex items-start justify-between mb-1">
         <h2 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center">
           <svg class="w-5 h-5 mr-2 text-[#06C755]" viewBox="0 0 24 24" fill="currentColor"><path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.105.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/></svg>
@@ -245,7 +268,7 @@
         <span class="material-symbols-outlined text-blue-500 text-[20px] shrink-0 mt-0.5">info</span>
         <p class="text-sm text-blue-700 dark:text-blue-300">
           這裡綁定的是<strong>你自己的 LINE 帳號</strong>，讓系統能主動通知你（例如：租客繳費截圖上傳）。<br>
-          與下方「LINE Bot 整合設定」不同，Bot 設定是租客與你溝通的管道。
+          與上方「LINE Bot 整合設定」不同，Bot 設定是租客與你溝通的管道；請先完成 Bot 設定再綁定。
         </p>
       </div>
 
@@ -491,7 +514,10 @@
         </p>
       </div>
     </section>
+    </div>
 
+    <!-- ===== 簽名與點交 ===== -->
+    <div v-if="activeTab === 'documents'" id="settings-panel-documents" role="tabpanel" aria-labelledby="settings-tab-documents" class="flex flex-col gap-6">
     <!-- ===== 點交物品主檔 ===== -->
     <section class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gold-200 dark:border-gold-800/40">
       <h2 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center mb-1">
@@ -583,7 +609,7 @@
     </section>
 
     <!-- ===== 我的簽名 / 印章 ===== -->
-    <section class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gold-200 dark:border-gold-800/40">
+    <section class="order-first bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gold-200 dark:border-gold-800/40">
       <h2 class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex items-center mb-1">
         <span class="material-symbols-outlined text-[20px] text-gold-500 mr-2">draw</span>
         我的簽名 / 印章
@@ -629,6 +655,7 @@
         </div>
       </div>
     </section>
+    </div>
 
     <Signature v-model:visible="showSignPad" @confirm="onSignConfirm" />
 
@@ -668,10 +695,12 @@
 
 <script setup lang="ts">
 import { ref, computed, watchEffect, onMounted, onUnmounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { db, functions } from '../../firebase/config';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { db, functions, auth } from '../../firebase/config';
 import { httpsCallable } from 'firebase/functions';
 import { DEFAULT_CATALOG, type CatalogItem } from '../../utils/inventory';
 import { DEFAULT_CONDITION_CATALOG } from '../../utils/inspection';
@@ -796,29 +825,22 @@ interface SettingsForm {
   bankAccountName: string;
   billSendDay: number;
   paymentDay: number;
-  notifyEmail: boolean;
-  notifyLine: boolean;
 }
 
-const formData = ref<SettingsForm>({
-  name: '',
-  phone: '',
-  idNumber: '',
-  description: '',
-  bankCode: '',
-  bankAccount: '',
-  bankAccountName: '',
-  billSendDay: 1,
-  paymentDay: 12,
-  notifyEmail: true,
-  notifyLine: false
+const emptyForm = (): SettingsForm => ({
+  name: '', phone: '', idNumber: '', description: '',
+  bankCode: '', bankAccount: '', bankAccountName: '',
+  billSendDay: 1, paymentDay: 12,
 });
+const formData = ref<SettingsForm>(emptyForm());
+/** 最後一次載入／儲存的內容，用來判斷各分頁是否有未儲存的變更 */
+const savedForm = ref<SettingsForm>(emptyForm());
 
 // 當 userProfile 載入完成時，同步資料到表單
 watchEffect(() => {
   if (authStore.userProfile) {
     const p = authStore.userProfile;
-    formData.value = {
+    const loaded: SettingsForm = {
       name: p.name || '',
       phone: p.phone || '',
       idNumber: p.idNumber || '',
@@ -828,11 +850,51 @@ watchEffect(() => {
       bankAccountName: p.bankInfo?.name || p.name || '',
       billSendDay: p.settings?.billSendDay ?? 1,
       paymentDay: p.settings?.paymentDay ?? 12,
-      notifyEmail: p.settings?.notifyEmail ?? true,
-      notifyLine: p.settings?.notifyLine ?? false,
     };
+    savedForm.value = loaded;
+    formData.value = { ...loaded };
   }
 });
+
+const changed = (keys: (keyof SettingsForm)[]) => keys.some(k => formData.value[k] !== savedForm.value[k]);
+const accountDirty = computed(() => changed(['name', 'phone', 'idNumber', 'description']));
+const billingDirty = computed(() => changed(['bankCode', 'bankAccount', 'bankAccountName', 'billSendDay', 'paymentDay']));
+
+// ── 分頁（記在網址，重新整理或從操作說明連過來都能停在同一頁） ──
+type SettingsTab = 'account' | 'billing' | 'line' | 'documents';
+const tabs: { id: SettingsTab; label: string; icon: string; dirty?: typeof accountDirty }[] = [
+  { id: 'account', label: '帳戶', icon: 'person', dirty: accountDirty },
+  { id: 'billing', label: '收款與帳單', icon: 'account_balance', dirty: billingDirty },
+  { id: 'line', label: 'LINE', icon: 'chat' },
+  { id: 'documents', label: '簽名與點交', icon: 'draw' },
+];
+const route = useRoute();
+const router = useRouter();
+const activeTab = computed<SettingsTab>(() =>
+  tabs.some(t => t.id === route.query.tab) ? route.query.tab as SettingsTab : 'account');
+const selectTab = (id: SettingsTab) => router.replace({ query: { ...route.query, tab: id } });
+
+const saveBarClass = 'mt-6 pt-4 border-t border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-end gap-3';
+const saveButtonClass = 'px-5 py-2.5 bg-gold-500 hover:bg-gold-600 text-white font-bold rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+
+// ── 重設密碼：只有 Email/密碼登入的帳號有密碼可重設 ──
+const sendingReset = ref(false);
+const canResetPassword = computed(() =>
+  !!authStore.user?.email && !!authStore.user?.providerData?.some(p => p.providerId === 'password'));
+const sendResetEmail = async () => {
+  const email = authStore.user?.email;
+  if (!email) return;
+  sendingReset.value = true;
+  try {
+    await sendPasswordResetEmail(auth, email);
+    toast.success(`已寄送重設密碼信至 ${email}`);
+  } catch (e) {
+    console.error('Password reset error:', e);
+    toast.error('寄送失敗，請稍後再試');
+  } finally {
+    sendingReset.value = false;
+  }
+};
 
 const handleSave = async () => {
   if (!authStore.user) return;
@@ -852,16 +914,16 @@ const handleSave = async () => {
         account: formData.value.bankAccount,
         name: formData.value.bankAccountName
       },
-      settings: {
-        billSendDay: formData.value.billSendDay,
-        paymentDay: formData.value.paymentDay,
-        notifyEmail: formData.value.notifyEmail,
-        notifyLine: formData.value.notifyLine
-      },
       updatedAt: new Date().toISOString()
     };
+    const settings = { billSendDay: formData.value.billSendDay, paymentDay: formData.value.paymentDay };
 
-    await updateDoc(userRef, updateData);
+    // settings 以欄位路徑更新，不整包覆蓋，避免清掉 settings 底下其他欄位
+    await updateDoc(userRef, {
+      ...updateData,
+      'settings.billSendDay': settings.billSendDay,
+      'settings.paymentDay': settings.paymentDay,
+    });
 
     // 同步公開資料到 public_profiles（供找房頁顯示房東名稱與簡介）
     const { setDoc: sd } = await import('firebase/firestore');
@@ -873,8 +935,11 @@ const handleSave = async () => {
 
     // 更新本地 Store 的 userProfile
     if (authStore.userProfile) {
-      Object.assign(authStore.userProfile, updateData);
+      Object.assign(authStore.userProfile, updateData, {
+        settings: { ...(authStore.userProfile.settings || {}), ...settings },
+      });
     }
+    savedForm.value = { ...formData.value };
 
     toast.success('設定已儲存成功！');
   } catch (error) {
