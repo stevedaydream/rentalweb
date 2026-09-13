@@ -133,10 +133,30 @@
         </div>
       </div>
 
-      <div class="pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
+      <div v-if="paperOverlaps.length" role="alert"
+        class="p-4 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 space-y-2">
+        <p class="text-sm font-bold text-amber-800 dark:text-amber-300">此承租人已有租期重疊的合約，上傳後以下合約將標記為「已被取代」：</p>
+        <ul class="text-xs text-amber-800 dark:text-amber-300 list-disc pl-5 space-y-0.5">
+          <li v-for="c in paperOverlaps" :key="c.id">
+            {{ c.roomNo || '—' }}・{{ c.startDate }} ～ {{ c.endDate }}（{{ c.contractSource === 'paper' ? '紙本' : '電子' }}）
+          </li>
+        </ul>
+        <div class="flex justify-end gap-2 pt-1">
+          <button type="button" @click="paperOverlaps = []"
+            class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-white/60 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors">
+            取消
+          </button>
+          <button type="button" :disabled="uploadingPaper" @click="uploadPaperContract(true)"
+            class="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 disabled:opacity-50 transition-colors">
+            確認取代並上傳
+          </button>
+        </div>
+      </div>
+
+      <div v-else class="pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
         <button
           :disabled="uploadingPaper || !paperForm.tenantDocId || !paperForm.roomNo || !paperForm.startDate || !paperForm.endDate || !paperFile"
-          @click="uploadPaperContract"
+          @click="uploadPaperContract(false)"
           class="px-6 py-3 bg-gold-500 text-white rounded-xl shadow-lg shadow-gold-500/30 hover:bg-gold-600 font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
           <span v-if="uploadingPaper" class="material-symbols-outlined animate-spin text-[18px]">sync</span>
           <span v-else class="material-symbols-outlined text-[18px]">cloud_upload</span>
@@ -172,10 +192,8 @@
               <div class="flex items-center gap-2 flex-wrap">
                 <span class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ c.tenant || c.tenantName }}</span>
                 <span class="text-xs px-2 py-0.5 rounded-full font-medium"
-                  :class="contractStatus(c.endDate) === '生效中'
-                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                    : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'">
-                  {{ contractStatus(c.endDate) }}
+                  :class="stateBadgeClass(contractState(c))">
+                  {{ SIGNED_CONTRACT_LABELS[contractState(c)] }}
                 </span>
               </div>
               <p class="text-sm text-text-secondary-light mt-0.5">
@@ -294,13 +312,16 @@ import { useAuthStore } from '../../stores/auth'
 import { useToastStore } from '../../stores/toast'
 import { db, auth, storage } from '../../firebase/config'
 import {
-  collection, query, where, getDocs, addDoc, getDoc, doc, updateDoc, orderBy, serverTimestamp
+  collection, query, where, getDocs, getDoc, doc, updateDoc, orderBy, serverTimestamp
 } from 'firebase/firestore'
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import Preview from '../../components/Preview.vue'
 import ContractForm from '../../components/ContractForm.vue'
 import { printHtmlPdf } from '../../utils/contractRender'
 import { getLeaseContract } from '../../services/leaseService'
+import { findOverlappingSignedContracts, createSignedContract } from '../../services/signedContractService'
+import { signedContractState, SIGNED_CONTRACT_LABELS } from '../../utils/signedContract'
+import { taipeiToday } from '../../utils/roomLease'
 
 const authStore = useAuthStore()
 const toast = useToastStore()
@@ -347,10 +368,12 @@ const paperForm = ref({
 
 // ---- Helpers ----
 const getTodayString = () => new Date().toISOString().split('T')[0]
-function contractStatus(endDate) {
-  if (!endDate) return '未知'
-  return new Date(endDate) >= new Date() ? '生效中' : '已到期'
-}
+const contractState = (c) => signedContractState(c, signedContracts.value, taipeiToday())
+const stateBadgeClass = (state) => state === 'active'
+  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+  : state === 'upcoming'
+    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+    : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
 function formatDate(val) {
   if (!val) return '—'
   const d = val?.toDate ? val.toDate() : new Date(val)
@@ -512,18 +535,30 @@ const onPaperFileDrop = (e) => {
   if (file.size > 10 * 1024 * 1024) { toast.warning('檔案大小不可超過 10MB'); return }
   paperFile.value = file
 }
-const uploadPaperContract = async () => {
+const paperOverlaps = ref([])
+const uploadPaperContract = async (confirmedReplace = false) => {
   if (!paperFile.value || !paperForm.value.tenantDocId) return
   uploadingPaper.value = true
   try {
     const uid = authStore.effectiveUid
+    const t = tenants.value.find(x => x.id === paperForm.value.tenantDocId)
+    const found = await findOverlappingSignedContracts(uid, {
+      tenantUid: paperForm.value.tenantUid || null, tenantId: t?.idNumber || '',
+      tenant: paperForm.value.tenantName, roomNo: paperForm.value.roomNo,
+      startDate: paperForm.value.startDate, endDate: paperForm.value.endDate,
+    })
+    const seen = new Set(paperOverlaps.value.map(c => c.id))
+    if (found.length && (!confirmedReplace || found.some(c => !seen.has(c.id)))) {
+      paperOverlaps.value = found
+      return
+    }
     const ext = paperFile.value.name.split('.').pop() || 'pdf'
     const fileName = `${paperForm.value.tenantUid || paperForm.value.tenantDocId}_${Date.now()}.${ext}`
     const fileRef = storageRef(storage, `paper_contracts/${uid}/${fileName}`)
     await uploadBytes(fileRef, paperFile.value)
     const attachmentUrl = await getDownloadURL(fileRef)
 
-    await addDoc(collection(db, 'signed_contracts'), {
+    await createSignedContract({
       landlordUid: uid,
       contractSource: 'paper',
       attachmentUrl,
@@ -536,7 +571,8 @@ const uploadPaperContract = async () => {
       startDate: paperForm.value.startDate,
       endDate: paperForm.value.endDate,
       signedAt: serverTimestamp(),
-    })
+    }, found.map(c => c.id))
+    paperOverlaps.value = []
 
     toast.success('紙本合約已上傳！租客登入後可查閱並確認。')
     paperForm.value = { tenantDocId: '', tenantUid: '', tenantName: '', roomNo: '', address: '', rentfee: '', deposit: '', startDate: '', endDate: '' }

@@ -1654,10 +1654,11 @@ const saveTenant = async () => {
       const tenantDocId = form.value.id!;
       const contractsRef = collection(db, 'contracts');
 
-      const qContract = targetUid
-        ? query(contractsRef, where('landlordId', '==', authStore.effectiveUid), where('tenantId', '==', targetUid), where('status', '==', 'active'))
-        : query(contractsRef, where('landlordId', '==', authStore.effectiveUid), where('tenantDocId', '==', tenantDocId), where('status', '==', 'active'));
-      const contractSnap = await getDocs(qContract);
+      const activeBy = (field: string, value: string) => getDocs(query(contractsRef,
+        where('landlordId', '==', authStore.effectiveUid), where(field, '==', value), where('status', '==', 'active')));
+      // 綁帳號前建立的合約沒有 tenantId，只查 tenantId 會漏掉而重複建立有效合約
+      let contractSnap = targetUid ? await activeBy('tenantId', targetUid) : null;
+      if (!contractSnap || contractSnap.empty) contractSnap = await activeBy('tenantDocId', tenantDocId);
 
       const rent = form.value.rent || 0;
       const depositMonths = form.value.depositMonths || 2;

@@ -10,6 +10,13 @@ Firebase 專案 ID：`rental-system-7675e`
 
 ## 技術架構
 
+### 2026-09-13 簽署合約唯一生效
+
+- `signed_contracts` 狀態改由 `src/utils/signedContract.ts` 統一判定（房東合約記錄與租客我的合約共用）：待生效／生效中／已被取代／已到期，以台灣日期判斷。
+- 同一承租人（帳號 → 證件號碼 → 姓名＋房號）租期重疊時僅一份生效：電子簽署與紙本上傳前檢查，提示確認後新合約與舊合約 `supersededBy`／`supersededAt` 同批寫入（`signedContractService.ts`）；舊資料無標記時以較晚簽署者為生效。續約租期不重疊，顯示待生效。
+- 修 `TenantList.saveTenant`：租客綁帳號後以 `tenantId` 查不到舊合約（綁定前建立者無此欄位）時改以 `tenantDocId` 再查，避免重複建立有效 `contracts`（401／403／504／test 因此各有兩份有效合約而顯示「資料待確認」）。
+- 已校正正式資料（單次 commit＋updateTime 前置條件）：四間舊合約改 `inactive` 並記 `supersededBy`，保留 `tenants.contractId` 指向者；401／403 已收押金紀錄（2026/5/4）搬至保留合約；504 房源 leaseEnd `2026-08-31`→`2027-08-31`。回讀確認已無房號重複的有效合約。
+
 ### 2026-09-13 房源租約一致性
 
 - 房源管理以同房東的唯一有效 `contracts` 為租期依據，優先以 `roomId` 關聯，舊資料僅在房號唯一時配對；缺漏或多份有效合約顯示「資料待確認」。
@@ -100,7 +107,7 @@ rental-system/
 | `messages` | landlordId, tenantId, content, source('line'\|'web'), ... |
 | `contracts` | id, landlordId, tenantId, ... |
 | `contract_templates` | doc ID = landlordId，HTML 範本 |
-| `signed_contracts` | id, landlordUid, 簽署資料 |
+| `signed_contracts` | id, landlordUid, 簽署資料, supersededBy?(取代它的新合約 id), supersededAt? |
 | `line_configs` | doc ID = landlordId，LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN |
 | `line_bindings` | 綁定碼，uid, expiry |
 | `tenant_activations` | 租客帳號啟用連結：code(doc id), tenantDocId, uid, landlordId, expireAt(7 天), usedAt?(一次性)　※**前端完全禁止讀寫**，發放與兌換全由 Cloud Function 處理——它等同鑰匙，可列舉則二次驗證形同虛設 |

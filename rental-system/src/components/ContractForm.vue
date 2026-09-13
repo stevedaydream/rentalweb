@@ -118,7 +118,27 @@
       <span class="text-sm font-medium text-gray-700 dark:text-gray-200">我已詳閱合約條款，雙方完成簽署，確認資料無誤。</span>
     </label>
 
-    <button :disabled="!isChecked || loading" @click="submitContract"
+    <div v-if="overlaps.length" role="alert"
+      class="p-4 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 space-y-2">
+      <p class="text-sm font-bold text-amber-800 dark:text-amber-300">此承租人已有租期重疊的合約，簽署後以下合約將標記為「已被取代」：</p>
+      <ul class="text-xs text-amber-800 dark:text-amber-300 list-disc pl-5 space-y-0.5">
+        <li v-for="c in overlaps" :key="c.id">
+          {{ c.roomNo || '—' }}・{{ c.startDate }} ～ {{ c.endDate }}（{{ c.contractSource === 'paper' ? '紙本' : '電子' }}）
+        </li>
+      </ul>
+      <div class="flex justify-end gap-2 pt-1">
+        <button type="button" @click="overlaps = []"
+          class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-white/60 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors">
+          取消
+        </button>
+        <button type="button" :disabled="loading" @click="submitContract(true)"
+          class="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 disabled:opacity-50 transition-colors">
+          確認取代並簽署
+        </button>
+      </div>
+    </div>
+
+    <button v-else :disabled="!isChecked || loading" @click="submitContract(false)"
       class="w-full py-3 bg-green-600 text-white rounded-xl shadow-lg shadow-green-500/30 hover:bg-green-700 font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">
       <span v-if="loading" class="material-symbols-outlined animate-spin">sync</span>
       {{ loading ? '正在生成合約…' : '確認簽署並產生合約' }}
@@ -135,7 +155,8 @@ import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
 import { useToastStore } from '../stores/toast'
 import { db, auth } from '../firebase/config'
-import { collection, addDoc, getDoc, getDocs, query, where, doc, serverTimestamp } from 'firebase/firestore'
+import { collection, getDoc, getDocs, query, where, doc, serverTimestamp } from 'firebase/firestore'
+import { findOverlappingSignedContracts, createSignedContract } from '../services/signedContractService'
 import Preview from './Preview.vue'
 import Signature from './Signature.vue'
 import LandlordSignatureField from './LandlordSignatureField.vue'
@@ -285,13 +306,27 @@ const serverGeneratePdfDownload = async (payload, token, filename) => {
   window.URL.revokeObjectURL(link.href)
 }
 
-const submitContract = async () => {
+const overlaps = ref([])
+
+const submitContract = async (confirmedReplace = false) => {
   if (!form.value.signature && !form.value.landlordSignature) {
     toast.warning('請至少完成一方簽名')
     return
   }
   loading.value = true
   try {
+    const tenantUid = props.prefill?.tenantUid || selectedTenantUid.value || null
+    const found = await findOverlappingSignedContracts(props.landlordId, {
+      tenantUid, tenantId: form.value.tenantId, tenant: form.value.tenant, roomNo: form.value.roomNo,
+      startDate: form.value.startDate, endDate: form.value.endDate,
+    })
+    // 確認後若又冒出未提示過的重疊合約，重新提示
+    const seen = new Set(overlaps.value.map(c => c.id))
+    if (found.length && (!confirmedReplace || found.some(c => !seen.has(c.id)))) {
+      overlaps.value = found
+      return
+    }
+
     // 合約範本已打包於前端，直接本地組裝列印（不呼叫 Function）
     const payload = buildPdfPayload()
     payload.templateHtml = contractTemplate
@@ -306,17 +341,18 @@ const submitContract = async () => {
       await serverGeneratePdfDownload(payload, token, `租賃合約_${form.value.tenant}_${Date.now()}.pdf`)
     }
 
-    const docRef = await addDoc(collection(db, 'signed_contracts'), {
+    const docRef = await createSignedContract({
       landlordUid: props.landlordId,
       contractSource: 'digital',
-      tenantUid: props.prefill?.tenantUid || selectedTenantUid.value || null,
+      tenantUid,
       ...form.value,
       rentfee: Number(form.value.rentfee) || 0,
       deposit: Number(form.value.deposit) || 0,
       templateHtml: contractTemplate,
       templateVersion: CONTRACT_TEMPLATE_VERSION,
       signedAt: serverTimestamp(),
-    })
+    }, found.map(c => c.id))
+    overlaps.value = []
 
     toast.success(usedPrint ? '合約已生成，請在列印視窗選「另存為 PDF」' : '合約已生成並下載！')
     emit('saved', docRef.id)

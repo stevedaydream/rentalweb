@@ -57,10 +57,12 @@
                   {{ c.contractSource === 'paper' ? '紙本掃描' : '電子合約' }}
                 </span>
                 <span class="text-xs px-2 py-0.5 rounded-full font-medium"
-                  :class="isActive(c.endDate)
+                  :class="contractState(c) === 'active'
                     ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                    : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'">
-                  {{ isActive(c.endDate) ? '生效中' : '已到期' }}
+                    : contractState(c) === 'upcoming'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                      : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'">
+                  {{ SIGNED_CONTRACT_LABELS[contractState(c)] }}
                 </span>
               </div>
               <p class="text-sm text-text-secondary-light mt-0.5">{{ c.address }}</p>
@@ -173,6 +175,8 @@ import { db } from '../../firebase/config'
 import { useAuthStore } from '../../stores/auth'
 import { useToastStore } from '../../stores/toast'
 import Preview from '../../components/Preview.vue'
+import { signedContractState, SIGNED_CONTRACT_LABELS } from '../../utils/signedContract'
+import { taipeiToday } from '../../utils/roomLease'
 
 const authStore = useAuthStore()
 const toast = useToastStore()
@@ -183,7 +187,7 @@ const previewContract = ref(null)
 const acknowledgeChecked = ref({})
 const acknowledging = ref(null)
 
-const isActive = (endDate) => !!endDate && new Date(endDate) >= new Date()
+const contractState = (c) => signedContractState(c, contracts.value, taipeiToday())
 
 const formatDate = (val) => {
   if (!val) return '—'
