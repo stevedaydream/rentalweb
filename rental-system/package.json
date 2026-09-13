@@ -11,6 +11,7 @@
     "test": "vitest run && node --test functions/billing/planner.test.mjs",
     "test:watch": "vitest",
     "test:billing:emulator": "firebase emulators:exec --only firestore --project demo-billing-review --config firebase.billing-test.json \"node --test functions/billing/service.emulator.test.mjs\"",
+    "test:renewal:emulator": "firebase emulators:exec --only firestore --project demo-billing-review --config firebase.billing-test.json \"node --test functions/renewal/service.emulator.test.cjs\"",
     "build": "npm test && vue-tsc -b && vite build",
     "build:nocheck": "vite build",
     "preview": "vite preview",

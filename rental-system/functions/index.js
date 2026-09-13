@@ -16,6 +16,7 @@ const { initializeApp, getApps } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 const { getStorage } = require('firebase-admin/storage');
+const { promoteRenewal, handlePromoteRenewal } = require('./renewal/service.cjs');
 
 // 模擬器模式：讓 Admin SDK verifyIdToken() 驗本地 Auth emulator 的 token
 // 必須在 initializeApp() 之前設定
@@ -34,6 +35,8 @@ if (!getApps().length) {
 }
 
 // --- 輔助函式 ---
+exports.promotePendingRenewal = onCall({ region: 'asia-east1' }, request =>
+  handlePromoteRenewal(getFirestore(), FieldValue, request));
 // 出帳在伺服端交易中完成；preview 與 commit 使用同一份規劃邏輯。
 exports.generateMonthlyBills = onCall({ region: 'asia-east1', timeoutSeconds: 120 }, async request => {
   const { handleBilling } = await import('./billing/service.mjs');
@@ -1485,28 +1488,12 @@ exports.scheduledReminderDaily = onSchedule(
         .where('pendingRenewal', '!=', null)
         .get();
       for (const cDoc of pendingSnap.docs) {
-        const c = cDoc.data();
-        const pr = c.pendingRenewal;
-        if (!pr || !pr.startDate) continue;
-        if (c.endDate && todayStr <= c.endDate) continue; // 目前租期尚未走完
-        if (todayStr < pr.startDate) continue;
-        await cDoc.ref.update({
-          startDate: pr.startDate,
-          endDate: pr.endDate,
-          rent: pr.rent,
-          previousEndDate: c.endDate || '',
-          pendingRenewal: FieldValue.delete(),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-        if (c.tenantDocId) {
-          await db.collection('tenants').doc(c.tenantDocId).update({
-            leaseStart: pr.startDate,
-            leaseEnd: pr.endDate,
-            rent: pr.rent,
-            updatedAt: FieldValue.serverTimestamp(),
-          }).catch((e) => logger.warn('promote: tenant update failed', { contractId: cDoc.id, error: e.message }));
+        try {
+          const result = await promoteRenewal(db, FieldValue, cDoc.id);
+          if (result.promoted) promotedRenewals++;
+        } catch (e) {
+          logger.warn('promote renewal failed', { contractId: cDoc.id, error: e.message });
         }
-        promotedRenewals++;
       }
     } catch (e) {
       logger.warn('scheduledReminderDaily: promote pendingRenewal failed', { error: e.message });

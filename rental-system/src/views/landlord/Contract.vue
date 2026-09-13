@@ -9,6 +9,19 @@
       </div>
     </div>
 
+    <section v-if="route.query.contract" class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-card-dark p-5 space-y-3" aria-label="目前租約">
+      <h2 class="font-bold text-lg">目前租約</h2>
+      <p v-if="leaseLoading" class="text-sm text-text-secondary-light">載入租約中…</p>
+      <template v-else-if="currentLease">
+        <p class="font-semibold">{{ currentLease.roomNumber }}・{{ currentLease.tenantName }}</p>
+        <p>{{ currentLease.startDate || '待確認' }} ～ {{ currentLease.endDate || '待確認' }}</p>
+        <p class="text-sm">月租金 NT$ {{ (currentLease.rent ?? 0).toLocaleString() }}</p>
+        <p v-if="currentLease.pendingRenewal" class="text-sm text-emerald-700 dark:text-emerald-300">已安排下一期：{{ currentLease.pendingRenewal.startDate }} ～ {{ currentLease.pendingRenewal.endDate }}</p>
+        <p class="text-xs text-text-secondary-light">此處顯示租約管理資料；簽署文件請至下方「合約記錄」查閱。</p>
+      </template>
+      <p v-else role="alert" class="text-sm text-amber-700 dark:text-amber-300">無法取得這份目前租約，請回房源頁重新確認。</p>
+    </section>
+
     <!-- Tabs -->
     <div class="flex gap-1 p-1 bg-surface-light dark:bg-surface-dark rounded-xl w-fit">
       <button
@@ -287,12 +300,15 @@ import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage
 import Preview from '../../components/Preview.vue'
 import ContractForm from '../../components/ContractForm.vue'
 import { printHtmlPdf } from '../../utils/contractRender'
+import { getLeaseContract } from '../../services/leaseService'
 
 const authStore = useAuthStore()
 const toast = useToastStore()
 const route = useRoute()
 
-const activeTab = ref('new')
+const activeTab = ref(route.query.contract ? 'history' : 'new')
+const currentLease = ref(null)
+const leaseLoading = ref(!!route.query.contract)
 const tabs = [
   { id: 'new', label: '新建合約', icon: 'add_circle' },
   { id: 'paper', label: '上傳紙本', icon: 'upload_file' },
@@ -386,7 +402,7 @@ const serverGeneratePdfDownload = async (payload, token, filename) => {
 }
 
 // ---- 歷史 ----
-const loadHistory = async () => {
+const loadHistory = async (backfill = true) => {
   loadingHistory.value = true
   try {
     const uid = authStore.effectiveUid
@@ -396,7 +412,7 @@ const loadHistory = async () => {
         orderBy('signedAt', 'desc'))
     )
     signedContracts.value = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    await backfillTenantUid()
+    if (backfill) await backfillTenantUid()
   } catch (e) {
     console.error('載入合約記錄失敗:', e)
   } finally {
@@ -545,6 +561,14 @@ const initData = async () => {
     rooms.value = roomsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
     tenants.value = tenantsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
     await prefillFromRenewal()
+    if (route.query.contract) {
+      leaseLoading.value = true
+      try {
+        const lease = await getLeaseContract(uid, String(route.query.contract))
+        currentLease.value = lease?.status === 'active' ? lease : null
+        await loadHistory(false)
+      } finally { leaseLoading.value = false }
+    }
   } catch (e) {
     console.error('initData 失敗:', e)
   } finally {

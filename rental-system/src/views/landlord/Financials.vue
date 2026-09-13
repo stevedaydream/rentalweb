@@ -7,9 +7,9 @@
         <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">帳務管理</h1>
         <p class="text-text-secondary-light">收支紀錄、帳單生成與電費盈虧</p>
       </div>
-      <div v-if="activeTab === 'month'" class="flex gap-2 flex-wrap items-center">
+      <div v-if="activeTab !== 'annual'" class="flex gap-2 flex-wrap items-center">
         <MonthPicker v-model="currentMonth" />
-        <div class="flex items-center gap-1">
+        <div v-if="activeTab === 'collect'" class="flex items-center gap-1">
           <button @click="prepareGenerateBills" :disabled="loading || preparingBills || generatingBills"
             class="px-3 py-2 bg-ink-700 text-white rounded-lg text-sm font-medium flex items-center gap-1 hover:bg-ink-800 disabled:opacity-50 transition-colors">
             <span class="material-symbols-outlined text-[18px]" aria-hidden="true">magic_button</span>
@@ -60,19 +60,24 @@
             </button>
           </div>
         </div>
-        <button @click="openModal()"
+        <button v-if="activeTab === 'collect'" @click="openModal()"
           class="px-3 py-2 bg-gold-500 text-white rounded-lg text-sm font-medium flex items-center gap-1 hover:bg-gold-600 transition-colors">
           <span class="material-symbols-outlined text-[18px]">add_circle</span>記一筆
         </button>
       </div>
     </div>
 
-    <!-- 分頁切換 -->
+    <!-- 分頁切換：收款是每月必做的事，分析與年度是偶爾才看 -->
     <div class="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit">
-      <button @click="activeTab = 'month'"
+      <button @click="activeTab = 'collect'"
         class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
-        :class="activeTab === 'month' ? 'bg-white dark:bg-card-dark shadow text-text-primary-light dark:text-white' : 'text-text-secondary-light hover:text-text-primary-light dark:hover:text-white'">
-        <span class="material-symbols-outlined text-[16px]" aria-hidden="true">calendar_month</span>月度
+        :class="activeTab === 'collect' ? 'bg-white dark:bg-card-dark shadow text-text-primary-light dark:text-white' : 'text-text-secondary-light hover:text-text-primary-light dark:hover:text-white'">
+        <span class="material-symbols-outlined text-[16px]" aria-hidden="true">payments</span>收款
+      </button>
+      <button @click="activeTab = 'analysis'"
+        class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+        :class="activeTab === 'analysis' ? 'bg-white dark:bg-card-dark shadow text-text-primary-light dark:text-white' : 'text-text-secondary-light hover:text-text-primary-light dark:hover:text-white'">
+        <span class="material-symbols-outlined text-[16px]" aria-hidden="true">monitoring</span>分析
       </button>
       <button @click="activeTab = 'annual'"
         class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
@@ -93,59 +98,40 @@
 
     <template v-else>
 
-      <!-- Stats Row -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="p-5 bg-white dark:bg-card-dark rounded-xl border border-ink-100 dark:border-ink-800 shadow-sm">
-          <p class="text-xs text-text-secondary-light mb-1 flex items-center gap-1">
-            <span class="material-symbols-outlined text-[16px] text-green-500">payments</span>本月已收
-          </p>
-          <p class="text-2xl font-bold text-green-600">NT$ {{ stats.income.toLocaleString() }}</p>
-          <p class="text-xs text-text-secondary-light mt-1">{{ stats.incomeCount }} 筆</p>
-        </div>
-        <div class="p-5 bg-white dark:bg-card-dark rounded-xl border border-ink-100 dark:border-ink-800 shadow-sm">
-          <p class="text-xs text-text-secondary-light mb-1 flex items-center gap-1">
-            <span class="material-symbols-outlined text-[16px] text-orange-500">pending_actions</span>待收 / 逾期
-          </p>
-          <p class="text-2xl font-bold text-orange-500">NT$ {{ stats.pending.toLocaleString() }}</p>
-          <p class="text-xs text-text-secondary-light mt-1">{{ stats.pendingCount }} 筆</p>
-        </div>
-        <div class="p-5 bg-white dark:bg-card-dark rounded-xl border border-ink-100 dark:border-ink-800 shadow-sm">
-          <p class="text-xs text-text-secondary-light mb-1 flex items-center gap-1">
-            <span class="material-symbols-outlined text-[16px] text-red-400">arrow_upward</span>本月支出
-          </p>
-          <p class="text-2xl font-bold text-red-500">NT$ {{ stats.expense.toLocaleString() }}</p>
-          <p class="text-xs text-text-secondary-light mt-1">{{ stats.expenseCount }} 筆</p>
-        </div>
-        <div class="p-5 rounded-xl border shadow-sm"
-          :class="stats.net >= 0
-            ? 'bg-gold-50 dark:bg-gold-900/10 border-gold-100 dark:border-gold-900/30'
-            : 'bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30'">
-          <p class="text-xs mb-1 flex items-center gap-1"
-            :class="stats.net >= 0 ? 'text-gold-700 dark:text-gold-300' : 'text-red-600'">
-            <span class="material-symbols-outlined text-[16px]">account_balance</span>本月淨利
-          </p>
-          <p class="text-2xl font-bold" :class="stats.net >= 0 ? 'text-gold-600' : 'text-red-500'">
-            NT$ {{ stats.net.toLocaleString() }}
-          </p>
-          <p class="text-xs mt-1" :class="stats.net >= 0 ? 'text-gold-500' : 'text-red-400'">
-            已收 - 支出
-          </p>
-        </div>
-      </div>
+      <MonthlyAnalysis
+        v-if="activeTab === 'analysis'"
+        :stats="stats" :categories="categoryStats" :electricity="electricityStatsList"
+        @select-category="selectCategory" @open-taipower="openTaipowerModal"
+      />
 
-      <!-- 前期未繳：不切月份也看得到 -->
-      <div v-if="priorSummary.groups.length > 0"
-        class="flex flex-wrap items-center gap-x-3 gap-y-2 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/40 rounded-2xl px-5 py-3.5">
-        <span class="material-symbols-outlined text-[20px] text-red-500 shrink-0" aria-hidden="true">error</span>
-        <p class="text-sm text-red-700 dark:text-red-300 flex-1 min-w-0">
-          <strong>{{ currentMonth }} 以前還有 {{ priorSummary.groups.length }} 位租客沒繳清，共 NT$ {{ priorSummary.total.toLocaleString() }}</strong>
-          <span class="block sm:inline sm:ml-1 text-xs">
-            {{ priorSummary.groups.slice(0, 4).map(g => g.label).join('、') }}{{ priorSummary.groups.length > 4 ? ' 等' : '' }}
-          </span>
-        </p>
-        <button @click="showPriorArrears"
-          class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-200 transition-colors">
-          查看並收款
+      <template v-else>
+
+      <!-- 收款摘要：本月出帳與待收（含前期欠款），取代原本四張統計卡 -->
+      <div class="flex flex-wrap items-center gap-x-8 gap-y-3 bg-white dark:bg-card-dark rounded-2xl border px-5 py-4 shadow-sm"
+        :class="collectSummary.prior > 0 ? 'border-red-200 dark:border-red-900/40' : 'border-ink-100 dark:border-ink-800'">
+        <div>
+          <p class="text-xs text-text-secondary-light">本月已出帳</p>
+          <p class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">
+            {{ collectSummary.billedCount }} 筆
+            <span class="ml-1 text-sm font-medium text-green-600">已收 NT$ {{ collectSummary.income.toLocaleString() }}</span>
+          </p>
+        </div>
+        <div>
+          <p class="text-xs text-text-secondary-light">待收</p>
+          <p class="text-lg font-bold text-orange-600">
+            NT$ {{ collectSummary.owed.toLocaleString() }}
+            <span v-if="collectSummary.prior > 0" class="ml-1 text-xs font-medium text-red-600 dark:text-red-400">
+              含前期 {{ collectSummary.prior.toLocaleString() }}（{{ collectSummary.priorTenants }} 位）
+            </span>
+          </p>
+        </div>
+        <div v-if="collectSummary.waiting > 0">
+          <p class="text-xs text-text-secondary-light">待確認</p>
+          <p class="text-lg font-bold text-amber-600">{{ collectSummary.waiting }} 筆</p>
+        </div>
+        <button v-if="collectSummary.prior > 0" @click="showPriorArrears"
+          class="ml-auto shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-200 transition-colors">
+          查看前期欠款
         </button>
       </div>
 
@@ -255,41 +241,16 @@
         </div>
       </Transition>
 
-      <!-- Category Summary -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <button
-          v-for="cat in categoryStats" :key="cat.key"
-          @click="currentTab = cat.key"
-          class="p-4 rounded-xl border text-left transition-all hover:shadow-md"
-          :class="currentTab === cat.key
-            ? `${cat.activeBg} border-transparent shadow-md`
-            : 'bg-white dark:bg-card-dark border-ink-100 dark:border-ink-800'"
-        >
-          <div class="flex items-center justify-between mb-2">
-            <span class="material-symbols-outlined text-[20px]" :class="cat.iconColor">{{ cat.icon }}</span>
-            <span class="text-xs font-medium px-2 py-0.5 rounded-full" :class="cat.badgeClass">{{ cat.count }} 筆</span>
-          </div>
-          <p class="text-xs text-text-secondary-light">{{ cat.label }}</p>
-          <p class="text-lg font-bold mt-0.5" :class="cat.amountColor">NT$ {{ cat.amount.toLocaleString() }}</p>
-        </button>
-      </div>
-
-      <!-- 電費盈虧分析：逐台電總表（棟）各一張，期間錨定該棟台電帳單迄月 -->
-      <ElectricityStatsCard
-        v-for="es in electricityStatsList" :key="es.groupId"
-        :stats="es" @open-taipower="openTaipowerModal"
-      />
-
       <!-- Transaction Table -->
       <div class="bg-white dark:bg-card-dark rounded-2xl border border-ink-100 dark:border-ink-800 shadow-sm overflow-visible">
 
-        <!-- Tabs -->
-        <div class="flex items-center border-b border-ink-100 dark:border-ink-800 px-6 pt-2 overflow-x-auto">
+        <!-- 篩選：狀態頁籤與類別各自獨立，不再是同一個篩選器有兩個 UI -->
+        <div class="flex items-center gap-2 border-b border-ink-100 dark:border-ink-800 px-4 sm:px-6 pt-2 overflow-x-auto">
           <button
-            v-for="tab in tabs" :key="tab.value"
-            @click="currentTab = tab.value"
+            v-for="tab in statusTabs" :key="tab.value"
+            @click="statusFilter = tab.value"
             class="px-4 py-3 text-sm font-medium border-b-2 transition-colors relative top-[1px] whitespace-nowrap"
-            :class="currentTab === tab.value
+            :class="statusFilter === tab.value
               ? 'border-gold-500 text-gold-600'
               : 'border-transparent text-text-secondary-light hover:text-ink-600 dark:hover:text-ink-300'"
           >
@@ -297,19 +258,29 @@
             <span v-if="tab.count > 0" class="ml-1 text-xs bg-ink-100 dark:bg-ink-700 px-1.5 py-0.5 rounded-full">{{ tab.count }}</span>
           </button>
 
-          <button
-            @click="groupByTenant = !groupByTenant"
-            class="ml-auto shrink-0 my-1 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors flex items-center gap-1"
-            :class="groupByTenant
-              ? 'border-gold-400 bg-gold-50 text-gold-700 dark:bg-gold-900/20 dark:text-gold-300'
-              : 'border-ink-200 dark:border-ink-700 text-text-secondary-light hover:bg-surface-light dark:hover:bg-surface-dark'"
-            :aria-pressed="groupByTenant"
-          >
-            <span class="material-symbols-outlined text-[15px]" aria-hidden="true">
-              {{ groupByTenant ? 'check_circle' : 'group' }}
-            </span>
-            依租客
-          </button>
+          <div class="ml-auto shrink-0 my-1 flex items-center gap-2">
+            <label for="financials-category" class="sr-only">類別篩選</label>
+            <select
+              id="financials-category"
+              v-model="categoryFilter"
+              class="rounded-lg border border-ink-200 dark:border-ink-700 bg-white dark:bg-ink-800 text-xs font-medium px-2 py-1.5 text-text-primary-light dark:text-text-primary-dark"
+            >
+              <option v-for="opt in CATEGORY_FILTERS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+            </select>
+            <button
+              @click="groupByTenant = !groupByTenant"
+              class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors flex items-center gap-1 whitespace-nowrap"
+              :class="groupByTenant
+                ? 'border-gold-400 bg-gold-50 text-gold-700 dark:bg-gold-900/20 dark:text-gold-300'
+                : 'border-ink-200 dark:border-ink-700 text-text-secondary-light hover:bg-surface-light dark:hover:bg-surface-dark'"
+              :aria-pressed="groupByTenant"
+            >
+              <span class="material-symbols-outlined text-[15px]" aria-hidden="true">
+                {{ groupByTenant ? 'check_circle' : 'group' }}
+              </span>
+              依租客
+            </button>
+          </div>
         </div>
 
         <!-- 依租客分組檢視 -->
@@ -540,6 +511,7 @@
           </table>
         </div>
       </div>
+      </template>
     </template>
     </template>
 
@@ -759,9 +731,9 @@ import BillTransactionModal from '../../components/financials/BillTransactionMod
 import TaipowerModal from '../../components/financials/TaipowerModal.vue'
 import PrintBillsModal from '../../components/financials/PrintBillsModal.vue'
 import BillHistoryModal from '../../components/financials/BillHistoryModal.vue'
-import ElectricityStatsCard from '../../components/financials/ElectricityStatsCard.vue'
 import PropertyCostsModal from '../../components/financials/PropertyCostsModal.vue'
 import AnnualSummary from '../../components/financials/AnnualSummary.vue'
+import MonthlyAnalysis from '../../components/financials/MonthlyAnalysis.vue'
 import ReceivePaymentModal from '../../components/financials/ReceivePaymentModal.vue'
 import { previewBills, commitBills, type BillingPreview, type BillingBatch, type GeneratedBillItem } from '../../services/billingGenerationService'
 import { billingBatches } from '../../utils/financials/billingBatches'
@@ -829,8 +801,19 @@ const loading = ref(true)
 const sendingLine = ref(false)
 
 const currentMonth = ref(new Date().toISOString().slice(0, 7))
-const activeTab = ref<'month' | 'annual'>('month')
-const currentTab = ref('all')
+const activeTab = ref<'collect' | 'analysis' | 'annual'>('collect')
+// 狀態與類別是兩個獨立的篩選條件；原本共用一個 currentTab，
+// 等於同一個篩選器有兩個 UI（上方類別卡與下方頁籤），還會互相跳動
+const statusFilter = ref<'all' | 'pending' | 'waiting'>('all')
+const categoryFilter = ref('all')
+const CATEGORY_FILTERS = [
+  { value: 'all', label: '全部類別' },
+  { value: '租金收入', label: '租金收入' },
+  { value: '入住款項', label: '入住款項' },
+  { value: '電費', label: '電費' },
+  { value: '公共電費', label: '公共電費' },
+  { value: 'expense', label: '支出' },
+]
 const showModal = ref(false)
 const showTaipowerModal = ref(false)
 const showPrintBillsModal = ref(false)
@@ -1110,26 +1093,38 @@ const waitingCount = (items: { status?: string }[]) =>
 
 const waitingTotal = computed(() => waitingCount(monthlyTransactions.value))
 
-const tabs = computed(() => [
-  { label: '全部', value: 'all', count: 0 },
-  { label: '租金收入', value: '租金收入', count: 0 },
-  { label: '入住款項', value: '入住款項', count: 0 },
-  { label: '電費', value: '電費', count: 0 },
-  { label: '公共電費', value: '公共電費', count: 0 },
-  { label: '支出', value: 'expense', count: 0 },
-  { label: '待收', value: 'pending', count: pendingCount.value },
-  { label: '待確認', value: 'waiting', count: waitingTotal.value },
+const statusTabs = computed(() => [
+  { label: '全部', value: 'all' as const, count: 0 },
+  { label: '待收', value: 'pending' as const, count: pendingCount.value },
+  { label: '待確認', value: 'waiting' as const, count: waitingTotal.value },
 ])
 
-const matchesTab = (t: Transaction) => {
-  if (currentTab.value === 'all') return true
-  if (currentTab.value === 'expense') return t.type === 'expense'
-  if (currentTab.value === 'pending') return !isCollected(t) && t.type === 'income'
-  if (currentTab.value === 'waiting') return t.status === 'waiting_confirmation'
-  return t.category === currentTab.value
+/** 收款頁頂部摘要：本月出帳、待收（含前期欠款）、待確認 */
+const collectSummary = computed(() => ({
+  billedCount: monthlyTransactions.value.filter(t => t.type === 'income').length,
+  income: stats.value.income,
+  owed: stats.value.pending + priorSummary.value.total,
+  prior: priorSummary.value.total,
+  priorTenants: priorSummary.value.groups.length,
+  waiting: waitingTotal.value,
+}))
+
+const matchesFilters = (t: Transaction) => {
+  if (statusFilter.value === 'pending' && (t.type !== 'income' || isCollected(t))) return false
+  if (statusFilter.value === 'waiting' && t.status !== 'waiting_confirmation') return false
+  if (categoryFilter.value === 'expense') return t.type === 'expense'
+  if (categoryFilter.value !== 'all') return t.category === categoryFilter.value
+  return true
 }
 
-const filteredTransactions = computed(() => monthlyTransactions.value.filter(matchesTab))
+/** 分析頁點某個類別 → 回收款頁並套用該類別 */
+const selectCategory = (key: string) => {
+  categoryFilter.value = key
+  statusFilter.value = 'all'
+  activeTab.value = 'collect'
+}
+
+const filteredTransactions = computed(() => monthlyTransactions.value.filter(matchesFilters))
 
 // --- 依租客分組檢視（實作於 src/utils/financials/tenantGroups.ts） ---
 // 預設依租客：收款是最常見的操作，逐筆清單留給稽核時手動切換
@@ -1144,12 +1139,14 @@ const toggleGroup = (key: string) => {
 
 // 前期未繳一併掛在各租客底下，本月已繳清但上個月還欠的人才不會被漏掉
 const tenantGroups = computed(() =>
-  buildTenantGroups(filteredTransactions.value, priorOpenBills.value.filter(matchesTab)))
+  buildTenantGroups(filteredTransactions.value, priorOpenBills.value.filter(matchesFilters)))
 
-/** 頁首「查看並收款」：切到依租客並展開所有有前期欠款的人 */
+/** 摘要條「查看前期欠款」：切到依租客並展開所有有前期欠款的人 */
 const showPriorArrears = () => {
+  activeTab.value = 'collect'
   groupByTenant.value = true
-  currentTab.value = 'all'
+  statusFilter.value = 'all'
+  categoryFilter.value = 'all'
   expandedGroups.value = new Set(priorSummary.value.groups.map(g => g.key))
 }
 

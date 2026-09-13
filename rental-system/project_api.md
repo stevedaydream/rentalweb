@@ -13,6 +13,14 @@
 | `lineWebhook` | HTTP POST | `/lineWebhook?lid={landlordId}` | LINE Bot webhook 接收端 |
 | `sendLineReply` | Callable | `sendLineReply` | 房東回覆租客 LINE 訊息 |
 | `sendLineBillNotifications` | Callable | `sendLineBillNotifications` | 推播帳單通知給租客 |
+| `promotePendingRenewal` | Callable | `promotePendingRenewal` | 房東／管理員接續已到期的下一期租約；不發通知 |
+
+#### promotePendingRenewal
+
+- 請求：`{ contractId: string }`。須 Firebase 登入；由後端驗證該合約房東或管理員身分。
+- 回傳：`{ promoted: false }`（尚未到期、無待接續資料或非有效合約），或 `{ promoted: true, startDate, endDate, rent }`。
+- 以台灣日期判定「當期走完且已到新起租日」，交易同步 contracts／tenants／rooms。無法唯一關聯、日期錯誤或租客關聯不一致回傳 `failed-precondition`，保留待接續資料。
+- 排程共用同一服務；失敗逐筆記錄，不阻止其他合約接續。
 
 #### generatePdf 請求格式
 ```json

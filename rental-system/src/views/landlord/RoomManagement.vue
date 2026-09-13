@@ -58,16 +58,31 @@
         <input
           v-model="rawSearch"
           type="text"
-          placeholder="搜尋房號或地址..."
+          placeholder="搜尋房號、地址或租客..."
+          aria-label="搜尋房源"
           class="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
         >
       </div>
     </div>
 
+    <div class="flex flex-wrap items-center gap-3">
+      <label for="lease-filter" class="text-sm text-text-secondary-light">租約狀態</label>
+      <select id="lease-filter" v-model="leaseFilter" class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-card-dark px-3 py-2 text-sm">
+        <option value="all">全部租約</option>
+        <option value="expiring">60 天內到期・未安排續約</option>
+        <option value="expired">已過期・未安排續約</option>
+        <option value="renewed">已安排續約</option>
+        <option value="attention">資料待確認</option>
+      </select>
+      <span class="text-sm text-text-secondary-light">{{ filteredRooms.length }} 間房源</span>
+    </div>
+    <p v-if="contractError" role="alert" class="text-sm text-amber-700 dark:text-amber-300">租約資料載入失敗，請重新整理後再確認。</p>
+
     <div v-if="loading" class="text-center py-12">
       <p class="text-gray-500">載入房源資料中...</p>
     </div>
 
+    <div v-else-if="!filteredRooms.length" class="text-center py-12 text-text-secondary-light">沒有符合條件的房源</div>
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <div 
         v-for="room in filteredRooms" 
@@ -90,18 +105,18 @@
              </span>
              <!-- 即將到期警示徽章 -->
              <span
-               v-if="room.status === 'occupied' && leaseUrgency(room.leaseEnd) === 'critical'"
+               v-if="room.status === 'occupied' && room.lease.urgency === 'critical'"
                class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/90 text-white backdrop-blur-sm border border-white/20 flex items-center gap-1 animate-pulse"
              >
                <span class="material-symbols-outlined text-[11px]">alarm</span>
-               緊急：{{ leaseExpiryLabel(room.leaseEnd) }}
+               緊急：{{ room.lease.label }}
              </span>
              <span
-               v-else-if="room.status === 'occupied' && leaseUrgency(room.leaseEnd) === 'warning'"
+               v-else-if="room.status === 'occupied' && room.lease.urgency === 'warning'"
                class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-400/90 text-white backdrop-blur-sm border border-white/20 flex items-center gap-1"
              >
                <span class="material-symbols-outlined text-[11px]">schedule</span>
-               {{ leaseExpiryLabel(room.leaseEnd) }}
+               {{ room.lease.label }}
              </span>
              <span v-if="room.isPublic" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/90 text-white backdrop-blur-sm border border-white/20 flex items-center gap-1">
                <span class="material-symbols-outlined text-[11px]">public</span>
@@ -153,36 +168,39 @@
             v-if="room.status === 'occupied'"
             class="rounded-lg p-3 mb-4 flex items-center gap-3"
             :class="{
-              'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800': leaseUrgency(room.leaseEnd) === 'critical',
-              'bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800': leaseUrgency(room.leaseEnd) === 'warning',
-              'bg-blue-50 dark:bg-blue-900/20': leaseUrgency(room.leaseEnd) === 'normal'
+              'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800': room.lease.urgency === 'critical',
+              'bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800': room.lease.urgency === 'warning',
+              'bg-blue-50 dark:bg-blue-900/20': room.lease.urgency === 'normal'
             }"
           >
             <div
               class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
               :class="{
-                'bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-300': leaseUrgency(room.leaseEnd) === 'critical',
-                'bg-orange-100 text-orange-600 dark:bg-orange-900/50 dark:text-orange-300': leaseUrgency(room.leaseEnd) === 'warning',
-                'bg-blue-100 text-blue-600 dark:bg-blue-800 dark:text-blue-200': leaseUrgency(room.leaseEnd) === 'normal'
+                'bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-300': room.lease.urgency === 'critical',
+                'bg-orange-100 text-orange-600 dark:bg-orange-900/50 dark:text-orange-300': room.lease.urgency === 'warning',
+                'bg-blue-100 text-blue-600 dark:bg-blue-800 dark:text-blue-200': room.lease.urgency === 'normal'
               }"
             >
               {{ room.tenantName?.[0] }}
             </div>
             <div class="flex-1 min-w-0">
               <p class="text-sm font-bold text-text-primary-light dark:text-text-primary-dark truncate">{{ room.tenantName }}</p>
-              <div class="flex items-center gap-1.5 mt-0.5">
-                <p class="text-xs text-text-secondary-light">合約至 {{ room.leaseEnd }}</p>
+              <div class="flex flex-wrap items-center gap-1.5 mt-0.5">
+                <p class="text-xs text-text-secondary-light">合約至 {{ room.leaseEnd || '待確認' }}</p>
                 <span
-                  v-if="leaseExpiryLabel(room.leaseEnd)"
+                  v-if="room.lease.label"
                   class="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
                   :class="{
-                    'bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-300': leaseUrgency(room.leaseEnd) === 'critical',
-                    'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300': leaseUrgency(room.leaseEnd) === 'warning'
+                    'bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-300': room.lease.urgency === 'critical',
+                    'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300': room.lease.urgency === 'warning'
                   }"
                 >
-                  {{ leaseExpiryLabel(room.leaseEnd) }}
+                  {{ room.lease.label }}
                 </span>
               </div>
+              <p v-if="room.lease.pending" class="text-xs text-emerald-700 dark:text-emerald-300 mt-2">下一期 {{ room.lease.pending.startDate }} ～ {{ room.lease.pending.endDate }}</p>
+              <p v-if="room.lease.needsAttention && room.lease.contract" class="text-xs text-amber-700 dark:text-amber-300 mt-2">{{ room.lease.state === 'pending-activation' ? '已到接續日，請確認續約處理狀態' : '資料待確認・目前顯示合約租期' }}</p>
+              <RouterLink v-if="room.lease.contract" :to="{ name: 'Contract', query: { contract: room.lease.contract.id } }" class="inline-flex mt-2 text-xs font-semibold text-blue-700 dark:text-blue-300 underline">查看目前合約</RouterLink>
             </div>
           </div>
           <div v-else class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 mb-4 text-center text-sm text-text-secondary-light">
@@ -454,45 +472,45 @@
 
             <!-- 詳情模式：到期 Banner -->
             <div
-              v-if="isViewMode && leaseUrgency(form.leaseEnd) !== 'normal'"
+              v-if="isViewMode && leaseUrgency(selectedLease?.endDate) !== 'normal'"
               class="mb-3 flex items-start gap-3 p-4 rounded-xl border"
               :class="{
-                'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700': leaseUrgency(form.leaseEnd) === 'critical',
-                'bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-700': leaseUrgency(form.leaseEnd) === 'warning'
+                'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700': leaseUrgency(selectedLease?.endDate) === 'critical',
+                'bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-700': leaseUrgency(selectedLease?.endDate) === 'warning'
               }"
             >
               <span
                 class="material-symbols-outlined text-[22px] mt-0.5 shrink-0"
                 :class="{
-                  'text-red-500': leaseUrgency(form.leaseEnd) === 'critical',
-                  'text-orange-500': leaseUrgency(form.leaseEnd) === 'warning'
+                  'text-red-500': leaseUrgency(selectedLease?.endDate) === 'critical',
+                  'text-orange-500': leaseUrgency(selectedLease?.endDate) === 'warning'
                 }"
-              >{{ leaseUrgency(form.leaseEnd) === 'critical' ? 'crisis_alert' : 'schedule' }}</span>
+              >{{ leaseUrgency(selectedLease?.endDate) === 'critical' ? 'crisis_alert' : 'schedule' }}</span>
               <div class="flex-1">
                 <p
                   class="font-bold text-sm"
                   :class="{
-                    'text-red-700 dark:text-red-300': leaseUrgency(form.leaseEnd) === 'critical',
-                    'text-orange-700 dark:text-orange-300': leaseUrgency(form.leaseEnd) === 'warning'
+                    'text-red-700 dark:text-red-300': leaseUrgency(selectedLease?.endDate) === 'critical',
+                    'text-orange-700 dark:text-orange-300': leaseUrgency(selectedLease?.endDate) === 'warning'
                   }"
                 >
-                  {{ leaseUrgency(form.leaseEnd) === 'critical' ? '租約即將到期！' : '租約將於近期到期' }}
+                  {{ selectedLease?.label }}
                 </p>
                 <p class="text-xs mt-0.5"
                   :class="{
-                    'text-red-600 dark:text-red-400': leaseUrgency(form.leaseEnd) === 'critical',
-                    'text-orange-600 dark:text-orange-400': leaseUrgency(form.leaseEnd) === 'warning'
+                    'text-red-600 dark:text-red-400': leaseUrgency(selectedLease?.endDate) === 'critical',
+                    'text-orange-600 dark:text-orange-400': leaseUrgency(selectedLease?.endDate) === 'warning'
                   }"
                 >
-                  {{ form.leaseEnd }} 到期，剩餘 {{ getDaysRemaining(form.leaseEnd) }} 天，請盡快與租客確認是否續約。
+                  {{ selectedLease?.endDate }} 到期，{{ (selectedLease?.days ?? 0) < 0 ? `已過期 ${Math.abs(selectedLease?.days ?? 0)} 天` : `剩餘 ${selectedLease?.days} 天` }}，請與租客確認是否續約。
                 </p>
               </div>
               <router-link
                 :to="{ name: 'TenantList' }"
                 class="shrink-0 text-xs px-3 py-1.5 rounded-lg font-bold transition-colors"
                 :class="{
-                  'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-300': leaseUrgency(form.leaseEnd) === 'critical',
-                  'bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900/40 dark:text-orange-300': leaseUrgency(form.leaseEnd) === 'warning'
+                  'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-300': leaseUrgency(selectedLease?.endDate) === 'critical',
+                  'bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900/40 dark:text-orange-300': leaseUrgency(selectedLease?.endDate) === 'warning'
                 }"
                 @click="showModal = false"
               >
@@ -500,6 +518,11 @@
               </router-link>
             </div>
 
+            <div v-if="selectedLease" class="rounded-lg bg-blue-50 dark:bg-blue-900/20 p-3 text-sm space-y-1">
+              <p>{{ selectedLease.label }}・{{ selectedLease.startDate || '待確認' }} ～ {{ selectedLease.endDate || '待確認' }}</p>
+              <p v-if="selectedLease.pending">下一期 {{ selectedLease.pending.startDate }} ～ {{ selectedLease.pending.endDate }}</p>
+              <RouterLink v-if="selectedLease.contract" :to="{ name: 'Contract', query: { contract: selectedLease.contract.id } }" class="inline-flex text-blue-700 dark:text-blue-300 underline">查看目前合約</RouterLink>
+            </div>
             <!-- 詳情模式：租客資訊卡 -->
             <div v-if="isViewMode" class="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700 space-y-3">
               <h4 class="text-sm font-bold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2">
@@ -518,26 +541,26 @@
               <div class="grid grid-cols-2 gap-3 pt-1">
                 <div class="bg-white dark:bg-card-dark rounded-lg p-3 border border-gray-100 dark:border-gray-700">
                   <p class="text-xs text-text-secondary-light mb-1">合約到期日</p>
-                  <p class="font-semibold text-sm text-text-primary-light dark:text-text-primary-dark">{{ form.leaseEnd || '未設定' }}</p>
+                  <p class="font-semibold text-sm text-text-primary-light dark:text-text-primary-dark">{{ selectedLease?.endDate || '未設定' }}</p>
                 </div>
                 <div
                   class="rounded-lg p-3 border"
                   :class="{
-                    'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800': leaseUrgency(form.leaseEnd) === 'critical',
-                    'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800': leaseUrgency(form.leaseEnd) === 'warning',
-                    'bg-white dark:bg-card-dark border-gray-100 dark:border-gray-700': leaseUrgency(form.leaseEnd) === 'normal'
+                    'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800': leaseUrgency(selectedLease?.endDate) === 'critical',
+                    'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800': leaseUrgency(selectedLease?.endDate) === 'warning',
+                    'bg-white dark:bg-card-dark border-gray-100 dark:border-gray-700': leaseUrgency(selectedLease?.endDate) === 'normal'
                   }"
                 >
                   <p class="text-xs text-text-secondary-light mb-1">剩餘天數</p>
                   <p
                     class="font-bold text-sm"
                     :class="{
-                      'text-red-600 dark:text-red-400': leaseUrgency(form.leaseEnd) === 'critical',
-                      'text-orange-600 dark:text-orange-400': leaseUrgency(form.leaseEnd) === 'warning',
-                      'text-text-primary-light dark:text-text-primary-dark': leaseUrgency(form.leaseEnd) === 'normal'
+                      'text-red-600 dark:text-red-400': leaseUrgency(selectedLease?.endDate) === 'critical',
+                      'text-orange-600 dark:text-orange-400': leaseUrgency(selectedLease?.endDate) === 'warning',
+                      'text-text-primary-light dark:text-text-primary-dark': leaseUrgency(selectedLease?.endDate) === 'normal'
                     }"
                   >
-                    {{ getDaysRemaining(form.leaseEnd) === Infinity ? '—' : getDaysRemaining(form.leaseEnd) + ' 天' }}
+                    {{ getDaysRemaining(selectedLease?.endDate) === Infinity ? '—' : getDaysRemaining(selectedLease?.endDate) + ' 天' }}
                   </p>
                 </div>
               </div>
@@ -546,23 +569,23 @@
             <!-- 編輯模式：租客資訊唯讀 -->
             <div v-else class="rounded-xl border overflow-hidden"
               :class="{
-                'border-red-200 dark:border-red-800': leaseUrgency(form.leaseEnd) === 'critical',
-                'border-orange-200 dark:border-orange-800': leaseUrgency(form.leaseEnd) === 'warning',
-                'border-gray-100 dark:border-gray-700': leaseUrgency(form.leaseEnd) === 'normal'
+                'border-red-200 dark:border-red-800': leaseUrgency(selectedLease?.endDate) === 'critical',
+                'border-orange-200 dark:border-orange-800': leaseUrgency(selectedLease?.endDate) === 'warning',
+                'border-gray-100 dark:border-gray-700': leaseUrgency(selectedLease?.endDate) === 'normal'
               }"
             >
               <!-- 到期警示（編輯模式也顯示） -->
               <div
-                v-if="leaseUrgency(form.leaseEnd) !== 'normal'"
+                v-if="leaseUrgency(selectedLease?.endDate) !== 'normal'"
                 class="flex items-center gap-2 px-4 py-2.5 text-xs font-bold"
                 :class="{
-                  'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300': leaseUrgency(form.leaseEnd) === 'critical',
-                  'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300': leaseUrgency(form.leaseEnd) === 'warning'
+                  'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300': leaseUrgency(selectedLease?.endDate) === 'critical',
+                  'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300': leaseUrgency(selectedLease?.endDate) === 'warning'
                 }"
               >
-                <span class="material-symbols-outlined text-[15px]">{{ leaseUrgency(form.leaseEnd) === 'critical' ? 'crisis_alert' : 'schedule' }}</span>
-                {{ leaseUrgency(form.leaseEnd) === 'critical' ? '租約即將到期！' : '租約將於近期到期' }}
-                — 剩餘 {{ getDaysRemaining(form.leaseEnd) }} 天
+                <span class="material-symbols-outlined text-[15px]">{{ leaseUrgency(selectedLease?.endDate) === 'critical' ? 'crisis_alert' : 'schedule' }}</span>
+                {{ leaseUrgency(selectedLease?.endDate) === 'critical' ? '租約即將到期！' : '租約將於近期到期' }}
+                {{ (selectedLease?.days ?? -1) >= 0 ? `— 剩餘 ${selectedLease?.days} 天` : '' }}
               </div>
 
               <div class="p-4 bg-gray-50 dark:bg-gray-800/50 space-y-3">
@@ -587,12 +610,12 @@
                     <p class="text-xs text-text-secondary-light mb-1">合約到期日</p>
                     <p class="text-sm font-semibold"
                       :class="{
-                        'text-red-600 dark:text-red-400': leaseUrgency(form.leaseEnd) === 'critical',
-                        'text-orange-600 dark:text-orange-400': leaseUrgency(form.leaseEnd) === 'warning',
-                        'text-text-primary-light dark:text-text-primary-dark': leaseUrgency(form.leaseEnd) === 'normal'
+                        'text-red-600 dark:text-red-400': leaseUrgency(selectedLease?.endDate) === 'critical',
+                        'text-orange-600 dark:text-orange-400': leaseUrgency(selectedLease?.endDate) === 'warning',
+                        'text-text-primary-light dark:text-text-primary-dark': leaseUrgency(selectedLease?.endDate) === 'normal'
                       }"
                     >
-                      {{ form.leaseEnd || '—' }}
+                      {{ selectedLease?.endDate || '—' }}
                     </p>
                   </div>
                 </div>
@@ -672,57 +695,34 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { db, storage } from '../../firebase/config';
+import { storage } from '../../firebase/config';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
 import { useRoute } from 'vue-router';
+import type { ManagedRoom as Room, RoomLeaseContract } from '../../types';
+import { subscribeRooms, saveManagedRoom, deleteRoom as deleteRoomRecord } from '../../services/roomService';
+import { subscribeLeaseContracts } from '../../services/leaseService';
+import { resolveRoomLease, taipeiToday, leaseDaysRemaining } from '../../utils/roomLease';
 import { getMeterGroups } from '../../services/meterGroupService';
 import PropertyTab from '../../components/rooms/PropertyTab.vue';
-import { 
-  collection, 
-  onSnapshot, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc, 
-  serverTimestamp, 
-  query, 
-  orderBy,
-  where // [修改] 引入 where
-} from 'firebase/firestore';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
-// --- Type Definitions ---
-interface Room {
-  id: string;
-  name: string;
-  address: string;
-  price: number;
-  size: number;
-  layout: string;
-  status: 'occupied' | 'vacant' | 'maintenance';
-  type: string;
-  images?: string[];
-  coverImage?: string;
-  tenantName?: string;
-  leaseEnd?: string;
-  landlordId?: string;
-  landlordName?: string;
-  landlordPhone?: string;
-  isPublic?: boolean;
-  purchaseCost?: number;
-  subGroupId?: string;
-  /** 所屬建物；指派於「建物」分頁，房源表單不動它 */
-  propertyId?: string;
-  /** 測試資料標記 */
-  isTest?: boolean;
-}
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // --- State ---
 const authStore = useAuthStore();
 const toast = useToastStore();
 const route = useRoute();
-const rooms = ref<Room[]>([]);
+const sourceRooms = ref<Room[]>([]);
+const contracts = ref<RoomLeaseContract[]>([]);
+const contractsReady = ref(false);
+const contractError = ref(false);
+const today = ref(taipeiToday());
+const rooms = computed(() => sourceRooms.value.map(room => {
+  const lease = resolveRoomLease(room, sourceRooms.value, contracts.value, today.value, contractsReady.value);
+  return { ...room, lease, leaseEnd: lease.endDate,
+    tenantName: lease.contract?.tenantName || room.tenantName };
+}));
+const leaseFilter = ref('all');
 const loading = ref(true);
 const activeTab = ref<'rooms' | 'properties'>('rooms');
 const unassignedRoomCount = computed(() => rooms.value.filter(r => !r.propertyId).length);
@@ -732,42 +732,44 @@ const defaultImage = 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?
 
 // --- Firestore Integration ---
 
-// 1. 實時監聽
 let unsubRooms: (() => void) | null = null;
-
-const startRoomsListener = () => {
-  if (unsubRooms) return;
-  const q = query(
-    collection(db, 'rooms'),
-    where('landlordId', '==', authStore.effectiveUid),
-    orderBy('createdAt', 'desc')
-  );
-  unsubRooms = onSnapshot(q, (snapshot) => {
-    rooms.value = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Room));
+let unsubContracts: (() => void) | null = null;
+let clockTimer: ReturnType<typeof setInterval> | undefined;
+const refreshDay = () => { today.value = taipeiToday(); };
+watch(() => authStore.userProfile ? authStore.effectiveUid : '', uid => {
+  unsubRooms?.();
+  unsubContracts?.();
+  sourceRooms.value = [];
+  contracts.value = [];
+  contractsReady.value = false;
+  contractError.value = false;
+  loading.value = !!uid;
+  if (!uid) return;
+  unsubRooms = subscribeRooms(uid, data => {
+    sourceRooms.value = data as Room[];
     loading.value = false;
-  }, (error) => {
-    console.error('Error fetching rooms:', error);
-    loading.value = false;
+  }, () => { loading.value = false; toast.error('房源載入失敗，請稍後再試'); });
+  unsubContracts = subscribeLeaseContracts(uid, data => {
+    contracts.value = data;
+    contractsReady.value = true;
+    contractError.value = false;
+  }, () => {
+    contracts.value = [];
+    contractsReady.value = true;
+    contractError.value = true;
   });
-};
-
+}, { immediate: true });
 onMounted(() => {
-  if (!authStore.user) return;
-  if (authStore.userProfile) {
-    startRoomsListener();
-  } else {
-    const stop = watch(() => authStore.userProfile, (profile) => {
-      if (profile) { stop(); startRoomsListener(); }
-    });
-  }
-  // 從 Dashboard「新增房源」按鈕帶入 ?action=new 時自動開啟 modal
-  if (route.query.action === 'new') {
-    openModal(undefined, 'create');
-  }
+  clockTimer = setInterval(refreshDay, 60000);
+  window.addEventListener('focus', refreshDay);
+  if (route.query.action === 'new') openModal(undefined, 'create');
 });
-
 onUnmounted(() => {
   unsubRooms?.();
+  unsubContracts?.();
+  clearInterval(clockTimer);
+  if (searchTimer) clearTimeout(searchTimer);
+  window.removeEventListener('focus', refreshDay);
 });
 
 // 2. 儲存與更新
@@ -782,38 +784,13 @@ const saveRoom = async () => {
     // 決定封面照片
     const finalCover = form.value.coverImage || (form.value.images && form.value.images.length > 0 ? form.value.images[0] : defaultImage);
     
-    // 整理要寫入的資料
-    const roomData = {
-      ...form.value,
-      coverImage: finalCover,
-      landlordId: authStore.effectiveUid,
-      landlordName: authStore.userProfile?.name || '',
-      landlordPhone: authStore.userProfile?.phone || '',
-      // 非空置狀態強制取消公開
-      isPublic: form.value.status === 'vacant' ? (form.value.isPublic ?? false) : false,
-      updatedAt: serverTimestamp()
-    };
-    
-    // 移除 id 避免重複寫入文件內文
-    delete (roomData as any).id;
-    // 移除所有 undefined 欄位（Firestore 不接受 undefined）
-    Object.keys(roomData).forEach(k => { if ((roomData as any)[k] === undefined) delete (roomData as any)[k]; });
-
-    if (isEditing.value && form.value.id) {
-      // 編輯模式
-      await updateDoc(doc(db, 'rooms', form.value.id), roomData);
-    } else {
-      // 新增模式
-      await addDoc(collection(db, 'rooms'), {
-        ...roomData,
-        createdAt: serverTimestamp()
-      });
-    }
-    
+    await saveManagedRoom(authStore.effectiveUid, { ...form.value, coverImage: finalCover,
+      landlordName: authStore.userProfile?.name || '', landlordPhone: authStore.userProfile?.phone || '' }, originalStatus.value);
+    toast.success('房源已儲存');
     showModal.value = false;
   } catch (err) {
     console.error(err);
-    toast.error('儲存失敗');
+    toast.error(err instanceof Error ? err.message : '儲存失敗');
   }
 };
 
@@ -821,7 +798,7 @@ const saveRoom = async () => {
 const deleteRoom = async () => {
   if (!form.value.id || !form.value.name) return;
   try {
-    await deleteDoc(doc(db, 'rooms', form.value.id));
+    await deleteRoomRecord(form.value.id);
     confirmDeleteRoom.value = false;
     showModal.value = false;
   } catch (err) {
@@ -857,9 +834,13 @@ const statusColors = {
 const filteredRooms = computed(() => {
   return rooms.value.filter(room => {
     if (currentFilter.value !== 'all' && room.status !== currentFilter.value) return false;
+    if (leaseFilter.value === 'expiring' && room.lease.state !== 'expiring') return false;
+    if (leaseFilter.value === 'expired' && room.lease.state !== 'expired') return false;
+    if (leaseFilter.value === 'renewed' && !['renewed', 'pending-activation'].includes(room.lease.state)) return false;
+    if (leaseFilter.value === 'attention' && !room.lease.needsAttention) return false;
     if (searchQuery.value) {
       const q = searchQuery.value.toLowerCase();
-      return (room.name?.toLowerCase() ?? '').includes(q) || (room.address?.toLowerCase() ?? '').includes(q);
+      return [room.name, room.address, room.tenantName].some(value => value?.toLowerCase().includes(q));
     }
     return true;
   });
@@ -871,6 +852,7 @@ const isEditing = ref(false);
 const isViewMode = ref(false);
 const confirmDeleteRoom = ref(false);
 
+const originalStatus = ref<Room['status']>();
 const form = ref<Partial<Room>>({
   name: '', price: 0, size: 0, address: '', layout: '獨立套房', status: 'vacant',
   tenantName: '', leaseEnd: '', images: [], coverImage: '', isPublic: false, purchaseCost: undefined,
@@ -985,30 +967,16 @@ const getCoverImage = (room: Room) => {
 };
 
 // --- Lease Expiry Helpers ---
-const getDaysRemaining = (dateStr?: string): number => {
-  if (!dateStr) return Infinity;
-  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
-};
-
-const leaseUrgency = (dateStr?: string): 'critical' | 'warning' | 'normal' => {
-  const d = getDaysRemaining(dateStr);
-  if (d <= 30) return 'critical';
-  if (d <= 60) return 'warning';
-  return 'normal';
-};
-
-const leaseExpiryLabel = (dateStr?: string): string => {
-  const d = getDaysRemaining(dateStr);
-  if (d < 0) return '已過期';
-  if (d === 0) return '今日到期';
-  if (d <= 60) return `${d} 天後到期`;
-  return '';
-};
+const selectedRoom = computed(() => rooms.value.find(r => r.id === form.value.id));
+const selectedLease = computed(() => selectedRoom.value?.lease);
+const getDaysRemaining = (dateStr?: string) => leaseDaysRemaining(dateStr, today.value);
+const leaseUrgency = (_dateStr?: string) => selectedLease.value?.urgency || 'normal';
 
 // --- Modal Core Logic ---
 const getMapLink = (address: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 
 const openModal = (room?: Room, mode: 'create' | 'edit' | 'view' = 'create') => {
+  originalStatus.value = room?.status;
   if (room) {
     form.value = JSON.parse(JSON.stringify(room));
     if (!form.value.images) form.value.images = [];

@@ -10,6 +10,15 @@ Firebase 專案 ID：`rental-system-7675e`
 
 ## 技術架構
 
+### 2026-09-13 房源租約一致性
+
+- 房源管理以同房東的唯一有效 `contracts` 為租期依據，優先以 `roomId` 關聯，舊資料僅在房號唯一時配對；缺漏或多份有效合約顯示「資料待確認」。
+- `promotePendingRenewal` Callable 與每日排程共用 `functions/renewal/service.cjs`，以交易同步合約、租客、房源並補齊 roomId。當期到期日含當天，新租期不提前接續；任一更新失敗即全數回滾並保留 pendingRenewal。
+- 房源新增租約篩選、租客搜尋、下一期提示與目前合約入口；以台灣日曆日期判斷到期，跨日／回到視窗時更新。
+- 編輯房源採可編輯欄位白名單，不寫回租期、租客、房東或建物歸屬；交易偵測出租狀態已變更，避免舊表單覆蓋。
+- 已以交易校正正式房源快照：501 到期日 `2027-08-21`、503 到期日 `2026-12-31`；僅更新這兩間的 leaseEnd／updatedAt，重新讀取確認與目前租約一致。
+- 驗證：`src/utils/roomLease.test.ts`、`npm run test:renewal:emulator`（僅 demo Firestore）；部署需包含 `promotePendingRenewal`、`scheduledReminderDaily` 與 Hosting。
+
 | 層次 | 技術 |
 |------|------|
 | 前端框架 | Vue 3 + TypeScript + Vite |
@@ -165,6 +174,7 @@ rental-system/
 - 雙方入住點交（2026-08-23）：房東選項目 → **實體遞交裝置** → 租客逐項確認並拍照 → PIN 交還 → 房東二次確認與歧異協調 → 雙方簽名 → PDF。全螢幕獨立路由不掛 LandlordLayout（留著側邊選單等於讓租客一點就看到其他租客的身分證號與租金）；遞出前呼叫 `vault.lock()`，交還時以簽名 PIN 驗身分並同時解鎖簽名。品項優先沿用同一間房上次的點交（只帶骨架，狀況與照片重來）。取代舊的單頁 `MoveInInspectionModal`
 - 雙方退租點交（2026-08-23）：以該租客已簽署的入住點交為基準帶入品項，每項顯示入住當時的狀況與照片；`MoveOutWizard` 改讀已簽署的退租點交，**狀況欄鎖定**（雙方簽過名的結論不該在結算畫面單方改掉），賠償比例依「入住→退租」的惡化程度預填（`suggestedRatio`：入住已有輕微、退租全損只賠 70%）後仍可逐項調整。未做雙方點交時保留舊的手動路徑並警示舉證力較弱
 - 部分付款／前期欠款／預收餘額／繳費方式變更（2026-09-12，決策見 ADR-007）：規則集中於 `src/utils/financials/payments.ts`（`collectedOf`／`outstandingOf`／`allocatePayment`／`applyCredit`／`planRebills`）與 `utils/meter/billing.ts` 的涵蓋期間（`rentCoverage`／`shouldGenerateRent`）。帳務頁另開監聽撈所有未繳，頁首紅條提示前期欠款，依租客檢視掛上「前期欠」並可一起收款；收款改走 `ReceivePaymentModal`（可改金額、預覽由舊到新的扣款順序、溢繳轉預收）；「記一筆」選了租客可切「收到租客付款」直接沖銷欠款，打房號或姓名也會自動綁定租客，手動電費會依房號寫入所屬總表（`groupId`）；生成帳單的確認視窗列出前期欠款與預收餘額，摘要顯示「本期 − 預收沖抵 + 前期未繳 = 應繳」，並對「非月繳沒填起租日」「租約已到期」「未設租金」發出警告（原本這三種會安靜地不出帳）；已退租租客不再被出帳。租客清單繳費狀態改計所有月份的欠款，本月沒有帳單時顯示「本月未出帳」而非建檔時寫死的「繳費正常」；改繳費方式後由 `RebillRentModal` 詢問是否把未繳清的租金單改成新週期。其餘沿用剩餘金額的地方：Dashboard、租客端帳單與首頁、繳費通知單、退租結算、年度損益、電費盈虧、LINE（查帳單 Flex 卡片原本讀不存在的 `totalAmount`，金額恆為 0，一併修正）。測試 564 → 615 項
+- 帳務管理版面重整（2026-09-13）：月度拆成「收款」與「分析」兩個子頁。**收款頁**＝一條摘要（本月已出帳／已收、待收含前期欠款、待確認）＋依租客清單＋出帳與通知動作；**分析頁**（`components/financials/MonthlyAnalysis.vue`）＝四個本月數字、類別明細（點一列跳回收款頁並套用該類別）、電費盈虧卡。解掉三個毛病：①類別卡與頁籤其實是同一個 `currentTab`，等於同一個篩選器有兩個 UI、還隔了兩個螢幕互相跳動 —— 改為 `statusFilter`（全部／待收／待確認）與 `categoryFilter` 兩個獨立條件，類別改用下拉；②「待收」同時出現在統計卡與頁籤 badge，電費金額又與電費盈虧卡各一份且尺度不同；③電費盈虧看的是台電帳期（跨兩個月），與「本月」並排容易誤讀，移到分析頁並加註期間
 - 報修管理（查看/處理租客報修申請）
 - 公告發布
 - 合約管理（自訂範本、PDF 匯出、電子簽名、排程續約：續約後目前租期維持到期滿、新租期存 pendingRenewal 到期自動接續+通知租客+導向重簽；房東「標記不續約」註記）
@@ -311,3 +321,4 @@ rental-system/
 | 2026-09-04 | **租客「我的資料」頁**：租客端原本完全沒有個人資料頁——路由只有 8 個、`tenants` 規則也只允許房東與 admin 寫入，唯一能自己動的是一次性的 `/tenant/welcome`（設密碼＋綁 LINE），用完沒有入口回得去。新增 `views/tenant/Profile.vue`：①租約資訊（姓名／證件號碼遮罩／房號／租期）唯讀，明說由房東維護、有誤請走「聯繫房東」；②可自行修改聯絡 Email 與緊急聯絡人，`firestore.rules` 的 tenants 放行租客本人但以 `affectedKeys().hasOnly([email, emergencyContact, updatedAt])` 鎖死白名單，姓名／證件號碼／房號／租金／租期一概不可自改；③變更密碼**先 reauthenticate 再 updatePassword**——直接改只在剛登入時有效，租客多半開著 PWA 好幾天才想到要改，會撞 `auth/requires-recent-login`，事後才要密碼等於白填一輪表單；④Gmail／LINE 綁定已存在於「聯繫房東」頁，不重複實作，只顯示狀態並導過去。⑤**收掉儀表板的「編輯個人資料」Modal**（問候語旁的小鉛筆）：它改的是 `users.name`／`users.phone`，而房東列表讀的是 `tenants`，租客改完房東完全看不到，且與新頁面重複。Modal 內的顯示名稱／電話／房東綁定三項能力**先搬到新頁面才刪**——綁定的邀請碼輸入改為頁內欄位，取代原本的 `prompt()`（會凍住整個分頁，慣例也禁用）。儀表板「未綁定」卡片與「聯繫房東」頁的「前往儀表板綁定」一併改指向新頁。**順帶修正權限漏洞**：`users` 原本是一條不限欄位的 `allow write: if request.auth.uid == userId`，任何租客在 console 對自己的文件寫一次 `role: "landlord"` 就能升級成房東，路由守衛與 `isLandlord()` 全部形同虛設；改為拆開 create／update，update 要求 `role` 與原值相同（create 仍放行本人帶 role，Onboarding 正是使用者自己選身分首次建檔）。`landlordId` 刻意不鎖——租客在儀表板自行綁定／解除房東寫的就是該欄位，鎖了會把這個功能一起關掉|
 | 2026-09-04 | **房東綁定改由伺服端查驗**：`users.landlordId` 原本由租客前端直接 `updateDoc`，邀請碼只在前端比對、規則不驗，任何租客改一行就能把自己掛到任意房東名下——而 `properties`／`meter_readings` 等規則正是以 `users.landlordId` 判斷「這位租客屬於誰」來放行讀取，等於能挑房東的資料看。新增 callable `bindLandlordByCode`（查 `landlordCode` + `role==landlord`，找不到回 not-found）與 `unbindLandlord`，兩者共用 `assertTenantCaller` 驗證呼叫者確為租客本人，再以 Admin SDK 代寫；`firestore.rules` 的 users update 隨之補上 `landlordId` 不可自改。租客仍可自改 `name`／`phone`（不影響授權），房東寫租客的 `landlordId` 走既有 `isLandlord()` 分支不受影響 |
 | 2026-09-12 | **部分付款、前期欠款、預收餘額、繳費方式變更**（ADR-007）：`bills` 加 `paidAmount`／`payments[]`／`coverFrom`／`coverTo`，`tenants` 加 `credit`／`creditLog[]`；收款由最舊的開始沖銷，溢繳轉預收並於生成帳單時自動沖抵。**順帶修正**：①租客清單「繳費正常」其實只是建檔時寫死的預設值，本月沒有任何帳單的租客（如 501）一律顯示成已繳，改為「本月未出帳」；②「記一筆」新增一律存成「待收款」，收到的錢反而變成一筆新欠款；③手動新增的電費沒有 `groupId`，電費盈虧把它歸到「未分組電表」；④非月繳沒填起租日、租約到期、租金為 0 時生成帳單會安靜跳過，改為警告；⑤已退租租客的 `leaseEnd` 被清空後會通過在租篩選；⑥LINE 查帳單 Flex 卡片讀 `totalAmount`（不存在）金額恆為 0 |
+| 2026-09-13 | **帳務管理版面重整**：月度拆為「收款」「分析」兩個子頁，第一畫面只留收款要用的東西（摘要條＋依租客清單），四張統計卡、類別明細與電費盈虧移到分析頁；狀態與類別篩選拆成兩個獨立條件，移除與頁籤重複的類別卡 |

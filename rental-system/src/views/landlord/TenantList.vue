@@ -1166,7 +1166,7 @@
 
           <p class="text-xs text-blue-600 dark:text-blue-400 flex items-start gap-1">
             <span class="material-symbols-outlined text-[15px] shrink-0" aria-hidden="true">info</span>
-            確認後將更新租期與租金、以 LINE 通知租客，並前往簽署新合約。
+            確認後將安排下一期租約、以 LINE 通知租客，並前往簽署；目前租期結束後才會接續。
           </p>
 
           <div class="flex gap-3 pt-1">
@@ -1190,6 +1190,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { promotePendingRenewal } from '../../services/leaseService';
+import { taipeiToday } from '../../utils/roomLease';
 import { auth, db, functions } from '../../firebase/config';
 import { httpsCallable } from 'firebase/functions';
 import { useAuthStore } from '../../stores/auth';
@@ -1325,7 +1327,7 @@ let unsubscribeInvites: any = null;
 const pendingInvites = ref<any[]>([]);
 
 // --- Date Helpers ---
-const todayStr = () => new Date().toISOString().split('T')[0] as string;
+const todayStr = taipeiToday;
 
 const calcLeaseEnd = (start: string, durationYears: number): string => {
   if (!start || !durationYears) return '';
@@ -1474,7 +1476,9 @@ const startListeners = () => {
   loadAccountStatuses();
 
   const qTenants = query(collection(db, 'tenants'), where('landlordId', '==', uid));
+  let tenantSnapshotVersion = 0;
   unsubscribeTenants = onSnapshot(qTenants, async (snapshot) => {
+    const version = ++tenantSnapshotVersion;
     const manualTenants = await Promise.all(snapshot.docs.map(async (d) => {
       const tenantData = { id: d.id, ...d.data() } as Tenant;
       if (tenantData.contractId) {
@@ -1496,7 +1500,7 @@ const startListeners = () => {
       }
       return tenantData;
     }));
-    updateCombinedList(manualTenants, onlineUsers.value);
+    if (version === tenantSnapshotVersion) updateCombinedList(manualTenants, onlineUsers.value);
   });
 
   if (myCode) {
@@ -2261,25 +2265,13 @@ const maybePromotePendingRenewal = async (tenantData: Tenant) => {
   if (tenantData.leaseEnd && todayStr() <= tenantData.leaseEnd) return;
   if (todayStr() < pr.startDate) return;
   try {
-    await updateDoc(doc(db, 'contracts', tenantData.contractId), {
-      startDate: pr.startDate,
-      endDate: pr.endDate,
-      rent: pr.rent,
-      previousEndDate: tenantData.leaseEnd || '',
-      pendingRenewal: deleteField(),
-      updatedAt: serverTimestamp(),
-    });
-    await updateDoc(doc(db, 'tenants', tenantData.id), {
-      leaseStart: pr.startDate,
-      leaseEnd: pr.endDate,
-      rent: pr.rent,
-      updatedAt: serverTimestamp(),
-    });
-    // 即時反映到當前清單資料，避免等待 snapshot 重觸
-    tenantData.leaseStart = pr.startDate;
-    tenantData.leaseEnd = pr.endDate;
-    tenantData.rent = pr.rent;
-    tenantData.pendingRenewal = null;
+    const result = await promotePendingRenewal(tenantData.contractId);
+    if (result.promoted) {
+      tenantData.leaseStart = result.startDate!;
+      tenantData.leaseEnd = result.endDate!;
+      tenantData.rent = result.rent!;
+      tenantData.pendingRenewal = null;
+    }
   } catch (e) {
     console.warn('promote pendingRenewal failed', e);
   }

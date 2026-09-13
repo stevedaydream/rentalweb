@@ -49,6 +49,48 @@ export interface Room {
   createdAt?: any;
 }
 
+export interface ManagedRoom extends Room {
+  address: string;
+  price: number;
+  size: number;
+  layout: string;
+  type: string;
+  images?: string[];
+  coverImage?: string;
+  leaseEnd?: string;
+  landlordName?: string;
+  landlordPhone?: string;
+  isPublic?: boolean;
+  purchaseCost?: number;
+}
+
+export interface RoomLeaseContract {
+  id: string;
+  landlordId: string;
+  roomId?: string;
+  roomNumber?: string;
+  tenantDocId?: string;
+  tenantName?: string;
+  status: string;
+  startDate?: string;
+  endDate?: string;
+  rent?: number;
+  renewalStatus?: string;
+  pendingRenewal?: { startDate: string; endDate: string; rent: number } | null;
+}
+
+export interface RoomLeaseSummary {
+  state: 'none' | 'unknown' | 'active' | 'expiring' | 'expired' | 'renewed' | 'pending-activation' | 'upcoming';
+  label: string;
+  urgency: 'normal' | 'warning' | 'critical';
+  days: number;
+  needsAttention: boolean;
+  startDate?: string;
+  endDate?: string;
+  contract?: RoomLeaseContract;
+  pending?: NonNullable<RoomLeaseContract['pendingRenewal']>;
+}
+
 /** 火災保險保單。通常一棟一張（標的物為建物） */
 export interface FireInsurance {
   /** 保險公司 */
