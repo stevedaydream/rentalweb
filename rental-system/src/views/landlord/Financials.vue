@@ -516,7 +516,7 @@
     </template>
 
     <BillTransactionModal v-model:show="showModal" v-model="form" :is-editing="isEditing" :tenants="tenantsList"
-      :open-bills="openBills" @save="saveTransaction" @receive="onManualReceive" />
+      :open-bills="openBills" :groups="taipowerGroupOptions" @save="saveTransaction" @receive="onManualReceive" />
     <ReceivePaymentModal
       :show="!!receiveTarget" @update:show="closeReceive"
       :label="receiveTarget?.label || ''" :bills="receiveTarget?.bills || []"
@@ -721,7 +721,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions'
 import { useAuthStore } from '../../stores/auth'
 import { useToastStore } from '../../stores/toast'
 import {
-  collection, onSnapshot, addDoc, updateDoc, deleteDoc,
+  collection, onSnapshot, addDoc, updateDoc,
   doc, serverTimestamp, getDocs, query, orderBy, where, limit,
   writeBatch, arrayUnion, increment,
   type Unsubscribe,
@@ -755,6 +755,7 @@ import { getProperties } from '../../services/propertyService'
 import type { Property } from '../../types/index'
 import { buildSubGroupIndex } from '../../utils/meter/groups'
 import { buildElectricityStatsList } from '../../utils/financials/electricity'
+import { findLinkedTaipowerBill, TAIPOWER_CATEGORY } from '../../utils/financials/taipowerLink'
 import { UNGROUPED_ID, type MeterGroupDoc } from '../../components/meter/types'
 import type { Room } from '../../types/index'
 
@@ -775,6 +776,8 @@ interface Transaction {
   relatedTenantDocId?: string
   /** 所屬台電總表（棟）；電費／公共電費帳單於生成時寫入，舊資料沒有 */
   groupId?: string
+  /** 台電支出對應的 taipower_bills */
+  taipowerBillId?: string
   relatedContractId?: string
   dueDate?: string
   paidAt?: string
@@ -1405,7 +1408,23 @@ const saveTransaction = async () => {
       const old = transactions.value.find(t => t.id === editingId.value)
       const rec: any = { modifiedAt: new Date().toISOString(), data: { ...old } }
       delete rec.data.history; delete rec.data.id
-      await updateDoc(doc(db, 'bills', editingId.value), { ...payload, history: [rec, ...(old?.history || [])] })
+      // 台電支出改了金額、日期或總表，電費盈虧用的台電帳單要跟著改，否則兩邊對不起來
+      const linked = old && payload.category === TAIPOWER_CATEGORY ? findLinkedTaipowerBill(old, taipowerBills.value) : undefined
+      if (old && payload.category === TAIPOWER_CATEGORY && payload.groupId && payload.groupId !== old.groupId) {
+        const nameOf = (id?: string) => meterGroups.value.find(g => g.id === id)?.name
+        const oldName = nameOf(old.groupId), newName = nameOf(payload.groupId)
+        if (oldName && newName) payload.description = (payload.description || '').replace(`（${oldName}）`, `（${newName}）`)
+      }
+      const batch = writeBatch(db)
+      if (linked) {
+        payload.taipowerBillId = linked.id
+        batch.update(doc(db, 'taipower_bills', linked.id), {
+          amount: payload.amount, month: payload.date.slice(0, 7), expenseBillId: editingId.value,
+          ...(payload.groupId ? { groupId: payload.groupId } : {}),
+        })
+      }
+      batch.update(doc(db, 'bills', editingId.value), { ...payload, history: [rec, ...(old?.history || [])] })
+      await batch.commit()
     } else {
       await addDoc(collection(db, 'bills'), { ...payload, history: [], createdAt: serverTimestamp() })
     }
@@ -1423,7 +1442,16 @@ const handleDelete = (id: string) => {
 const confirmDelete = async () => {
   if (!deletingId.value) return
   showDeleteConfirm.value = false
-  try { await deleteDoc(doc(db, 'bills', deletingId.value)); toast.success('紀錄已刪除') }
+  try {
+    // 台電支出與電費盈虧用的台電帳單是同一張帳單的兩份紀錄，只刪一邊會留下看不到的孤兒
+    const bill = transactions.value.find(t => t.id === deletingId.value)
+    const linked = bill ? findLinkedTaipowerBill(bill, taipowerBills.value) : undefined
+    const batch = writeBatch(db)
+    batch.delete(doc(db, 'bills', deletingId.value))
+    if (linked) batch.delete(doc(db, 'taipower_bills', linked.id))
+    await batch.commit()
+    toast.success(linked ? '紀錄已刪除，對應的台電帳單也已一併刪除' : '紀錄已刪除')
+  }
   catch { toast.error('刪除失敗') }
   finally { deletingId.value = null }
 }
@@ -1435,14 +1463,19 @@ const saveTaipowerBill = async () => {
     const groupId = taipowerForm.value.groupId || meterGroups.value[0]?.id || ''
     const groupName = meterGroups.value.find(g => g.id === groupId)?.name
     const suffix = meterGroups.value.length > 1 && groupName ? `（${groupName}）` : ''
-    await addDoc(collection(db, 'taipower_bills'), { ...taipowerForm.value, groupId, landlordId: authStore.effectiveUid, createdAt: serverTimestamp() })
-    await addDoc(collection(db, 'bills'), {
-      date: `${taipowerForm.value.month}-15`, type: 'expense', category: '台電帳單',
+    // 兩份紀錄互存 id 並同批寫入，刪除或編輯支出時才找得到對應的台電帳單
+    const tpRef = doc(collection(db, 'taipower_bills'))
+    const billRef = doc(collection(db, 'bills'))
+    const batch = writeBatch(db)
+    batch.set(tpRef, { ...taipowerForm.value, groupId, expenseBillId: billRef.id, landlordId: authStore.effectiveUid, createdAt: serverTimestamp() })
+    batch.set(billRef, {
+      date: `${taipowerForm.value.month}-15`, type: 'expense', category: TAIPOWER_CATEGORY,
       target: '台灣電力公司', description: `${taipowerForm.value.month} 電費帳單${suffix}`,
-      groupId,
+      groupId, taipowerBillId: tpRef.id,
       amount: taipowerForm.value.amount, landlordId: authStore.effectiveUid,
       status: 'completed', history: [], createdAt: serverTimestamp(),
     })
+    await batch.commit()
     showTaipowerModal.value = false
     toast.success('台電帳單已登錄')
   } catch { toast.error('登錄失敗，請稍後再試') }

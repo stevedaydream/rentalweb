@@ -6,6 +6,8 @@ export interface TaipowerBill {
   landlordId?: string
   /** 所屬台電總表（棟）。台電按電號寄帳單，故逐總表歸屬；舊資料可能沒有 */
   groupId?: string
+  /** 對應交易清單的台電支出（bills）；舊資料沒有 */
+  expenseBillId?: string
 }
 
 export interface ElectricityStats {
@@ -39,6 +41,8 @@ export interface TransactionForm {
   tenantId?: string | null
   /** 手動新增電費時依租客房號推得，電費盈虧才歸得到棟 */
   groupId?: string
+  /** 台電支出對應的 taipower_bills；刪除與編輯時同步 */
+  taipowerBillId?: string
 }
 
 export interface TaipowerForm {

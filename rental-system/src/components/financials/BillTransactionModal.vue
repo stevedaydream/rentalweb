@@ -184,6 +184,16 @@
             <p v-else class="text-xs text-text-secondary-light">會另外新增一張帳單（例如補收清潔費），不會沖銷既有欠款。</p>
           </div>
 
+          <!-- 台電支出的所屬總表：選錯棟時在這裡改，對應的台電帳單會一併更新 -->
+          <div v-if="local.category === '台電帳單' && (groups?.length ?? 0) > 1">
+            <label for="bill-group" class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-2">所屬總表</label>
+            <select id="bill-group" v-model="local.groupId" class="form-input text-sm">
+              <option value="" disabled>請選擇總表</option>
+              <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
+            </select>
+            <p class="text-xs text-text-secondary-light mt-1">台電按電號寄帳單，選錯棟會讓該棟的電費盈虧算錯。</p>
+          </div>
+
           <!-- Description -->
           <div>
             <label for="bill-description" class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-2">備註</label>
@@ -249,6 +259,8 @@ const props = defineProps<{
   tenants?: TenantOption[]
   /** 所有未繳帳單；選了租客時用來判斷這筆是不是收款 */
   openBills?: OpenBill[]
+  /** 台電總表；超過一顆時台電支出可選所屬總表 */
+  groups?: { id: string; name: string }[]
 }>()
 
 const emit = defineEmits<{
