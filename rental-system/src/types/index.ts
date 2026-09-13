@@ -313,3 +313,30 @@ export interface Announcement {
   pinned?: boolean;
   createdAt?: any;
 }
+
+/** 操作說明頁 */
+export type GuideRole = 'landlord' | 'tenant' | 'visitor' | 'admin';
+
+export interface GuideSection {
+  id: string;
+  title: string;
+  icon: string;
+  /** 在系統中的位置，例如「側邊欄 › 房源管理」 */
+  location: string;
+  summary: string;
+  /** 步驟順序即示意圖上的編號 */
+  steps: string[];
+  tips?: string[];
+  illustration: string;
+  /** 登入且角色相符時顯示「前往此頁」 */
+  routeName?: string;
+}
+
+export interface GuideRoleContent {
+  role: GuideRole;
+  label: string;
+  icon: string;
+  intro: string;
+  flow: { label: string; sectionId: string }[];
+  sections: GuideSection[];
+}

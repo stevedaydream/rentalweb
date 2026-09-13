@@ -11,6 +11,14 @@
         </div>
         <div class="flex items-center gap-2">
           <router-link
+            :to="{ name: 'Guide', query: { role: 'visitor' } }"
+            aria-label="操作說明"
+            class="p-1.5 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-1 text-sm font-medium"
+          >
+            <span class="material-symbols-outlined text-[20px]" aria-hidden="true">help</span>
+            <span class="hidden sm:inline">操作說明</span>
+          </router-link>
+          <router-link
             to="/login"
             class="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors font-medium"
           >

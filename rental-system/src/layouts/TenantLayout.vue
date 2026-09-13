@@ -35,6 +35,13 @@
         </nav>
         <div class="p-4 border-t border-ink-700 space-y-1">
           <router-link
+            :to="{ name: 'Guide', query: { role: 'tenant' } }"
+            class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-colors text-ink-300 hover:bg-ink-700 hover:text-ink-100"
+          >
+            <span class="material-symbols-outlined mr-3" aria-hidden="true">help</span>
+            操作說明
+          </router-link>
+          <router-link
             :to="{ name: 'TenantProfile' }"
             class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-colors"
             :class="route.name === 'TenantProfile' ? 'bg-gold-500/15 text-gold-300' : 'text-ink-300 hover:bg-ink-700 hover:text-ink-100'"
@@ -61,6 +68,13 @@
         <img :src="logoSrc" alt="Logo" class="h-8 w-auto brightness-0 invert" />
         <div class="flex items-center gap-2">
           <span class="text-[10px] px-2 py-0.5 bg-gold-500/20 text-gold-300 rounded-full font-bold">租客版</span>
+          <router-link
+            :to="{ name: 'Guide', query: { role: 'tenant' } }"
+            aria-label="操作說明"
+            class="p-1.5 rounded-lg transition-colors text-ink-300 hover:bg-ink-700 hover:text-ink-100"
+          >
+            <span class="material-symbols-outlined text-[20px]" aria-hidden="true">help</span>
+          </router-link>
           <!-- 底部 Tab 已經 8 項，手機一格不到 47px，個人資料改掛在頂列 -->
           <router-link
             :to="{ name: 'TenantProfile' }"

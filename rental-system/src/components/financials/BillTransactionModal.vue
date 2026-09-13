@@ -271,22 +271,32 @@ watch(() => props.show, (val) => {
     local.value = JSON.parse(JSON.stringify(props.modelValue))
     openedTarget.value = props.modelValue.target || ''
     targetSearch.value = openedTarget.value
+    // 早期手動帳單只有 target 字串：沒改對象直接儲存也要補上綁定
+    if (!local.value.relatedTenantDocId) {
+      const t = matchTenant(openedTarget.value)
+      if (t) bindTenant(t)
+    }
   }
 })
+
+// 選單標籤完全相符，或直接打房號／姓名且恰好一位吻合；
+// 沒綁到租客的帳單，電費盈虧歸不到棟、收款也沖不到欠款
+const matchTenant = (v: string) => {
+  const list = props.tenants ?? []
+  const picked = list.find(t => targetLabel(t) === v)
+  if (picked) return picked
+  const q = v.trim()
+  const hits = q ? list.filter(t => t.room === q || t.name === q) : []
+  return hits.length === 1 ? hits[0] : undefined
+}
 
 // Sync targetSearch → local.target when typing freely
 // 自由輸入時解除租客綁定，避免改了對象卻仍歸戶到原租客
 watch(targetSearch, (v) => {
   local.value.target = v
-  if (v === openedTarget.value) return // 未改動，維持載入時的綁定
-  const list = props.tenants ?? []
-  const picked = list.find(t => targetLabel(t) === v)
-  if (picked) { bindTenant(picked); return }
-  // 直接打房號或姓名也認得出是哪位租客（恰好一位吻合時）；
-  // 沒綁到租客的帳單，電費盈虧歸不到棟、收款也沖不到欠款
-  const q = v.trim()
-  const hits = q ? list.filter(t => t.room === q || t.name === q) : []
-  if (hits.length === 1) bindTenant(hits[0]!)
+  if (v === openedTarget.value && local.value.relatedTenantDocId) return // 未改動，維持載入時的綁定
+  const t = matchTenant(v)
+  if (t) bindTenant(t)
   else unbindTenant()
 })
 

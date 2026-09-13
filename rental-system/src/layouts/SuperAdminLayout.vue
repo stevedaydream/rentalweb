@@ -98,6 +98,7 @@ const menuItems = [
   { name: '資料庫操作', to: { name: 'AdminDatabase' }, icon: 'database' },
   { name: '功能開關', to: { name: 'AdminFeatureFlags' }, icon: 'toggle_on' },
   { name: '系統模擬器', to: { name: 'SystemSimulator' }, icon: 'settings_remote' },
+  { name: '操作說明', to: { name: 'Guide', query: { role: 'admin' } }, icon: 'help' },
 ];
 
 const isActive = (to: any) => {

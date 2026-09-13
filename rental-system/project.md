@@ -10,6 +10,18 @@ Firebase 專案 ID：`rental-system-7675e`
 
 ## 技術架構
 
+### 2026-09-14 操作說明頁
+
+- 公開路由 `/guide`（`views/Guide.vue`，免登入、不掛 Layout），分房東／租客／找房訪客／管理員四個分頁，`?role=` 決定分頁，未指定時依登入角色、未登入為訪客。
+- 內容資料集中於 `components/guide/guideContent.ts`（型別 `GuideRole`／`GuideSection`／`GuideRoleContent` 在 `types/index.ts`）：每角色含流程總覽（點擊捲動到章節）與章節（位置、摘要、步驟、提示、`routeName`）。步驟順序即示意圖編號；登入且角色相符時顯示「前往此頁」。
+- 示意圖 `components/guide/GuideIllustration.vue` 以 Tailwind 繪製簡化介面（不用截圖、不含真實資料），依 `name` 切換 23 張，支援深色模式，窄螢幕改單欄。改版 UI 或按鈕名稱時需同步更新內容與示意圖。
+- 入口：房東側邊欄底部、租客側邊欄底部與手機頂列、管理員選單、找房頁頂列。
+
+### 2026-09-14 房源列表檢視
+
+- 房源管理可切換卡片／列表（`localStorage.roomManagementViewMode` 記住），共用篩選與搜尋。
+- 列表元件 `src/components/rooms/RoomListView.vue`：房號、狀態、租客＋到期＋租約標籤、租金坪數格局、刊登＋照片數、編輯／詳情；點列展開照片縮圖（一次一列，標示封面），點縮圖開燈箱（左右切換、方向鍵、Esc）。手機版次要欄位與操作收進展開區。
+
 ### 2026-09-13 簽署合約唯一生效
 
 - `signed_contracts` 狀態改由 `src/utils/signedContract.ts` 統一判定（房東合約記錄與租客我的合約共用）：待生效／生效中／已被取代／已到期，以台灣日期判斷。
@@ -55,11 +67,13 @@ rental-system/
 │   │   ├── landlord/      # 房東所有頁面（共 14 頁）
 │   │   ├── tenant/        # 租客頁面（共 6 頁）
 │   │   ├── admin/         # 管理員頁面（共 5 頁）
-│   │   └── explore/       # 公開找房 / 房東 Profile
+│   │   ├── explore/       # 公開找房 / 房東 Profile
+│   │   └── Guide.vue      # 操作說明（公開，依角色分頁）
 │   ├── components/
 │   │   ├── dashboard/     # Dashboard 小元件（6 個）
 │   │   ├── financials/    # 帳務元件（7 個：月份/帳單/台電/列印/歷史/稅費/年度）
-│   │   ├── rooms/         # 建物管理（PropertyTab, PropertyFormModal）
+│   │   ├── rooms/         # 建物管理（PropertyTab, PropertyFormModal）、房源列表（RoomListView）
+│   │   ├── guide/         # 操作說明內容（guideContent）與示意圖（GuideIllustration）
 │   │   ├── tenants/       # 租客元件（TenantStatModal, RentSubsidyFields, PurgeConfirmModal）
 │   │   ├── inspection/    # 雙方點交（Draft/TenantConfirm/LandlordReview/Sign/PhotoCapture/…）
 │   │   └── meter/         # 抄表元件（2 個）
@@ -133,7 +147,7 @@ rental-system/
 ### 房東系統
 - Dashboard（財務概覽、月度任務、用電概況、報修摘要、房東 Profile）
 - 用電概況卡（2026-08-11，取代壞掉的「電表快速登錄」）：唯讀卡片，顯示本月抄表進度（分母＝在租房間＋公共電表，與抄表頁 `billableEntries` 同定義）、未抄清單、本月用電度數／電費、較上月增減％、用電排行（前 5 名含長條圖，公共表以紫色區分），底部保留前往抄表頁入口。舊的 `MeterQuickEntry.vue` 已刪除，其問題：讀 `rooms.currentMeter`（不存在，上期度數恆為 0）、寫 `meter_readings` 用 `{reading, date, type:'manual_quick'}` 缺 `periodEnd`／`usage`／`cost`（查詢與帳單生成皆讀不到，形同孤兒文件）、回寫 `rooms.currentMeter`／`lastMeterUpdate` 而非 `lastMeterReading`／`lastMeterDate`（基準度數未更新）
-- 房間管理（新增/編輯/刪除房間，狀態追蹤）
+- 房間管理（新增/編輯/刪除房間，狀態追蹤；租期以唯一有效合約為準並可依租約狀態篩選；卡片／列表檢視切換，列表點列展開照片與燈箱）
 - 租客清單（新增/管理租客，綁定房間，解除房間綁定，刪除租客）
 - 財務管理（帳單建立、收款記錄、台電帳單、統計圖表）
 - 電費盈虧分析卡（2026-07-13 接回，Ver1.4 重構時意外斷線；2026-08-21 大改，見下方「稅務與保險整併」）：**逐台電總表各一張卡**，期間錨定該棟台電帳單的迄月而非檢視月份；收入 = 該棟的電費＋公共電費帳單（實收依 isCollected）。位置在類別卡片與交易列表之間
@@ -184,7 +198,7 @@ rental-system/
 - 帳務管理版面重整（2026-09-13）：月度拆成「收款」與「分析」兩個子頁。**收款頁**＝一條摘要（本月已出帳／已收、待收含前期欠款、待確認）＋依租客清單＋出帳與通知動作；**分析頁**（`components/financials/MonthlyAnalysis.vue`）＝四個本月數字、類別明細（點一列跳回收款頁並套用該類別）、電費盈虧卡。解掉三個毛病：①類別卡與頁籤其實是同一個 `currentTab`，等於同一個篩選器有兩個 UI、還隔了兩個螢幕互相跳動 —— 改為 `statusFilter`（全部／待收／待確認）與 `categoryFilter` 兩個獨立條件，類別改用下拉；②「待收」同時出現在統計卡與頁籤 badge，電費金額又與電費盈虧卡各一份且尺度不同；③電費盈虧看的是台電帳期（跨兩個月），與「本月」並排容易誤讀，移到分析頁並加註期間
 - 報修管理（查看/處理租客報修申請）
 - 公告發布
-- 合約管理（自訂範本、PDF 匯出、電子簽名、排程續約：續約後目前租期維持到期滿、新租期存 pendingRenewal 到期自動接續+通知租客+導向重簽；房東「標記不續約」註記）
+- 合約管理（自訂範本、PDF 匯出、電子簽名、排程續約：續約後目前租期維持到期滿、新租期存 pendingRenewal 到期自動接續+通知租客+導向重簽；房東「標記不續約」註記；同一承租人租期重疊時簽署前提示並標記舊合約「已被取代」，合約記錄顯示待生效／生效中／已被取代／已到期）
 - 收據管理（押金/保證書 PDF）
 - 房東設定（LINE Bot 設定、個人資料）
 - 訊息中心（LINE 訊息收發）
@@ -211,6 +225,7 @@ rental-system/
 
 ### 公開功能
 - 找房頁（可不登入瀏覽空置房間）
+- 操作說明頁（`/guide`，依房東／租客／訪客／管理員分頁，流程總覽＋步驟＋示意圖）
 - 房東 Profile 公開頁
 - 評價系統
 
@@ -329,3 +344,6 @@ rental-system/
 | 2026-09-04 | **房東綁定改由伺服端查驗**：`users.landlordId` 原本由租客前端直接 `updateDoc`，邀請碼只在前端比對、規則不驗，任何租客改一行就能把自己掛到任意房東名下——而 `properties`／`meter_readings` 等規則正是以 `users.landlordId` 判斷「這位租客屬於誰」來放行讀取，等於能挑房東的資料看。新增 callable `bindLandlordByCode`（查 `landlordCode` + `role==landlord`，找不到回 not-found）與 `unbindLandlord`，兩者共用 `assertTenantCaller` 驗證呼叫者確為租客本人，再以 Admin SDK 代寫；`firestore.rules` 的 users update 隨之補上 `landlordId` 不可自改。租客仍可自改 `name`／`phone`（不影響授權），房東寫租客的 `landlordId` 走既有 `isLandlord()` 分支不受影響 |
 | 2026-09-12 | **部分付款、前期欠款、預收餘額、繳費方式變更**（ADR-007）：`bills` 加 `paidAmount`／`payments[]`／`coverFrom`／`coverTo`，`tenants` 加 `credit`／`creditLog[]`；收款由最舊的開始沖銷，溢繳轉預收並於生成帳單時自動沖抵。**順帶修正**：①租客清單「繳費正常」其實只是建檔時寫死的預設值，本月沒有任何帳單的租客（如 501）一律顯示成已繳，改為「本月未出帳」；②「記一筆」新增一律存成「待收款」，收到的錢反而變成一筆新欠款；③手動新增的電費沒有 `groupId`，電費盈虧把它歸到「未分組電表」；④非月繳沒填起租日、租約到期、租金為 0 時生成帳單會安靜跳過，改為警告；⑤已退租租客的 `leaseEnd` 被清空後會通過在租篩選；⑥LINE 查帳單 Flex 卡片讀 `totalAmount`（不存在）金額恆為 0 |
 | 2026-09-13 | **帳務管理版面重整**：月度拆為「收款」「分析」兩個子頁，第一畫面只留收款要用的東西（摘要條＋依租客清單），四張統計卡、類別明細與電費盈虧移到分析頁；狀態與類別篩選拆成兩個獨立條件，移除與頁籤重複的類別卡 |
+| 2026-09-13 | **房源租約一致性＋簽署合約唯一生效**：房源管理改以唯一有效 `contracts` 判定租期，多份有效合約顯示「資料待確認」；追出 `TenantList.saveTenant` 在租客綁帳號後以 `tenantId` 查不到舊合約而重複建約（401／403／504／test），修正查詢並校正正式資料。`signed_contracts` 新增 `supersededBy`，簽署／上傳紙本前檢查同一承租人租期重疊並提示取代，狀態統一為待生效／生效中／已被取代／已到期（房東與租客端共用） |
+| 2026-09-14 | **房源列表檢視＋操作說明頁**：房源管理可切換卡片／列表（記住選擇），列表點列展開照片、點縮圖開燈箱；新增公開 `/guide` 操作說明頁，依四種角色分頁，含流程總覽、逐步說明、提示與 23 張 Tailwind 繪製的示意圖，各角色選單加入口 |
+| 2026-09-14 | **電費盈虧「未分組電表」排除**：多總表時無 `groupId` 的舊資料不臆測歸屬，任一月份有一筆就會出現未分組卡片。修 `BillTransactionModal`：編輯舊帳單時對象未改動卻未綁租客者，開啟時即依 target 比對補綁（原本「對象未改動就保留綁定」連帶保留了「未綁定」）。正式資料校正：台電 2026-04 補基隆總表；刪除 8/20 無總表無度數的重複 2026-08 帳單；9/13 誤登為 2026-09 的台電帳單改回 2026-08（台電帳單視窗月份預設為當下檢視月份）；789 手動電費綁定 401 並改日期為 2026-06-12。回讀確認所有台電帳單與電費帳單皆可歸棟 |

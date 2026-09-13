@@ -84,6 +84,14 @@
         <!-- 系統設定 + 登出 -->
         <div class="p-4 border-t border-ink-700 space-y-1 shrink-0">
           <router-link
+            :to="{ name: 'Guide', query: { role: 'landlord' } }"
+            class="flex items-center px-4 py-2.5 text-sm font-medium rounded-xl transition-colors text-ink-400 hover:bg-ink-700 hover:text-ink-100"
+            @click="isSidebarOpen = false"
+          >
+            <span class="material-symbols-outlined mr-3 text-[18px]" aria-hidden="true">help</span>
+            操作說明
+          </router-link>
+          <router-link
             :to="{ name: 'Settings' }"
             class="flex items-center px-4 py-2.5 text-sm font-medium rounded-xl transition-colors"
             :class="isActive({ name: 'Settings' }) ? 'bg-gold-500/15 text-gold-300' : 'text-ink-400 hover:bg-ink-700 hover:text-ink-100'"

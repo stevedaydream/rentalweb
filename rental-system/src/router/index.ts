@@ -54,6 +54,7 @@ const Maintenance = () => import('../views/Maintenance.vue');
 const RoomExplore = () => import('../views/explore/RoomExplore.vue');
 const LandlordProfile = () => import('../views/explore/LandlordProfile.vue');
 const LandlordReviews = () => import('../views/landlord/Reviews.vue');
+const Guide = () => import('../views/Guide.vue');
 
 const routes = [
   { path: '/', name: 'Identity', component: Identity },
@@ -64,6 +65,7 @@ const routes = [
   { path: '/activate/:code', name: 'ActivateTenant', component: ActivateTenant }, // 帳號啟用（免登入）
   { path: '/explore', name: 'RoomExplore', component: RoomExplore },
   { path: '/explore/landlord/:landlordId', name: 'LandlordProfile', component: LandlordProfile },
+  { path: '/guide', name: 'Guide', component: Guide }, // 操作說明（免登入）
   { path: '/admin/login', name: 'AdminLogin', component: AdminLogin },
   
   // 房東系統

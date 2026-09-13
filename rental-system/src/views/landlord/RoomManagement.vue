@@ -75,6 +75,21 @@
         <option value="attention">資料待確認</option>
       </select>
       <span class="text-sm text-text-secondary-light">{{ filteredRooms.length }} 間房源</span>
+      <div class="ml-auto flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg" role="group" aria-label="檢視模式">
+        <button
+          v-for="mode in viewModes"
+          :key="mode.value"
+          type="button"
+          :aria-label="mode.label"
+          :aria-pressed="viewMode === mode.value"
+          :title="mode.label"
+          class="p-1.5 rounded-md flex items-center transition-colors"
+          :class="viewMode === mode.value ? 'bg-white dark:bg-card-dark shadow text-text-primary-light dark:text-white' : 'text-text-secondary-light hover:text-text-primary-light dark:hover:text-white'"
+          @click="setViewMode(mode.value)"
+        >
+          <span class="material-symbols-outlined text-[20px]" aria-hidden="true">{{ mode.icon }}</span>
+        </button>
+      </div>
     </div>
     <p v-if="contractError" role="alert" class="text-sm text-amber-700 dark:text-amber-300">租約資料載入失敗，請重新整理後再確認。</p>
 
@@ -83,6 +98,14 @@
     </div>
 
     <div v-else-if="!filteredRooms.length" class="text-center py-12 text-text-secondary-light">沒有符合條件的房源</div>
+    <RoomListView
+      v-else-if="viewMode === 'list'"
+      :rooms="filteredRooms"
+      :status-labels="statusLabels"
+      :status-colors="statusColors"
+      @edit="openModal($event, 'edit')"
+      @view="openModal($event, 'view')"
+    />
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <div 
         v-for="room in filteredRooms" 
@@ -705,6 +728,7 @@ import { subscribeLeaseContracts } from '../../services/leaseService';
 import { resolveRoomLease, taipeiToday, leaseDaysRemaining } from '../../utils/roomLease';
 import { getMeterGroups } from '../../services/meterGroupService';
 import PropertyTab from '../../components/rooms/PropertyTab.vue';
+import RoomListView from '../../components/rooms/RoomListView.vue';
 
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
@@ -823,6 +847,21 @@ const filters = [
   { label: '待租', value: 'vacant' },
   { label: '維修中', value: 'maintenance' }
 ];
+
+type ViewMode = 'grid' | 'list';
+const VIEW_MODE_KEY = 'roomManagementViewMode';
+const viewModes = [
+  { value: 'grid', label: '卡片檢視', icon: 'grid_view' },
+  { value: 'list', label: '列表檢視', icon: 'view_list' },
+] as const;
+const readViewMode = (): ViewMode => {
+  try { return localStorage.getItem(VIEW_MODE_KEY) === 'list' ? 'list' : 'grid'; } catch { return 'grid'; }
+};
+const viewMode = ref<ViewMode>(readViewMode());
+const setViewMode = (mode: ViewMode) => {
+  viewMode.value = mode;
+  try { localStorage.setItem(VIEW_MODE_KEY, mode); } catch { /* 無痕模式等無法寫入時僅本次有效 */ }
+};
 
 const statusLabels = { occupied: '出租中', vacant: '待租', maintenance: '維護中' };
 const statusColors = {
