@@ -19,6 +19,15 @@ export function tenantRoom(tenant, rooms) {
   return matches.length === 1 ? matches[0] : null
 }
 
+// 匯入時記錄的 rentPaidThrough（YYYY-MM）轉成虛擬的涵蓋紀錄；只參與判斷，不會寫入
+export function paidThroughCoverage(tenant) {
+  const to = tenant.rentPaidThrough
+  if (!validMonth(to)) return null
+  const start = typeof tenant.leaseStart === 'string' ? tenant.leaseStart.slice(0, 7) : ''
+  const from = validMonth(start) && start <= to ? start : to
+  return { id: `paid-through:${tenant.id}`, relatedTenantDocId: tenant.id, type: 'income', category: '租金收入', coverFrom: from, coverTo: to }
+}
+
 export function buildPlan(input) {
   const { landlordId, month, tenants: sourceTenants, rooms, readings, publicMeters, groups, bills, settings = {},
     properties = [], templateFeeWater } = input
@@ -82,6 +91,9 @@ export function buildPlan(input) {
     }
     const mine = bills.filter(b => b.type === 'income' && b.category === '租金收入'
       && (b.relatedTenantDocId ? b.relatedTenantDocId === tenant.id : tenant.uid && b.tenantId === tenant.uid))
+    // 從舊系統接管的租客：「租金已繳至」視同一張已涵蓋到該月的租金單，避免重複收取
+    const paidThrough = paidThroughCoverage(tenant)
+    if (paidThrough) mine.push(paidThrough)
     if (mine.some(b => !b.relatedTenantDocId) && tenants.filter(t => t.uid && t.uid === tenant.uid).length > 1) {
       warnings.push(`${label}：舊租金單僅記錄帳號，無法區分多份租約，請先確認歸屬`)
       continue

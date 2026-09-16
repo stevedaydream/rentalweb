@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildPlan, tenantRoom } from './planner.mjs'
+import { buildPlan, tenantRoom, paidThroughCoverage } from './planner.mjs'
 import { shouldGenerateBill, shouldGenerateRent, publicMeterShare, rentCoverage } from './rules.mjs'
 
 export const fixture = () => ({
@@ -179,4 +179,33 @@ test('fixed water without an amount warns and a rerun does not duplicate the wat
   const water = buildPlan(input).plans[0].bills.find(b => b.category === '水費')
   input.bills = [{ id: water.id }]
   assert.equal(buildPlan(input).plans[0].bills.some(b => b.category === '水費'), false)
+})
+test('imported rentPaidThrough prevents re-billing covered months and continues afterwards', () => {
+  const input = fixture()
+  input.readings = []
+  input.tenants[0].credit = 0
+  input.tenants[0].rentPaidThrough = '2026-09'
+  let plan = buildPlan(input)
+  assert.equal(plan.plans.length, 0)
+  assert.match(plan.skipped.join(), /重疊/)
+  input.month = '2026-10'
+  plan = buildPlan(input)
+  assert.equal(plan.plans[0].bills[0].coverFrom, '2026-10')
+})
+test('quarterly tenant paid through mid-cycle resumes after the paid quarter', () => {
+  const input = fixture()
+  input.readings = []
+  input.tenants[0].credit = 0
+  input.tenants[0].paymentFrequency = 'quarterly'
+  input.tenants[0].leaseStart = '2026-07-01'
+  input.tenants[0].rentPaidThrough = '2026-09'
+  input.month = '2026-09'
+  assert.equal(buildPlan(input).plans.length, 0)
+  input.month = '2026-10'
+  const bill = buildPlan(input).plans[0].bills[0]
+  assert.deepEqual([bill.coverFrom, bill.coverTo], ['2026-10', '2026-12'])
+})
+test('invalid rentPaidThrough is ignored', () => {
+  assert.equal(paidThroughCoverage({ id: 'x', rentPaidThrough: '2026/9' }), null)
+  assert.deepEqual(paidThroughCoverage({ id: 'x', leaseStart: '2026-12-01', rentPaidThrough: '2026-09' }).coverFrom, '2026-09')
 })

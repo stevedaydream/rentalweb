@@ -59,6 +59,8 @@ export const statusLabels: Record<string, string> = {
   pending: '待收款',
   overdue: '逾期',
   waiting_confirmation: '待確認',
+  // 從舊系統遷移、未繳清的歷史帳單：只供查詢，不進入催繳
+  archived: '歷史未結',
 }
 
 export const statusStyles: Record<string, string> = {
@@ -66,6 +68,7 @@ export const statusStyles: Record<string, string> = {
   pending: 'text-orange-600 bg-orange-50 dark:bg-orange-900/20',
   overdue: 'text-red-600 bg-red-50 dark:bg-red-900/20',
   waiting_confirmation: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20',
+  archived: 'text-gray-500 bg-gray-100 dark:bg-gray-800',
 }
 
 export const statusIcons: Record<string, string> = {
@@ -73,4 +76,5 @@ export const statusIcons: Record<string, string> = {
   pending: 'schedule',
   overdue: 'warning',
   waiting_confirmation: 'hourglass_top',
+  archived: 'inventory_2',
 }

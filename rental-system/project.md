@@ -27,12 +27,14 @@ Firebase 專案 ID：`rental-system-7675e`
 - 單間表單：「所屬建物」（新增必填，可原地新增建物）＋「樓層」（該建物總表子群組，可新增）取代原「所屬電表群組」；選建物帶入地址。`propertyId` 僅在表單確實改變時才寫入（`saveManagedRoom` 的 `propertyChange`），避免舊表單覆蓋建物分頁的指派。
 - 照片改為公開刊登時才必填；不再把 Unsplash 圖存成封面，舊資料的該圖以 `utils/room.ts` 的 `roomCoverImage`／`roomPhotos` 視為無照片，卡片顯示「尚無照片」。建物分頁的「自動建立」提示改為僅在有未歸屬房間時出現。
 
-### 2026-09-17 新房東現況資料匯入（階段一）
+### 2026-09-17 新房東資料匯入（現況接管＋歷史遷移）
 
-- 房東「系統設定 → 資料匯入中心」提供單一多工作表 Excel 範本與預覽：建物／房間／租客／目前租約／未結清帳款／預收餘額／最近兩期電表讀數；水費設定沿用建物與房間既有欄位。
-- 匯入先做跨工作表完整驗證（建物與房號正規化唯一、租約與待收必須指向現役租客、日期固定 `YYYY-MM-DD`），零錯誤才可寫入；首次只新增、不建立登入帳號、不自動出帳、不保存原始 Excel。
-- 每次執行寫入 `data_imports` 稽核紀錄，建立的資料均帶 `importRunId`，供後續條件式復原與追查。
-- 第二階段另設歷史資料遷移：以舊租客／帳單／付款鍵關聯，已退租租客存為 `inactive`＋`isHistorical`；帳單保留逐筆 payments 與實收，但不觸發通知、催繳或續約。
+- 入口：「系統設定 → 資料匯入中心」（`views/landlord/DataImport.vue`）與「歷史資料遷移」（`HistoricalImport.vue`），多工作表 Excel 範本、先預覽再寫入，零錯誤才可匯入；不建立登入帳號、不保存原始 Excel。
+- **讀檔**：一律 `sheet_to_json(raw:true)` 取原始值，再由 `utils/importCells.ts` 正規化（見 BF-016）：日期序號用 `SSF.parse_date_code`、文字日期接受 `/`、`.`、民國年；數字接受千分位、全形、NT$；電話補回被 Excel 吃掉的開頭 0。共用讀寫在 `utils/importWorkbook.ts`。xlsx 升級為 SheetJS 官方 0.20.3（npm 版 0.18.5 有原型污染與 ReDoS 漏洞）。
+- **現況接管**（`utils/landlordImport.ts`）：`buildLandlordImportPlan` 跨表驗證（建物／房號正規化唯一且不得與系統既有重複、水費方式與繳費週期接受中文、未結清帳款類別限系統類別、預收必須掛在現役租客、日期真實存在、數字無法辨識即報錯）；`planLandlordImportWrites` 產生全部文件：租客寫齊 `paymentFrequency`／`depositMonths`／`leaseDuration`／`paymentStatus`／`contractId`，租約含 `deposits`（押金已收、不含首月租金，共用 `utils/tenantRecords.ts`，舊的 `TenantImportModal` 也改用），建物寫 `meterGroupId` 與水費設定（留空則依範本推定）。電表讀數選填，只寫 `rooms.lastMeterReading/lastMeterDate` 當抄表起點，**不建立抄表紀錄**（原本會產生 0 元紀錄，鎖住當月抄表並干擾雙月累計）。
+- **租金已繳至**：租約欄位 `rentPaidThrough`（YYYY-MM）存於租客，`planner.mjs` 的 `paidThroughCoverage` 視同一張涵蓋到該月的租金單，已繳月份不重收、之後從下個月接續週期。
+- **歷史遷移**（`utils/historicalImport.ts`）：舊系統鍵（不分大小寫）串連租客／帳單／付款，並比對已匯入的鍵擋下重複匯入。付清記 `completed`，未繳清記新狀態 `archived`（歷史未結，`financials/types.ts` 有標籤）——所有催繳、前期欠款、自動逾期與 LINE 欠費查詢只撈 pending／overdue／waiting_confirmation，因此不會被催繳。歷史租客不寫 `room`／`roomId`（沒有起租日會讓電費判定「租期不完整」），舊房號與目前房號相同時帳單帶 `roomId`／`propertyId`。
+- **寫入與復原**（`services/landlordImportService.ts`）：寫入量 ≤ 450 筆時單一 batch（全有或全無）；超過時分批，任一批失敗即刪除已提交的批次並標 `rolled_back`（只刪已提交者：規則對不存在的文件拒絕刪除）。自動復原失敗停在 `failed`，匯入紀錄（`components/import/ImportRunList.vue`）可依 `importRunId` 清除；超過 10 分鐘仍 `running` 的中斷任務亦可清除。寫入前重新比對既有建物、房號與舊系統鍵。
 
 ### 2026-09-17 投資試算建物彙總
 

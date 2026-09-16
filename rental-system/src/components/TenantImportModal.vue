@@ -262,6 +262,7 @@
 </template>
 
 <script setup lang="ts">
+import { buildDeposits } from '../utils/tenantRecords'
 import { ref, computed } from 'vue'
 import { db, functions } from '../firebase/config'
 import { collection, addDoc, updateDoc, doc, serverTimestamp, getDocs, query, where } from 'firebase/firestore'
@@ -462,15 +463,6 @@ const calcLeaseEnd = (start: string, years: number): string => {
   const d = new Date(start)
   d.setDate(d.getDate() + Math.round(years * 365) - 1)
   return d.toISOString().split('T')[0]!
-}
-
-const buildDeposits = (rent: number, months: number) => {
-  const items: { label: string; amount: number; status: string }[] = []
-  for (let n = 1; n <= months; n++) {
-    items.push({ label: `押金（第 ${n} 個月）`, amount: rent, status: 'unpaid' })
-  }
-  items.push({ label: '首月租金', amount: rent, status: 'unpaid' })
-  return items
 }
 
 const startImport = async () => {

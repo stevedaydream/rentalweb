@@ -438,3 +438,25 @@ storage.googleapis.com/<bucket>/…                 →  （無 ACAO，此端點
 
 > **避坑**：手機上的滿版容器一律用 `dvh` 而非 `vh`，且底部操作列要留 `env(safe-area-inset-bottom)`；
 > 這個模態框被四個流程共用，改一處就是四處一起修。
+
+---
+
+## BF-016 Excel 匯入：日期與千分位數字被讀成格式化文字
+
+**問題描述**
+資料匯入（GPT 初版）以 `XLSX.read(..., { cellDates: true })` 搭配 `sheet_to_json(..., { raw: false })` 讀檔。房東在 Excel 正常輸入的日期被讀成 `9/1/26`，驗證一律報「必須是 YYYY-MM-DD」；`#,##0` 格式的金額讀成 `12,000`，`Number()` 失敗變 0——房間月租金甚至不報錯直接存成 0。
+
+**根本原因**
+- `raw: false` 回傳的是儲存格的**格式化顯示文字**（依儲存格數字格式與地區），不是值。
+- 改用 `cellDates: true` 取 Date 物件也不行：SheetJS 以**本地時區**建立 Date，`toISOString()` 在台灣（UTC+8）會變成前一天。
+
+**最終解法**
+- 讀檔不開 `cellDates`，`sheet_to_json` 用 `raw: true` 取原始值；日期欄的數字是 Excel 序號，交給 `XLSX.SSF.parse_date_code` 換算年月日，完全不經過時區。
+- 文字日期另外接受 `2026/9/1`、`2026.9.1`、民國 `115/9/1`；數字接受千分位、全形、NT$；電話若被存成數字（掉了開頭 0）補回。
+- 所有規則集中在 `src/utils/importCells.ts`，測試內含「實際寫出 xlsx 再讀回」的案例。
+
+**牽扯檔案**
+- `src/utils/importCells.ts`、`src/utils/importWorkbook.ts`
+- `src/views/landlord/DataImport.vue`、`src/views/landlord/HistoricalImport.vue`
+
+> **避坑**：Excel 讀檔一律 `raw: true`；日期用 `SSF.parse_date_code`，不要用 `cellDates` 的 Date 再 `toISOString()`。
