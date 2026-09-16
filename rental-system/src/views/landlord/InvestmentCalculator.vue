@@ -13,25 +13,58 @@
       <!-- Left: Inputs -->
       <div class="lg:col-span-1 space-y-4">
 
-        <!-- Room selector -->
+        <!-- Investment target selector -->
         <div class="bg-white dark:bg-card-dark rounded-2xl border border-ink-100 dark:border-ink-800 p-5 space-y-4">
           <h2 class="font-bold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2">
-            <span class="material-symbols-outlined text-[20px] text-gold-500">bedroom_parent</span>
-            選擇房源
+            <span class="material-symbols-outlined text-[20px] text-gold-500">apartment</span>
+            選擇試算單位
           </h2>
-          <div v-if="loadingRooms" class="text-sm text-text-secondary-light">載入中...</div>
-          <select v-else v-model="selectedRoomId" class="form-input text-sm" aria-label="選擇房源" autocomplete="off">
-            <option value="">-- 選擇房源 --</option>
-            <option v-for="r in rooms" :key="r.id" :value="r.id">
-              {{ r.name }} (NT${{ r.price.toLocaleString() }}/月)
-            </option>
-          </select>
-
-          <div v-if="selectedRoom" class="p-3 bg-surface-light dark:bg-surface-dark rounded-xl space-y-1 text-sm">
-            <p class="text-text-secondary-light">目前月租：<span class="font-bold text-text-primary-light dark:text-text-primary-dark">NT${{ selectedRoom.price.toLocaleString() }}</span></p>
-            <p class="text-text-secondary-light">坪數：<span class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ selectedRoom.size }} 坪</span></p>
-            <p class="text-text-secondary-light">格局：<span class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ selectedRoom.layout }}</span></p>
+          <div class="grid grid-cols-2 rounded-xl bg-surface-light dark:bg-surface-dark p-1">
+            <button
+              @click="selectionMode = 'property'"
+              class="rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+              :class="selectionMode === 'property' ? 'bg-white dark:bg-card-dark text-gold-600 shadow-sm' : 'text-text-secondary-light'"
+            >建物</button>
+            <button
+              @click="selectionMode = 'room'"
+              class="rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+              :class="selectionMode === 'room' ? 'bg-white dark:bg-card-dark text-gold-600 shadow-sm' : 'text-text-secondary-light'"
+            >單一房源</button>
           </div>
+          <div v-if="loadingTargets" class="text-sm text-text-secondary-light">載入中...</div>
+          <template v-else-if="selectionMode === 'property'">
+            <select v-model="selectedPropertyId" class="form-input text-sm" aria-label="選擇建物" autocomplete="off">
+              <option value="">-- 選擇建物 --</option>
+              <option v-for="property in properties" :key="property.id" :value="property.id">
+                {{ property.name }}（{{ roomCountByProperty(property.id) }} 間）
+              </option>
+            </select>
+            <div v-if="selectedPropertySummary" class="p-3 bg-surface-light dark:bg-surface-dark rounded-xl space-y-2 text-sm">
+              <p class="text-text-secondary-light">合計月租：<span class="font-bold text-text-primary-light dark:text-text-primary-dark">NT${{ selectedPropertySummary.monthlyRent.toLocaleString() }}</span></p>
+              <p class="text-text-secondary-light">合計坪數：<span class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ selectedPropertySummary.totalSize }} 坪</span></p>
+              <p class="text-text-secondary-light">納入房間：<span class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ selectedPropertySummary.roomCount }} 間</span></p>
+              <p v-if="selectedPropertySummary.roomCount === 0" class="text-xs text-orange-500">此建物尚未指派房間，請先在房源管理中設定所屬建物。</p>
+              <div v-else class="border-t border-ink-100 dark:border-ink-700 pt-2 space-y-1 text-xs text-text-secondary-light">
+                <p v-for="room in selectedPropertySummary.rooms" :key="room.id" class="flex justify-between gap-3">
+                  <span>{{ room.name }}</span><span>NT${{ room.price.toLocaleString() }}/月</span>
+                </p>
+              </div>
+            </div>
+          </template>
+          <template v-else>
+            <select v-model="selectedRoomId" class="form-input text-sm" aria-label="選擇房源" autocomplete="off">
+              <option value="">-- 選擇房源 --</option>
+              <option v-for="r in rooms" :key="r.id" :value="r.id">
+                {{ r.name }} (NT${{ r.price.toLocaleString() }}/月)
+              </option>
+            </select>
+
+            <div v-if="selectedRoom" class="p-3 bg-surface-light dark:bg-surface-dark rounded-xl space-y-1 text-sm">
+              <p class="text-text-secondary-light">目前月租：<span class="font-bold text-text-primary-light dark:text-text-primary-dark">NT${{ selectedRoom.price.toLocaleString() }}</span></p>
+              <p class="text-text-secondary-light">坪數：<span class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ selectedRoom.size }} 坪</span></p>
+              <p class="text-text-secondary-light">格局：<span class="font-bold text-text-primary-light dark:text-text-primary-dark">{{ selectedRoom.layout }}</span></p>
+            </div>
+          </template>
         </div>
 
         <!-- Parameters -->
@@ -218,10 +251,13 @@ import { useAuthStore } from '../../stores/auth'
 import { db } from '../../firebase/config'
 import { collection, query, where, getDocs } from 'firebase/firestore'
 import { progressiveTax, getMarginalRate, RENTAL_EXPENSE_RATE } from '../../utils/financials/incomeTax'
+import { getProperties } from '../../services/propertyService'
+import { summarizePropertyInvestment } from '../../utils/investmentSelection'
 
 interface Room {
   id: string
   name: string
+  propertyId?: string
   price: number
   size: number
   layout: string
@@ -229,9 +265,17 @@ interface Room {
   purchaseCost?: number
 }
 
+interface Property {
+  id: string
+  name: string
+}
+
 const authStore = useAuthStore()
 const rooms = ref<Room[]>([])
-const loadingRooms = ref(true)
+const properties = ref<Property[]>([])
+const loadingTargets = ref(true)
+const selectionMode = ref<'property' | 'room'>('property')
+const selectedPropertyId = ref('')
 const selectedRoomId = ref('')
 
 const params = ref({
@@ -245,12 +289,29 @@ const params = ref({
 })
 
 const selectedRoom = computed(() => rooms.value.find(r => r.id === selectedRoomId.value) ?? null)
+const selectedPropertySummary = computed(() => selectedPropertyId.value
+  ? summarizePropertyInvestment(rooms.value, selectedPropertyId.value)
+  : null
+)
 
-// Sync room data to params when room is selected
+const roomCountByProperty = (propertyId: string) =>
+  rooms.value.filter(room => room.propertyId === propertyId).length
+
 watch(selectedRoom, (room) => {
-  if (!room) return
+  if (!room || selectionMode.value !== 'room') return
   params.value.monthlyRent = room.price
   if (room.purchaseCost) params.value.purchaseCost = room.purchaseCost
+})
+
+watch(selectedPropertySummary, (summary) => {
+  if (!summary || selectionMode.value !== 'property') return
+  params.value.monthlyRent = summary.monthlyRent
+  if (summary.purchaseCost) params.value.purchaseCost = summary.purchaseCost
+})
+
+watch(selectionMode, (mode) => {
+  if (mode === 'property') selectedRoomId.value = ''
+  else selectedPropertyId.value = ''
 })
 
 // ---- Core calculations ----
@@ -347,19 +408,21 @@ const totalNetProfit = computed(() =>
   projectionRows.value.reduce((sum, r) => sum + r.netProfit, 0)
 )
 
-// ---- Load rooms ----
-const loadRooms = async () => {
+// ---- Load investment targets ----
+const loadTargets = async () => {
   if (!authStore.user) return
-  loadingRooms.value = true
+  loadingTargets.value = true
   try {
-    const snap = await getDocs(
-      query(collection(db, 'rooms'), where('landlordId', '==', authStore.effectiveUid))
-    )
+    const [snap, propertyList] = await Promise.all([
+      getDocs(query(collection(db, 'rooms'), where('landlordId', '==', authStore.effectiveUid))),
+      getProperties(authStore.effectiveUid),
+    ])
     rooms.value = snap.docs.map(d => {
       const data = d.data()
       return {
         id: d.id,
         name: data.name || data.roomName || '未命名',
+        propertyId: data.propertyId || undefined,
         price: Number(data.price) || 0,
         size: Number(data.size) || 0,
         layout: data.layout || '',
@@ -367,16 +430,17 @@ const loadRooms = async () => {
         purchaseCost: data.purchaseCost ? Number(data.purchaseCost) : undefined
       }
     })
+    properties.value = propertyList.map(property => ({ id: property.id, name: property.name || '未命名建物' }))
   } finally {
-    loadingRooms.value = false
+    loadingTargets.value = false
   }
 }
 
 onMounted(() => {
   if (authStore.userProfile) {
-    loadRooms()
+    loadTargets()
   } else {
-    const stop = watch(() => authStore.userProfile, (p) => { if (p) { stop(); loadRooms() } })
+    const stop = watch(() => authStore.userProfile, (p) => { if (p) { stop(); loadTargets() } })
   }
 })
 </script>

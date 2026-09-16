@@ -34,6 +34,10 @@ Firebase 專案 ID：`rental-system-7675e`
 - 每次執行寫入 `data_imports` 稽核紀錄，建立的資料均帶 `importRunId`，供後續條件式復原與追查。
 - 第二階段另設歷史資料遷移：以舊租客／帳單／付款鍵關聯，已退租租客存為 `inactive`＋`isHistorical`；帳單保留逐筆 payments 與實收，但不觸發通知、催繳或續約。
 
+### 2026-09-17 投資試算建物彙總
+
+- 房東「投資試算」可切換「建物」或「單一房源」。選建物時依 `rooms.propertyId` 納入該棟所有房間，自動加總月租、購入成本與坪數；各房間明細可見，未指派房間的建物會提示先在房源管理補建物歸屬。購入成本沒有房間資料時，保留房東手動輸入值。
+
 ### 2026-09-16 合約範本改版（復興路版本）
 
 - `contractTemplate.html`（前端與 functions 兩份同步，`TEMPLATE_VERSIONS.Contract`／`CONTRACT_TEMPLATE_VERSION` = 2）改依 `docs/contract_template.md`（由 Word 復興路版本整理）：勾選項以 ■／□ 呈現，補契約審閱權、立契約書人完整資料（地址、保證人）、四份附件。附件重新編號：一 現況確認書（含附屬設備）／二 轉租同意確認書（空白，同意轉租時出具）／三 承租人負責修繕確認書／四 退租賠償價目表；第七條（寵物）保留系統原有約定。已簽合約使用凍結的 `templateHtml`，不受影響。
