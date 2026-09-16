@@ -90,6 +90,16 @@
 
         <dl class="px-5 py-4 space-y-2.5 text-sm flex-1">
           <div class="flex gap-3">
+            <dt class="w-20 shrink-0 text-text-secondary-light">水費</dt>
+            <dd class="min-w-0">
+              <button v-if="waterOf(p).mode === 'unset'" type="button" @click="openForm(p)"
+                class="text-amber-700 dark:text-amber-300 font-medium hover:underline flex items-center gap-1">
+                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">warning</span>尚未設定，出帳不會開水費
+              </button>
+              <span v-else>{{ waterSummary(p) }}</span>
+            </dd>
+          </div>
+          <div class="flex gap-3">
             <dt class="w-20 shrink-0 text-text-secondary-light">房屋稅籍</dt>
             <dd class="min-w-0 font-mono">{{ p.houseTaxNo || '—' }}</dd>
           </div>
@@ -186,7 +196,7 @@
       </div>
     </div>
 
-    <PropertyFormModal v-model:show="showForm" :property="editing" @save="handleSave" />
+    <PropertyFormModal v-model:show="showForm" :property="editing" :template-fee-water="templateFeeWater" @save="handleSave" />
     <BatchRoomWizard v-model:show="showWizard" :properties="properties" :rooms="rooms"
       :property-id="wizardPropertyId" :new-only="!wizardPropertyId" @done="load" />
     <PropertyContractTermsModal v-model:show="showTerms" :property="termsTarget" :saving="savingTerms" @save="saveTerms" />
@@ -201,6 +211,9 @@ import PropertyFormModal from './PropertyFormModal.vue'
 import BatchRoomWizard from './BatchRoomWizard.vue'
 import PropertyContractTermsModal from './PropertyContractTermsModal.vue'
 import type { ContractTerms } from '../../utils/contractTerms'
+import { normalizeWaterSettings, WATER_MODE_LABELS } from '../../utils/financials/water'
+import { doc, getDoc } from 'firebase/firestore'
+import { db } from '../../firebase/config'
 import {
   getProperties, addProperty, updateProperty, deleteProperty,
   assignRoomProperty, seedPropertiesFromMeterGroups,
@@ -235,6 +248,25 @@ const load = async () => {
 }
 
 onMounted(load)
+
+// 建物未設定水費時，依合約範本的水費負擔推定（ADR-009）
+const templateFeeWater = ref<string | undefined>()
+onMounted(async () => {
+  try {
+    const snap = await getDoc(doc(db, 'contract_templates', authStore.effectiveUid))
+    templateFeeWater.value = snap.exists() ? snap.data().feeWater : undefined
+  } catch (e) {
+    console.warn('load contract template error:', e)
+  }
+})
+const waterOf = (p: Property) => normalizeWaterSettings(p.waterSettings, templateFeeWater.value)
+const waterSummary = (p: Property) => {
+  const w = waterOf(p)
+  const unit = w.basis === 'person' ? '每人' : '每房'
+  if (w.mode === 'fixed') return `固定月費（${unit}每月 ${w.fixedAmount} 元）`
+  if (w.mode === 'split') return `台水帳單均攤（依${w.basis === 'person' ? '人數' : '房數'}與居住天數）`
+  return WATER_MODE_LABELS[w.mode]
+}
 
 const roomsOf = (propertyId: string) => props.rooms.filter(r => r.propertyId === propertyId)
 const unassignedRooms = computed(() => props.rooms.filter(r => !r.propertyId))

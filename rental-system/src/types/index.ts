@@ -1,4 +1,5 @@
 import type { ContractTerms } from '../utils/contractTerms';
+import type { WaterSettings, RoomWaterMode } from '../../functions/billing/water.mjs';
 
 // ===========================
 // Enums
@@ -44,6 +45,10 @@ export interface Room {
   tenantName?: string;
   note?: string;
   subGroupId?: string;
+  /** 水費覆寫：independent 獨立水號、tenant_direct 租客自行繳納；空＝依建物 */
+  waterMode?: RoomWaterMode;
+  /** 獨立水號的台水水號 */
+  waterNo?: string;
   /** 所屬建物（properties 文件 id）。房屋稅／地價稅／火險與公益出租人皆以建物為單位 */
   propertyId?: string;
   /** 測試資料標記。衍生資料（帳單、抄表等）不帶此旗標，清除時靠關聯反查 */
@@ -158,6 +163,8 @@ export interface Property {
   seededFromGroupId?: string;
   /** 對應的台電總表（meter_groups）；新增建物時同時建立，樓層即其子群組 */
   meterGroupId?: string;
+  /** 水費設定（ADR-009）；未設定時依合約範本推定 */
+  waterSettings?: WaterSettings;
   /** 合約附件設定（現況確認書、修繕明細、賠償價目表）；未設定時用預設內容 */
   contractTerms?: ContractTerms;
   /** 測試資料標記 */
@@ -246,6 +253,8 @@ export interface Tenant {
   room?: string;
   idNumber?: string;
   emergencyContact?: string;
+  /** 居住人數（水費每人計費用），預設 1 */
+  occupants?: number;
   leaseStart?: string;
   leaseEnd?: string;
   rent?: number;

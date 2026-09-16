@@ -99,6 +99,12 @@ service cloud.firestore {
       allow create: if isAdmin() || isCreatingAsLandlord();
     }
 
+    // 台水帳單 (water_bills) — 與帳務「台水帳單」支出、租客水費帳單同批寫入
+    match /water_bills/{id} {
+      allow read, update, delete: if isAdmin() || isLandlordData();
+      allow create: if isAdmin() || isCreatingAsLandlord();
+    }
+
     // 出帳重試憑據由 Cloud Functions 與帳單同交易建立，不允許客戶端偽造或刪改。
     match /billing_runs/{runId} {
       allow read: if isAdmin() || isLandlordData();

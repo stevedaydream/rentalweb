@@ -2285,7 +2285,7 @@ const SIGNING_FIELDS = [
   'roomNo', 'address', 'tenant', 'tenantId', 'tenantPhone', 'landlord', 'landlordId', 'landlordPhone',
   'rentfee', 'deposit', 'duration', 'startDate', 'endDate', 'today', 'paymentFrequency', 'paymentDay',
   'feeWater', 'feeElectricity', 'feeElectricityNote', 'feeGas', 'feeInternet', 'feeManagement', 'customArticle21',
-  'templateHtml', 'contractTerms', 'landlordAddress', 'tenantAddress', 'tenantMailAddress',
+  'templateHtml', 'contractTerms', 'waterFeeText', 'landlordAddress', 'tenantAddress', 'tenantMailAddress',
   'guarantor', 'guarantorId', 'guarantorAddress', 'guarantorMailAddress', 'guarantorPhone',
   'bankCode', 'bankAccount', 'bankAccountName',
 ];

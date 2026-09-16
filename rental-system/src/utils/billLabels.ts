@@ -11,6 +11,7 @@ const TENANT_LABEL: Record<string, string> = {
   租金收入: '房租',
   其他收入: '其他費用',
   台電帳單: '電費',
+  台水帳單: '水費',
 }
 
 export const tenantCategoryLabel = (category?: string): string => {

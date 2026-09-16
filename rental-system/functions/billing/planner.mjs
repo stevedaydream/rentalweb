@@ -4,11 +4,13 @@ import {
   shouldGenerateRent, getBillingAmount, getBillingDescription, rentCoverage,
   overlapsCoverage, publicMeterShare,
 } from './rules.mjs'
+import { normalizeWaterSettings, effectiveWaterMode, fixedWaterCharge, fixedWaterDescription } from './water.mjs'
 
 export const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 const money = value => Number.isSafeInteger(Math.round(Number(value))) && Number(value) >= 0 ? Math.round(Number(value)) : null
 const labelOf = tenant => `${tenant.name || '未命名租客'} ${tenant.room || tenant.roomName || ''}`.trim()
-const order = { '租金收入': 0, '電費': 1, '公共電費': 2 }
+// 預收餘額沖抵順序：租金 → 水費（固定月費隨租金）→ 電費 → 公共電費
+const order = { '租金收入': 0, '水費': 1, '電費': 2, '公共電費': 3 }
 
 // Explicit IDs are authoritative. Legacy names are only accepted when unique.
 export function tenantRoom(tenant, rooms) {
@@ -18,7 +20,8 @@ export function tenantRoom(tenant, rooms) {
 }
 
 export function buildPlan(input) {
-  const { landlordId, month, tenants: sourceTenants, rooms, readings, publicMeters, groups, bills, settings = {} } = input
+  const { landlordId, month, tenants: sourceTenants, rooms, readings, publicMeters, groups, bills, settings = {},
+    properties = [], templateFeeWater } = input
   // MoveOutWizard clears live lease fields and retains the actual dates in this snapshot.
   const tenants = sourceTenants.map(t => t.isHistorical && t.moveOutSummary ? {
     ...t, room: t.moveOutSummary.room || t.room,
@@ -113,6 +116,24 @@ export function buildPlan(input) {
     }
     add(tenant, '租金收入', getBillingDescription(tenant, month), amount,
       ['rent', tenant.id, month], { coverFrom: cover.from, coverTo: cover.to })
+
+    // 固定月費的水費與租金同批、同涵蓋期間，另開一張以便分開收款與分析
+    const room = roomByTenant.get(tenant.id)
+    const property = properties.find(p => p.id === room.propertyId)
+    const water = normalizeWaterSettings(property?.waterSettings, templateFeeWater)
+    const waterMode = effectiveWaterMode(water, room)
+    if (waterMode === 'unset') {
+      warnings.push(`${property?.name || '未指定建物的房間'}：尚未設定水費方式，未出水費`)
+    } else if (waterMode === 'fixed') {
+      const months = CYCLE_MONTHS[freq] ?? 1
+      const waterAmount = fixedWaterCharge(water, tenant, months)
+      if (waterAmount > 0) {
+        add(tenant, '水費', fixedWaterDescription(water, tenant, cover), waterAmount,
+          ['water', tenant.id, month], { coverFrom: cover.from, coverTo: cover.to, propertyId: property?.id || '' })
+      } else {
+        warnings.push(`${property?.name || '未指定建物的房間'}：水費為固定月費但未設定金額，未出水費`)
+      }
+    }
   }
 
   const currentReadings = readings.filter(r => r.periodEnd >= `${month}-01` && r.periodEnd <= end)

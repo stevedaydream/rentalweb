@@ -233,6 +233,7 @@ import { printHtmlPdf } from '../utils/contractRender'
 import contractTemplate from '../templates/contractTemplate.html?raw'
 import { buildContractPayload } from '../utils/contractPayload'
 import { normalizeContractTerms } from '../utils/contractTerms'
+import { normalizeWaterSettings, waterContractText } from '../utils/financials/water'
 
 // 與 functions/index.js TEMPLATE_VERSIONS.Contract 對齊
 const CONTRACT_TEMPLATE_VERSION = 2
@@ -295,19 +296,28 @@ const form = ref({
   landlordAddress: '', tenantAddress: '', tenantMailAddress: '',
   guarantor: '', guarantorId: '', guarantorAddress: '', guarantorMailAddress: '', guarantorPhone: '',
   bankCode: '', bankAccount: '', bankAccountName: '',
+  waterFeeText: '',
   // 建物附件設定；簽署時隨合約凍結，之後改建物設定不影響已簽合約
   contractTerms: normalizeContractTerms(),
 })
 
 // 房號 → 房間 → 建物，帶入該棟的附件設定
 const properties = ref([])
-const termsProperty = computed(() => {
+const termsRoom = computed(() => {
   const roomNo = String(form.value.roomNo || '').trim()
-  const room = rooms.value.find(r => (r.name || r.roomName) === roomNo)
+  return rooms.value.find(r => (r.name || r.roomName) === roomNo) || null
+})
+const termsProperty = computed(() => {
+  const room = termsRoom.value
   return room?.propertyId ? properties.value.find(p => p.id === room.propertyId) || null : null
 })
 watch(termsProperty, (p) => {
   form.value.contractTerms = normalizeContractTerms(p?.contractTerms)
+}, { immediate: true })
+
+// 第五條水費依建物／房間的水費設定產生並隨合約凍結；尚未設定時沿用範本的負擔方式
+watch([termsProperty, termsRoom, () => form.value.feeWater], ([p, room, feeWater]) => {
+  form.value.waterFeeText = waterContractText(normalizeWaterSettings(p?.waterSettings, feeWater), room)
 }, { immediate: true })
 
 watch(() => form.value.rentfee, (fee) => {
@@ -333,7 +343,9 @@ function payerText(val) {
 }
 const feeRows = computed(() => [
   { label: '管理費', ...payerText(form.value.feeManagement) },
-  { label: '水費', ...payerText(form.value.feeWater) },
+  form.value.waterFeeText
+    ? { label: '水費', text: form.value.waterFeeText, byTenant: form.value.waterFeeText.startsWith('由承租人') }
+    : { label: '水費', ...payerText(form.value.feeWater) },
   {
     label: '電費',
     text: payerText(form.value.feeElectricity).text + (form.value.feeElectricityNote ? `（${form.value.feeElectricityNote}）` : ''),

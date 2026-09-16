@@ -119,16 +119,16 @@
             </div>
             <label class="flex items-center gap-2 text-sm mt-4">
               <input v-model="countUtilitiesAsRent" type="checkbox" class="rounded">
-              電費收入計入租賃收入
+              電費、水費收入計入租賃收入
             </label>
           </div>
           <p class="text-xs text-text-secondary-light -mt-2">
-            向房客收取的電費若屬實報實銷代收代付，一般不計入租賃收入；若為定額收取則應計入。預設不計入，請依你的實際情形調整。
+            向房客收取的電費、水費若屬實報實銷代收代付，一般不計入租賃收入；若為定額收取（如水費固定月費）則應計入。預設不計入，請依你的實際情形調整。
           </p>
 
           <dl class="space-y-2 text-sm border-t border-ink-100 dark:border-ink-800 pt-4">
             <div class="flex justify-between">
-              <dt class="text-text-secondary-light">租金收入{{ countUtilitiesAsRent ? '（含電費）' : '' }}</dt>
+              <dt class="text-text-secondary-light">租金收入{{ countUtilitiesAsRent ? '（含水電費）' : '' }}</dt>
               <dd class="font-medium">NT$ {{ tax.grossRent.toLocaleString() }}</dd>
             </div>
             <div v-if="tax.exemption > 0" class="flex justify-between">
@@ -272,9 +272,9 @@ const qualifiedNames = computed(() =>
   props.properties.filter(p => qualifiedIds.value.has(p.id)).map(p => p.name),
 )
 
-const UTILITY_CATEGORIES = ['電費', '公共電費']
+const UTILITY_CATEGORIES = ['電費', '公共電費', '水費']
 
-/** 該棟計入租賃收入的電費，取決於代收代付與否 */
+/** 該棟計入租賃收入的水電費，取決於代收代付與否 */
 const utilitiesOf = (s: PropertySummary) =>
   countUtilitiesAsRent.value
     ? s.income.filter(c => UTILITY_CATEGORIES.includes(c.category)).reduce((sum, c) => sum + c.amount, 0)

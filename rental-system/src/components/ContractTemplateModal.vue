@@ -56,6 +56,9 @@
                   >{{ opt.label }}</button>
                 </div>
               </div>
+              <p class="text-xs text-text-secondary-light pl-[4.75rem]">
+                水費依各建物的水費設定（房源管理 → 建物 → 編輯），這裡只用於尚未設定水費的建物。
+              </p>
               <!-- 電費備註 -->
               <div class="flex items-center gap-3">
                 <label for="contract-electricity-note" class="w-16 text-sm text-text-secondary-light shrink-0">電費備註</label>
@@ -144,7 +147,7 @@ const local = ref<ContractTemplate>({ ...DEFAULT })
 
 const feeFields = [
   {
-    key: 'feeWater', label: '水費',
+    key: 'feeWater', label: '水費預設',
     options: [{ value: 'landlord', label: '房東負擔' }, { value: 'tenant', label: '租客負擔' }]
   },
   {

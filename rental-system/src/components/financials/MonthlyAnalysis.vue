@@ -61,6 +61,47 @@
       </ul>
     </div>
 
+    <!-- 水費盈虧：本月帳務日期內的台水支出與向租客收的水費，逐棟比較 -->
+    <div class="space-y-3">
+      <div class="flex items-end justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-bold text-text-primary-light dark:text-text-primary-dark">水費盈虧</h2>
+          <p class="text-xs text-text-secondary-light mt-0.5">依本月登錄日期；均攤與獨立水號的差額應只有尾差或空房部分</p>
+        </div>
+        <button type="button" @click="emit('open-water')"
+          class="shrink-0 px-3 py-1.5 rounded-lg border border-sky-300 text-sky-700 dark:text-sky-300 text-xs font-bold hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors">
+          登錄台水帳單
+        </button>
+      </div>
+      <p v-if="!water.length" class="text-xs text-text-secondary-light bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 px-5 py-4">
+        本月沒有台水帳單或水費帳單。
+      </p>
+      <div v-else class="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 overflow-x-auto">
+        <table class="w-full text-sm min-w-[420px]">
+          <thead class="text-xs text-text-secondary-light">
+            <tr>
+              <th class="text-left px-4 py-2 font-medium">建物</th>
+              <th class="text-right px-4 py-2 font-medium">台水支出</th>
+              <th class="text-right px-4 py-2 font-medium">水費開出（已收）</th>
+              <th class="text-right px-4 py-2 font-medium">差額</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="w in water" :key="w.propertyId" class="border-t border-gray-100 dark:border-gray-800">
+              <td class="px-4 py-2 font-medium">{{ w.name }}</td>
+              <td class="px-4 py-2 text-right">NT$ {{ w.expense.toLocaleString() }}</td>
+              <td class="px-4 py-2 text-right">NT$ {{ w.billed.toLocaleString() }}
+                <span class="text-xs text-text-secondary-light">（{{ w.collected.toLocaleString() }}）</span>
+              </td>
+              <td class="px-4 py-2 text-right font-bold" :class="w.diff < 0 ? 'text-red-600' : w.diff > 0 ? 'text-green-600' : ''">
+                {{ w.diff > 0 ? '+' : '' }}{{ w.diff.toLocaleString() }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- 電費盈虧：期間錨定台電帳單迄月（跨兩個月），與上方「本月」不是同一個尺度 -->
     <div v-if="electricity.length > 0" class="space-y-4">
       <div>
@@ -78,6 +119,7 @@
 <script setup lang="ts">
 import ElectricityStatsCard from './ElectricityStatsCard.vue'
 import type { ElectricityStats } from './types'
+import type { WaterSummaryRow } from '../../utils/financials/waterBilling'
 
 export interface MonthlyStats {
   income: number
@@ -104,10 +146,12 @@ defineProps<{
   stats: MonthlyStats
   categories: CategoryStat[]
   electricity: ElectricityStats[]
+  water: WaterSummaryRow[]
 }>()
 
 const emit = defineEmits<{
   'select-category': [key: string]
   'open-taipower': [groupId: string]
+  'open-water': []
 }>()
 </script>

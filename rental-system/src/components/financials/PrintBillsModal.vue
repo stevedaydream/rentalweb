@@ -257,7 +257,7 @@ const MODE_LABELS: Record<string, string> = {
   imported: 'Excel 匯入',
 }
 
-const CATEGORY_ORDER: Record<string, number> = { '租金收入': 0, '電費': 1, '公共電費': 2 }
+const CATEGORY_ORDER: Record<string, number> = { '租金收入': 0, '水費': 1, '電費': 2, '公共電費': 3 }
 
 const buildPage = (fragment: string, row: RoomRow): string => {
   const month = localMonth.value

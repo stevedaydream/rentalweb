@@ -48,6 +48,10 @@
               class="w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-surface-light dark:hover:bg-surface-dark transition-colors text-ink-600 dark:text-ink-200">
               <span class="material-symbols-outlined text-[18px] text-yellow-500">electric_bolt</span>台電帳單
             </button>
+            <button @click="showWaterModal = true; showMoreMenu = false"
+              class="w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-surface-light dark:hover:bg-surface-dark transition-colors text-ink-600 dark:text-ink-200">
+              <span class="material-symbols-outlined text-[18px] text-sky-500" aria-hidden="true">water_drop</span>台水帳單
+            </button>
             <div class="border-t border-ink-100 dark:border-ink-700"></div>
             <button @click="showPropertyCostsModal = true; showMoreMenu = false"
               class="w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-surface-light dark:hover:bg-surface-dark transition-colors text-ink-600 dark:text-ink-200">
@@ -100,8 +104,8 @@
 
       <MonthlyAnalysis
         v-if="activeTab === 'analysis'"
-        :stats="stats" :categories="categoryStats" :electricity="electricityStatsList"
-        @select-category="selectCategory" @open-taipower="openTaipowerModal"
+        :stats="stats" :categories="categoryStats" :electricity="electricityStatsList" :water="waterSummary"
+        @select-category="selectCategory" @open-taipower="openTaipowerModal" @open-water="showWaterModal = true"
       />
 
       <template v-else>
@@ -527,6 +531,8 @@
     <TaipowerModal v-model:show="showTaipowerModal" v-model="taipowerForm" :groups="taipowerGroupOptions" @save="saveTaipowerBill" />
     <PrintBillsModal v-model:show="showPrintBillsModal" :month="currentMonth" />
     <PropertyCostsModal v-model:show="showPropertyCostsModal" :properties="propertiesList" />
+    <WaterBillModal v-model:show="showWaterModal" :properties="propertiesList" :rooms="roomsList"
+      :template-fee-water="templateFeeWater" />
     <BillHistoryModal v-model:show="showHistoryModal" :history="selectedHistory" />
 
     <!-- 出帳前取得伺服端完整預覽 -->
@@ -722,7 +728,7 @@ import { useAuthStore } from '../../stores/auth'
 import { useToastStore } from '../../stores/toast'
 import {
   collection, onSnapshot, addDoc, updateDoc,
-  doc, serverTimestamp, getDocs, query, orderBy, where, limit,
+  doc, getDoc, serverTimestamp, getDocs, query, orderBy, where, limit,
   writeBatch, arrayUnion, increment,
   type Unsubscribe,
 } from 'firebase/firestore'
@@ -756,6 +762,8 @@ import type { Property } from '../../types/index'
 import { buildSubGroupIndex } from '../../utils/meter/groups'
 import { buildElectricityStatsList } from '../../utils/financials/electricity'
 import { findLinkedTaipowerBill, TAIPOWER_CATEGORY } from '../../utils/financials/taipowerLink'
+import { summarizeWater } from '../../utils/financials/waterBilling'
+import WaterBillModal from '../../components/financials/WaterBillModal.vue'
 import { UNGROUPED_ID, type MeterGroupDoc } from '../../components/meter/types'
 import type { Room } from '../../types/index'
 
@@ -778,6 +786,8 @@ interface Transaction {
   groupId?: string
   /** 台電支出對應的 taipower_bills */
   taipowerBillId?: string
+  /** 台水支出與水費帳單對應的 water_bills */
+  waterBillId?: string
   /** 支出所屬建物 */
   propertyId?: string
   relatedContractId?: string
@@ -823,6 +833,9 @@ const showModal = ref(false)
 const showTaipowerModal = ref(false)
 const showPrintBillsModal = ref(false)
 const showPropertyCostsModal = ref(false)
+const showWaterModal = ref(false)
+/** 建物未設定水費時依合約範本推定（ADR-009） */
+const templateFeeWater = ref<string | undefined>()
 const showHistoryModal = ref(false)
 const showGenerateConfirm = ref(false)
 const showMoreMenu = ref(false)
@@ -925,6 +938,9 @@ const initDataListeners = (uid: string) => {
   getProperties(uid)
     .then(ps => { propertiesList.value = ps })
     .catch(e => console.error('讀取建物失敗:', e))
+  getDoc(doc(db, 'contract_templates', uid))
+    .then(s => { templateFeeWater.value = s.exists() ? s.data().feeWater : undefined })
+    .catch(e => console.warn('讀取合約範本失敗:', e))
 
   unsubscribeBills = onSnapshot(
     query(collection(db, 'bills'), where('landlordId', '==', uid), orderBy('date', 'desc'), limit(200)),
@@ -1029,6 +1045,8 @@ const categoryStats = computed(() => {
   const elec = sum('電費')
   const publicElec = sum('公共電費')
   const taipower = sum('台電帳單')
+  const water = sum('水費')
+  const taiwater = sum('台水帳單')
 
   return [
     {
@@ -1061,8 +1079,27 @@ const categoryStats = computed(() => {
       iconColor: 'text-red-400', amountColor: 'text-red-600 dark:text-red-400',
       badgeClass: 'bg-red-100 text-red-600', activeBg: 'bg-red-50 dark:bg-red-900/20 border-red-200',
     },
-  ]
+    {
+      key: '水費', label: '水費', icon: 'water_drop',
+      count: water.length, amount: water.reduce((s, t) => s + t.amount, 0),
+      iconColor: 'text-sky-500', amountColor: 'text-sky-700 dark:text-sky-300',
+      badgeClass: 'bg-sky-100 text-sky-700', activeBg: 'bg-sky-50 dark:bg-sky-900/20 border-sky-200',
+    },
+    {
+      key: '台水帳單', label: '台水帳單（支出）', icon: 'water_damage',
+      count: taiwater.length, amount: taiwater.reduce((s, t) => s + t.amount, 0),
+      iconColor: 'text-cyan-600', amountColor: 'text-cyan-700 dark:text-cyan-300',
+      badgeClass: 'bg-cyan-100 text-cyan-700', activeBg: 'bg-cyan-50 dark:bg-cyan-900/20 border-cyan-200',
+    },
+  ].filter(c => c.count > 0 || !['水費', '台水帳單'].includes(c.key))
 })
+
+// 水費盈虧（本月帳務日期）：每棟台水支出 vs 向租客收的水費
+const waterSummary = computed(() => summarizeWater(
+  monthlyTransactions.value,
+  new Map(propertiesList.value.map(p => [p.id, p.name])),
+  t => collectedOf(t),
+))
 
 const pendingCount = computed(() => monthlyTransactions.value.filter(t => !isCollected(t) && t.type === 'income').length)
 
@@ -1265,6 +1302,8 @@ const categoryBadge = (cat: string) => {
     '電費': 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
     '公共電費': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
     '台電帳單': 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300',
+    '水費': 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
+    '台水帳單': 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
     '房屋稅': 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
     '地價稅': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
     '火災險': 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
@@ -1456,8 +1495,12 @@ const confirmDelete = async () => {
     const batch = writeBatch(db)
     batch.delete(doc(db, 'bills', deletingId.value))
     if (linked) batch.delete(doc(db, 'taipower_bills', linked.id))
+    // 台水支出刪除時，主檔一併刪除；已開給租客的水費帳單保留，需要時逐筆刪除
+    const waterBillId = bill?.type === 'expense' ? bill.waterBillId : undefined
+    if (waterBillId) batch.delete(doc(db, 'water_bills', waterBillId))
     await batch.commit()
-    toast.success(linked ? '紀錄已刪除，對應的台電帳單也已一併刪除' : '紀錄已刪除')
+    toast.success(linked ? '紀錄已刪除，對應的台電帳單也已一併刪除'
+      : waterBillId ? '台水帳單已刪除；已開給租客的水費帳單仍保留，如需取消請逐筆刪除' : '紀錄已刪除')
   }
   catch { toast.error('刪除失敗') }
   finally { deletingId.value = null }

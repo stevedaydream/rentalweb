@@ -65,6 +65,38 @@
           </div>
         </section>
 
+        <!-- 水費 -->
+        <section class="border-t border-ink-100 dark:border-ink-700 pt-5 space-y-3">
+          <h3 class="font-bold text-sm text-text-primary-light dark:text-text-primary-dark flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[18px] text-sky-500" aria-hidden="true">water_drop</span>水費
+          </h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label for="prop-water-mode" class="block text-sm font-medium text-text-secondary-light mb-1">收費方式</label>
+              <select id="prop-water-mode" v-model="water.mode" class="form-input">
+                <option value="unset" disabled>尚未設定</option>
+                <option value="landlord">房東負擔（含在租金）</option>
+                <option value="fixed">固定月費</option>
+                <option value="split">台水帳單均攤</option>
+                <option value="tenant_direct">租客自行向台水繳納</option>
+              </select>
+            </div>
+            <div v-if="water.mode === 'fixed' || water.mode === 'split'">
+              <label for="prop-water-basis" class="block text-sm font-medium text-text-secondary-light mb-1">計算單位</label>
+              <select id="prop-water-basis" v-model="water.basis" class="form-input">
+                <option value="room">每房</option>
+                <option value="person">每人</option>
+              </select>
+            </div>
+            <div v-if="water.mode === 'fixed'">
+              <label for="prop-water-amount" class="block text-sm font-medium text-text-secondary-light mb-1">每月金額</label>
+              <input id="prop-water-amount" v-model.number="water.fixedAmount" type="number" min="0" class="form-input">
+            </div>
+          </div>
+          <p class="text-xs text-text-secondary-light">{{ waterHint }}</p>
+          <p class="text-xs text-text-secondary-light">有獨立水號的房間，請到房間的編輯表單設定「水費 → 獨立水號」，不會列入整棟均攤。</p>
+        </section>
+
         <!-- 火災保險 -->
         <section class="border-t border-ink-100 dark:border-ink-700 pt-5 space-y-4">
           <h3 class="font-bold text-sm text-text-primary-light dark:text-text-primary-dark flex items-center gap-1.5">
@@ -158,14 +190,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { Property, FireInsurance, PublicWelfareYear } from '../../types/index'
 import type { PropertyPayload } from '../../services/propertyService'
+import { normalizeWaterSettings, type WaterSettings } from '../../utils/financials/water'
 
 const props = defineProps<{
   show: boolean
   /** 有值代表編輯既有建物，否則為新增 */
   property: Property | null
+  /** 房東合約範本的水費負擔；建物未設定水費時據此推定 */
+  templateFeeWater?: string
 }>()
 
 const emit = defineEmits<{
@@ -180,6 +215,15 @@ const landNoList = ref<string[]>([])
 const fire = ref<FireInsurance>({})
 const welfareList = ref<PublicWelfareYear[]>([])
 const isEditing = ref(false)
+const water = ref<WaterSettings>(normalizeWaterSettings(null))
+
+const waterHint = computed(() => ({
+  unset: '尚未設定時，出帳不會開水費，並在生成帳單時提醒。',
+  landlord: '不向租客收水費。',
+  fixed: '出租金帳單時同批另開「水費」帳單，期間與租金相同（季繳收 3 個月）。',
+  split: '在帳務管理登錄台水帳單後，依計費期間內的居住天數分攤給租客；空房不列入。',
+  tenant_direct: '租客自行向台水繳費，系統不開水費帳單。',
+})[water.value.mode])
 
 watch(() => props.show, (val) => {
   if (!val) return
@@ -191,6 +235,7 @@ watch(() => props.show, (val) => {
   landNoList.value = [...(p?.landNos ?? [])]
   fire.value = { ...(p?.fireInsurance ?? {}) }
   welfareList.value = (p?.publicWelfare ?? []).map(w => ({ ...w }))
+  water.value = normalizeWaterSettings(p?.waterSettings, props.templateFeeWater)
 })
 
 const addWelfareYear = () => {
@@ -222,6 +267,10 @@ const handleSave = () => {
     landNos: landNoList.value.map(n => n.trim()).filter(Boolean),
     fireInsurance: dropUndefined(fire.value),
     publicWelfare: welfareList.value.filter(w => Number.isFinite(w.year)),
+    // 仍是推定的「尚未設定」就不寫，保留「依合約範本推定」的行為
+    ...(water.value.mode === 'unset' ? {} : {
+      waterSettings: { ...water.value, fixedAmount: Math.max(0, Math.round(Number(water.value.fixedAmount) || 0)) },
+    }),
   })
 }
 </script>

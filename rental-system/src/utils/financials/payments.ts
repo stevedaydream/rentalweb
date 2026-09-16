@@ -55,7 +55,7 @@ export const outstandingOf = (b: Pick<PayableBill, 'type' | 'amount' | 'status' 
 export const isPartial = (b: Pick<PayableBill, 'amount' | 'status' | 'paidAmount'>) =>
   !isCollected(b) && collectedOf(b) > 0
 
-const CATEGORY_ORDER: Record<string, number> = { '租金收入': 0, '電費': 1, '公共電費': 2 }
+const CATEGORY_ORDER: Record<string, number> = { '租金收入': 0, '水費': 1, '電費': 2, '公共電費': 3 }
 
 /** 帳齡排序：帳單日期 → 截止日 → 同一天租金先於電費 */
 export const byAge = (a: PayableBill, b: PayableBill) =>

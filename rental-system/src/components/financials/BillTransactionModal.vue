@@ -411,12 +411,15 @@ const incomeCategories = [
   { value: '租金收入', label: '租金收入', active: 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-300' },
   { value: '入住款項', label: '入住款項', active: 'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900/30 dark:text-purple-300' },
   { value: '電費', label: '電費', active: 'bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300' },
+  { value: '水費', label: '水費', active: 'bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-900/30 dark:text-sky-300' },
   { value: '押金', label: '押金', active: 'bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-900/30 dark:text-indigo-300' },
   { value: '其他收入', label: '其他', active: 'bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-300' },
 ]
 
 const expenseCategories = [
   { value: '台電帳單', label: '台電帳單', active: 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-300' },
+  // 台水帳單正常由「更多 → 台水帳單」登錄並分攤，保留手動選項供補登
+  { value: '台水帳單', label: '台水帳單', active: 'bg-cyan-100 text-cyan-700 border-cyan-300 dark:bg-cyan-900/30 dark:text-cyan-300' },
   // 以下三項正常由「稅費與保險」標記已繳時自動落帳，保留手動選項供補登舊資料
   { value: '房屋稅', label: '房屋稅', active: 'bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-900/30 dark:text-rose-300' },
   { value: '地價稅', label: '地價稅', active: 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300' },

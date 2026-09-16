@@ -21,6 +21,12 @@ describe('合約範本填值', () => {
     expect(p.feeGasDisplay).toBe('無')
   })
 
+  it('建物水費設定產生的文字優先於範本負擔方式', () => {
+    expect(buildContractPayload({ ...base, feeWater: 'tenant', waterFeeText: '由承租人負擔（每人每月 100 元，隨租金繳納）' }).feeWaterDisplay)
+      .toBe('由承租人負擔（每人每月 100 元，隨租金繳納）')
+    expect(buildContractPayload({ ...base, feeWater: 'tenant', waterFeeText: '' }).feeWaterDisplay).toBe('由承租人負擔')
+  })
+
   it('繳費週期決定每期月數、合計金額與繳款日寫法', () => {
     const monthly = buildContractPayload(base)
     expect(monthly.paymentMonths).toBe(1)

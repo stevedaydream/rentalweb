@@ -492,6 +492,20 @@
               </div>
               <p class="sm:col-span-2 text-xs text-text-secondary-light">存檔時會建立建物與同名電表總表。</p>
             </div>
+            <div>
+              <label for="room-water" class="block text-sm font-medium text-text-secondary-light mb-1">水費</label>
+              <select id="room-water" v-model="form.waterMode"
+                class="form-input disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed dark:disabled:bg-gray-800"
+                :disabled="isViewMode">
+                <option value="">依建物設定</option>
+                <option value="independent">獨立水號（依台水帳單實報實銷）</option>
+                <option value="tenant_direct">租客自行向台水繳納</option>
+              </select>
+            </div>
+            <div v-if="form.waterMode === 'independent'">
+              <label for="room-water-no" class="block text-sm font-medium text-text-secondary-light mb-1">台水水號</label>
+              <input id="room-water-no" v-model="form.waterNo" class="form-input" :disabled="isViewMode" placeholder="水費單上的水號">
+            </div>
             <div v-if="form.subGroupId === '__new__'" class="sm:col-span-2">
               <label for="room-new-floor" class="block text-xs font-medium text-text-secondary-light mb-1">新樓層名稱</label>
               <input id="room-new-floor" v-model="newFloorName" class="form-input" placeholder="例如：4F">
@@ -1122,11 +1136,14 @@ const openModal = (room?: Room, mode: 'create' | 'edit' | 'view' = 'create') => 
     if (!form.value.images) form.value.images = [];
     if (form.value.subGroupId === undefined) form.value.subGroupId = '';
     if (form.value.propertyId === undefined) form.value.propertyId = '';
+    if (form.value.waterMode === undefined) form.value.waterMode = '';
+    if (form.value.waterNo === undefined) form.value.waterNo = '';
   } else {
     form.value = {
       name: '', price: 0, size: 0, address: '', layout: '獨立套房', status: 'vacant',
       type: '公寓', tenantName: '', leaseEnd: '', images: [], coverImage: '', isPublic: false, purchaseCost: undefined,
-      subGroupId: '', propertyId: properties.value.length === 1 ? properties.value[0]!.id : '', isTest: false
+      subGroupId: '', propertyId: properties.value.length === 1 ? properties.value[0]!.id : '', isTest: false,
+      waterMode: '', waterNo: ''
     };
     const only = properties.value.length === 1 ? properties.value[0] : undefined;
     if (only?.address) form.value.address = only.address;

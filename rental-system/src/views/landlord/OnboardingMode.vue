@@ -111,6 +111,10 @@
                 <input v-model="form.emergencyContact" type="text" class="form-input" placeholder="選填" />
               </div>
               <div>
+                <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">居住人數</label>
+                <input v-model.number="form.occupants" type="number" min="1" step="1" class="form-input" />
+              </div>
+              <div>
                 <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">承租房源 *</label>
                 <select v-model="form.room" @change="onRoomSelect" class="form-input">
                   <option value="">請選擇房源</option>
@@ -307,7 +311,7 @@ const requestActivationLink = async (tenantDocId: string) => {
 const completedKeys = ref<Record<string, boolean>>({});
 
 const form = ref<any>({
-  name: '', phone: '', idNumber: '', email: '', emergencyContact: '',
+  name: '', phone: '', idNumber: '', email: '', emergencyContact: '', occupants: 1,
   room: '', leaseStart: new Date().toISOString().split('T')[0], duration: 1,
   rent: 0, depositMonths: 2, deposit: 0,
 });
@@ -491,7 +495,7 @@ const loadTenant = async () => {
     // 既有欄位 + 進行中草稿還原
     form.value = {
       name: t.name || '', phone: t.phone || '', idNumber: t.idNumber || '', email: t.email || '',
-      emergencyContact: t.emergencyContact || '', room: t.room || '',
+      emergencyContact: t.emergencyContact || '', occupants: t.occupants || 1, room: t.room || '',
       leaseStart: t.leaseStart || new Date().toISOString().split('T')[0],
       duration: t.leaseDuration || 1,
       rent: t.rent || 0, depositMonths: t.depositMonths || 2, deposit: t.deposit || 0,
@@ -525,6 +529,7 @@ const saveProfile = async (): Promise<boolean> => {
   const profile = {
     name: form.value.name, phone: form.value.phone, idNumber: form.value.idNumber,
     email: form.value.email || '', emergencyContact: form.value.emergencyContact || '',
+    occupants: Math.max(1, Math.floor(Number(form.value.occupants) || 1)),
     room: form.value.room, leaseStart: form.value.leaseStart || '', leaseEnd: computedLeaseEnd.value,
     leaseDuration: Number(form.value.duration) || 1,
     rent: Number(form.value.rent) || 0,

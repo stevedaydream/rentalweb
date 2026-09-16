@@ -44,6 +44,6 @@ export function resolveRoomLease(room: ManagedRoom, rooms: ManagedRoom[], contra
 
 export function editableRoomFields(form: Partial<ManagedRoom>): Record<string, unknown> {
   const keys = ['name', 'address', 'price', 'size', 'layout', 'type', 'images', 'coverImage',
-    'purchaseCost', 'subGroupId', 'isTest'] as const;
+    'purchaseCost', 'subGroupId', 'waterMode', 'waterNo', 'isTest'] as const;
   return Object.fromEntries(keys.filter(k => form[k] !== undefined).map(k => [k, form[k]]));
 }

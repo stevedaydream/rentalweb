@@ -502,6 +502,11 @@
             <p class="text-xs font-bold text-text-secondary-light uppercase mb-3">其他資訊</p>
             <div class="space-y-3">
               <div>
+                <label for="modal-occupants" class="block text-sm font-medium text-text-secondary-light mb-1">居住人數</label>
+                <input id="modal-occupants" v-model.number="form.occupants" type="number" min="1" step="1" class="form-input" autocomplete="off">
+                <p class="text-xs text-text-secondary-light mt-1">水費以「每人」計算時使用，預設 1 人。</p>
+              </div>
+              <div>
                 <label for="modal-emergency" class="block text-sm font-medium text-text-secondary-light mb-1">緊急聯絡人</label>
                 <input id="modal-emergency" v-model="form.emergencyContact" type="text" class="form-input" placeholder="姓名 - 關係 - 電話" autocomplete="off">
               </div>
@@ -957,6 +962,11 @@
                   <p class="text-xs font-bold text-text-secondary-light uppercase mb-3">其他資訊</p>
                   <div class="space-y-3">
                     <div>
+                      <label for="drawer-occupants" class="block text-sm font-medium text-text-secondary-light mb-1">居住人數</label>
+                      <input id="drawer-occupants" v-model.number="form.occupants" type="number" min="1" step="1" class="form-input" autocomplete="off">
+                      <p class="text-xs text-text-secondary-light mt-1">水費以「每人」計算時使用，預設 1 人。</p>
+                    </div>
+                    <div>
                       <label for="drawer-emergency" class="block text-sm font-medium text-text-secondary-light mb-1">緊急聯絡人</label>
                       <input id="drawer-emergency" v-model="form.emergencyContact" type="text" class="form-input" placeholder="姓名 - 關係 - 電話" autocomplete="off">
                     </div>
@@ -1262,6 +1272,8 @@ interface Tenant {
   depositMonths?: number;
   paymentStatus: 'normal' | 'overdue' | 'unpaid' | 'pending' | 'nobill';
   emergencyContact?: string;
+  /** 居住人數（水費每人計費），預設 1 */
+  occupants?: number;
   note?: string;
   idNumber?: string;
   landlordId?: string;
@@ -1589,6 +1601,7 @@ const saveTenant = async () => {
   try {
     const tenantData: any = {
       ...form.value,
+      occupants: Math.max(1, Math.floor(Number(form.value.occupants) || 1)),
       landlordId: authStore.effectiveUid,
       updatedAt: serverTimestamp()
     };
@@ -1925,7 +1938,7 @@ const form = ref<Partial<Tenant>>({
   name: '', room: '', phone: '', email: '', idNumber: '',
   leaseStart: todayStr(), leaseEnd: calcLeaseEnd(todayStr(), 1),
   rentSubsidy: { hasSubsidy: false, from: '', to: '', docNo: '' }, isTest: false,
-  leaseDuration: 1, rent: 0, depositMonths: 2,
+  leaseDuration: 1, rent: 0, depositMonths: 2, occupants: 1,
   paymentStatus: 'normal', emergencyContact: '', note: ''
 });
 
@@ -2096,7 +2109,7 @@ const openNewTenantModal = () => {
     leaseStart: today, leaseEnd: calcLeaseEnd(today, 1),
     rentSubsidy: { hasSubsidy: false, from: '', to: '', docNo: '' }, isTest: false,
     leaseDuration: 1, rent: 0, depositMonths: 2,
-    paymentFrequency: 'monthly',
+    paymentFrequency: 'monthly', occupants: 1,
     paymentStatus: 'normal', emergencyContact: '', note: ''
   };
   showModal.value = true;

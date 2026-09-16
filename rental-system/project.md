@@ -10,6 +10,15 @@ Firebase 專案 ID：`rental-system-7675e`
 
 ## 技術架構
 
+### 2026-09-17 水費（多房東階段二，ADR-009）
+
+- 規則在 `functions/billing/water.mjs`（前後端共用，前端經 `utils/financials/water.ts` 匯入，型別 `water.d.mts`）：建物 `properties.waterSettings{mode: landlord|fixed|split|tenant_direct|unset, basis: room|person, fixedAmount}`，未設定時依合約範本 `feeWater` 推定（房東負擔→landlord、租客負擔→unset）；房間 `rooms.waterMode`（independent 獨立水號＋`waterNo`／tenant_direct）覆寫建物；租客 `tenants.occupants` 居住人數（預設 1）。
+- **固定月費**：`planner.mjs` 在開租金時同批另開「水費」帳單（涵蓋期間同租金、金額＝月費×月數×人數、寫 `propertyId`），預收沖抵順序改為 租金→水費→電費→公共電費；未設定的建物出帳預覽會警告、不開水費。`service.mjs` 另讀 `properties` 與 `contract_templates/{landlordId}`。
+- **台水帳單**：帳務「更多 › 台水帳單」（`WaterBillModal`）選整棟或獨立水號房間、計費期間、金額，`utils/financials/waterBilling.ts` 的 `planWaterBill` 依居住天數（每人時×人數）分攤，空房不列入分母、獨立水號與租客自繳房間不列入整棟；退租者用退租摘要日期；預覽可改金額，尾差房東吸收。`waterBillService.saveWaterBill` 同批寫 `water_bills` 主檔＋「台水帳單」支出＋各租客「水費」帳單（互存 `waterBillId`）；非均攤建物只記支出。刪除台水支出時一併刪主檔，已開的水費帳單保留。
+- 合約第五條水費由 `waterContractText` 依建物／房間設定產生，存 `signed_contracts.waterFeeText` 隨合約凍結（`buildContractPayload` 優先採用）；合約範本的水費選項改為「預設」，僅用於未設定的建物。
+- 帳務：類別「水費」（收入）、「台水帳單」（支出）的顏色、統計、手動記一筆選項；分析頁新增「水費盈虧」（`summarizeWater`，本月逐棟台水支出 vs 開出／已收水費）；年度損益的代收代付開關納入水費；租客端「台水帳單」顯示為水費。
+- 介面：建物編輯表單「水費」區塊、建物卡片顯示水費方式（未設定紅字提醒）、房間表單「水費」覆寫、租客新增／編輯／上線精靈「居住人數」。
+
 ### 2026-09-17 以建物為主的房源建立（多房東階段一）
 
 - 建物與台電總表資料仍獨立（一棟可多電號），操作以建物為主：`properties.meterGroupId` 指向同名總表，樓層＝該總表子群組。新增建物（`buildingService.createPropertyWithMeterGroup`）同時建總表；舊建物第一次用到時沿用 `seededFromGroupId` 或自動補建（`ensurePropertyMeterGroup`）。
@@ -131,9 +140,9 @@ rental-system/
 | `users` | uid, role('landlord'\|'tenant'\|'admin'), landlordId? |
 | `rooms` | id, name, status('occupied'\|'vacant'\|'maintenance'), landlordId, floor, rent, deposit, tenantId, tenantName, isPublic?, subGroupId?(電表子群組), **propertyId?(所屬建物)** |
 | `property_costs` | id, landlordId, type('房屋稅'\|'地價稅'\|'火災險'), periodStart/periodEnd(所屬期間，與繳款日分開), amount(稅單總額), allocations[{propertyId, amount}](加總須等於 amount), dueDate, paidAt?, docNo?, attachmentUrl?, billIds[](落帳產生的 bills，供同步/回收)　※**無論繳沒繳都存在；只有標記已繳時才依 allocations 落帳到 `bills`**，因帳務頁「本月支出」不看狀態、月內全算，未繳先落帳會讓當月支出提前虛增 |
-| `properties` | id, landlordId, name, address?, contractTerms?(合約附件設定，見 utils/contractTerms.ts), houseTaxNo?(房屋稅籍), landNos?[](地號，一棟可多筆), fireInsurance?{insurer,policyNo,startDate,endDate,amount}, publicWelfare?[{year,houseTax,landTax,incomeTax,docNo,validFrom,validTo}], seededFromGroupId?(遷移冪等標記)　※**建物＝稅／險／公益出租人的歸屬單位，與 `meter_groups`（台電總表）是兩個獨立維度**：台電按電號寄帳單，一棟可能兩個電號、公共電表也可能跨棟 |
+| `properties` | id, landlordId, name, address?, meterGroupId?(對應電表總表), waterSettings?(水費設定，見 functions/billing/water.mjs), contractTerms?(合約附件設定，見 utils/contractTerms.ts), houseTaxNo?(房屋稅籍), landNos?[](地號，一棟可多筆), fireInsurance?{insurer,policyNo,startDate,endDate,amount}, publicWelfare?[{year,houseTax,landTax,incomeTax,docNo,validFrom,validTo}], seededFromGroupId?(遷移冪等標記)　※**建物＝稅／險／公益出租人的歸屬單位，與 `meter_groups`（台電總表）是兩個獨立維度**：台電按電號寄帳單，一棟可能兩個電號、公共電表也可能跨棟 |
 | `tenants` | id, uid, name, email, phone, landlordId, roomId, roomName, boundLandlordCode, status('active'\|'inactive'), moveInDate, paymentFrequency('monthly'\|'quarterly'\|'semiannual'\|'yearly'), **credit?(預收餘額，生成帳單時自動沖抵、退租時併入退款), creditLog[]?**, **rentSubsidy?{hasSubsidy, from, to, docNo}**（政府租金補貼＝公益出租人資格的**事實來源**，與 `properties.publicWelfare`（稅捐處實際核定年度）分開存，兩者不一致時系統提示落差） |
-| `bills` | id, propertyId?(支出所屬建物；稅費落帳與「記一筆」建物支出寫入), tenantId(租客 uid，手動建立的租客為 null), relatedTenantDocId(tenants 文件 ID), landlordId, target(`姓名 房號` 字串), date(YYYY-MM-DD), type('income'\|'expense'), category('租金收入'\|'電費'\|'公共電費'…), description, amount, status('pending'\|'waiting_confirmation'\|'completed'\|'overdue'), dueDate, paidAt, relatedUsageId?, history[], paymentProofUrl?, ecpayOrderId?, paymentMethod?, paymentGateway?, **paidAmount?(部分付款已收；未設者 completed 視為全額), payments[]?({amount, date, source('manual'\|'credit'), note?, at}), coverFrom?/coverTo?(租金單涵蓋起訖月 YYYY-MM；舊單由摘要反推)**　※**無 tenantName / roomName / month 欄位**，租客資訊須以 relatedTenantDocId / tenantId 反查 `tenants` |
+| `bills` | id, propertyId?(所屬建物；稅費落帳、建物支出、水費與台水帳單寫入), waterBillId?(台水帳單與水費帳單的主檔), tenantId(租客 uid，手動建立的租客為 null), relatedTenantDocId(tenants 文件 ID), landlordId, target(`姓名 房號` 字串), date(YYYY-MM-DD), type('income'\|'expense'), category('租金收入'\|'電費'\|'公共電費'…), description, amount, status('pending'\|'waiting_confirmation'\|'completed'\|'overdue'), dueDate, paidAt, relatedUsageId?, history[], paymentProofUrl?, ecpayOrderId?, paymentMethod?, paymentGateway?, **paidAmount?(部分付款已收；未設者 completed 視為全額), payments[]?({amount, date, source('manual'\|'credit'), note?, at}), coverFrom?/coverTo?(租金單涵蓋起訖月 YYYY-MM；舊單由摘要反推)**　※**無 tenantName / roomName / month 欄位**，租客資訊須以 relatedTenantDocId / tenantId 反查 `tenants` |
 | `payment_proofs` | id, billId, tenantId, landlordId, imageUrl, uploadedAt, ocrRaw?(預留), matchResult?(預留), status('pending'\|'approved'\|'rejected') |
 | `repair_requests` | id, tenantId, tenantName, landlordId, roomId, type, description, status('pending'\|'processing'\|'resolved'), priority('low'\|'medium'\|'high'), imageUrl |
 | `meter_readings` | id, landlordId, roomId, roomName, reading, previousReading, usage, readingDate, meterType?('public'=公共表, roomId=public_meters id), subGroupId?, cycle?('monthly'/'bimonthly'), cycleIndex?(1/2) |
@@ -145,6 +154,7 @@ rental-system/
 | `contract_templates` | doc ID = landlordId，HTML 範本 |
 | `signed_contracts` | id, landlordUid, 簽署資料, supersededBy?(取代它的新合約 id), supersededAt?, status?('awaiting_tenant'\|'awaiting_landlord'\|'signed'；無此欄＝已簽), contractTerms?(簽署時凍結的建物附件), landlordAddress?, tenantAddress?, tenantMailAddress?, guarantor*?, bankCode?/bankAccount?/bankAccountName?, signLinkSentAt?, tenantSignedAt?, landlordSignedAt?, returnedAt?　※遠端簽約時 `signedAt` 建立時先寫入（供排序），房東簽署生效時覆寫 |
 | `contract_sign_links` | 遠端簽約連結：code(doc id), contractId, landlordId, expireAt(7 天), usedAt?(一次性), failedAttempts(≥5 鎖定)　※**前端完全禁止讀寫**，同 `tenant_activations` |
+| `water_bills` | id, landlordId, scopeKind('property'\|'room'), propertyId, roomId?, targetName, periodStart/periodEnd, amount, mode('split'\|'independent'\|'record_only'), basis, shares[{tenantDocId,label,days,people,amount}], remainder(房東負擔), expenseBillId, incomeBillIds[], date |
 | `line_configs` | doc ID = landlordId，LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN |
 | `line_bindings` | 綁定碼，uid, expiry |
 | `tenant_activations` | 租客帳號啟用連結：code(doc id), tenantDocId, uid, landlordId, expireAt(7 天), usedAt?(一次性)　※**前端完全禁止讀寫**，發放與兌換全由 Cloud Function 處理——它等同鑰匙，可列舉則二次驗證形同虛設 |
@@ -377,3 +387,4 @@ rental-system/
 | 2026-09-16 | **合約範本改版（復興路版本）**：依 Word 復興路版本重寫合約範本（版本 2），附件重新編號為四份；附件內容改為依建物設定（房源管理 → 建物 → 合約附件設定，可套用復興路版本）並於簽署時凍結；新增出租人／承租人地址與保證人欄位；合約填值集中為 `buildContractPayload`；預覽改為直接渲染範本並移除重複的點擊簽名入口 |
 | 2026-09-16 | **Logo 改版**：配合金黑配色重新設計。標誌為金色屋頂線＋房屋、中央鏤空鑰匙孔（單色 evenodd，側欄 `brightness-0 invert` 轉白仍完整；舊版白色勾勾轉白後會消失）；「租賃管家」改 Noto Serif TC 粗體並轉外框（不依賴系統字型），副標金色。畫布改 288×100 去掉右側空白，各處 `h-* w-auto` 不需調整。新增 `public/favicon.svg`（墨黑圓角底）、`apple-touch-icon.png`，補上 manifest 早已引用卻不存在的 `pwa-192x192.png`／`pwa-512x512.png`（maskable），主題色由舊藍 `#2563EB` 改墨黑 `#141210` |
 | 2026-09-17 | **多房東階段一：以建物為主建立房源**：新增建物同時建立電表總表；建物兩步驟精靈與批量建立房間（樓層×間數、房號規則與前綴、可編輯預覽）；單間表單改選建物＋樓層並可原地新增；房號同房東唯一；照片改為公開刊登才必填並移除 Unsplash 假封面。水費（階段二）尚未實作 |
+| 2026-09-17 | **多房東階段二：水費**：建物水費設定（房東負擔／固定月費／台水帳單均攤／租客自繳，每房或每人）、房間獨立水號覆寫、租客居住人數；固定月費隨租金出帳；台水帳單登錄後依居住天數分攤開單（`water_bills`）；合約水費條文依設定產生並凍結；帳務新增水費類別與水費盈虧，年度損益代收代付開關納入水費 |

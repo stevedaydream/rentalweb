@@ -124,3 +124,59 @@ test('preview hash changes when money or lease terms change', () => {
   input.tenants[0].credit = 0
   assert.notEqual(buildPlan(input).plans[0].version, original)
 })
+test('fixed water fee is billed with rent, per person, for the same coverage', () => {
+  const input = fixture()
+  input.tenants[0].credit = 0
+  input.tenants[0].occupants = 2
+  input.tenants[0].paymentFrequency = 'quarterly'
+  input.tenants[0].leaseStart = '2026-03-01'
+  input.rooms[0].propertyId = 'prop-a'
+  input.properties = [{ id: 'prop-a', name: '甲棟', waterSettings: { mode: 'fixed', basis: 'person', fixedAmount: 100 } }]
+  const bills = buildPlan(input).plans[0].bills
+  const water = bills.find(b => b.category === '水費')
+  assert.equal(water.amount, 600)
+  assert.equal(water.coverFrom, '2026-09')
+  assert.equal(water.coverTo, '2026-11')
+  assert.equal(water.propertyId, 'prop-a')
+  assert.deepEqual(bills.map(b => b.category), ['租金收入', '水費', '電費'])
+})
+test('credit is applied to water right after rent', () => {
+  const input = fixture()
+  input.tenants[0].credit = 7050
+  input.rooms[0].propertyId = 'prop-a'
+  input.properties = [{ id: 'prop-a', waterSettings: { mode: 'fixed', basis: 'room', fixedAmount: 100 } }]
+  const plan = buildPlan(input).plans[0]
+  assert.deepEqual(plan.bills.map(b => b.creditApplied), [7000, 50, 0])
+})
+test('no water bill when rent is not billed, when the room pays independently, or when landlord pays', () => {
+  const input = fixture()
+  input.rooms[0].propertyId = 'prop-a'
+  input.properties = [{ id: 'prop-a', waterSettings: { mode: 'fixed', fixedAmount: 100 } }]
+  input.bills = [{ id: 'sep', relatedTenantDocId: 'lease-a', type: 'income', category: '租金收入', date: '2026-09-01' }]
+  assert.equal(buildPlan(input).plans.flatMap(p => p.bills).some(b => b.category === '水費'), false)
+  input.bills = []
+  input.rooms[0].waterMode = 'independent'
+  assert.equal(buildPlan(input).plans[0].bills.some(b => b.category === '水費'), false)
+  input.rooms[0].waterMode = ''
+  input.properties[0].waterSettings = { mode: 'landlord' }
+  assert.equal(buildPlan(input).plans[0].bills.some(b => b.category === '水費'), false)
+})
+test('unset water mode warns instead of guessing; legacy tenant-pays template counts as unset', () => {
+  const input = fixture()
+  input.templateFeeWater = 'tenant'
+  const plan = buildPlan(input)
+  assert.equal(plan.plans[0].bills.some(b => b.category === '水費'), false)
+  assert.match(plan.warnings.join(), /尚未設定水費方式/)
+  input.templateFeeWater = 'landlord'
+  assert.doesNotMatch(buildPlan(input).warnings.join(), /水費/)
+})
+test('fixed water without an amount warns and a rerun does not duplicate the water bill', () => {
+  const input = fixture()
+  input.rooms[0].propertyId = 'prop-a'
+  input.properties = [{ id: 'prop-a', name: '甲棟', waterSettings: { mode: 'fixed', fixedAmount: 0 } }]
+  assert.match(buildPlan(input).warnings.join(), /未設定金額/)
+  input.properties[0].waterSettings.fixedAmount = 100
+  const water = buildPlan(input).plans[0].bills.find(b => b.category === '水費')
+  input.bills = [{ id: water.id }]
+  assert.equal(buildPlan(input).plans[0].bills.some(b => b.category === '水費'), false)
+})

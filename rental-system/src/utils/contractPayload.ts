@@ -100,7 +100,8 @@ export const buildContractPayload = (data: ContractData): Record<string, unknown
 
   return {
     ...data,
-    feeWaterDisplay: payerText(data.feeWater),
+    // 簽約時依建物水費設定產生的文字優先；舊合約與未設定者沿用範本的負擔方式
+    feeWaterDisplay: data.waterFeeText || payerText(data.feeWater),
     feeElectricityDisplay: data.feeElectricityNote ? `${elec}（備註：${data.feeElectricityNote}）` : elec,
     feeGasDisplay: payerText(data.feeGas),
     feeInternetDisplay: payerText(data.feeInternet),

@@ -50,14 +50,16 @@ export async function handleBilling(db, FieldValue, request) {
       if (snap.size > 20000) throw new HttpsError('resource-exhausted', '帳務資料量超出本次出帳上限，請先分區整理帳務資料')
       return rows(snap)
     }
-    const [tenants, rooms, readings, publicMeters, groups, bills] = await Promise.all([
+    const [tenants, rooms, readings, publicMeters, groups, bills, properties, template] = await Promise.all([
       read(owned('tenants')), read(owned('rooms')),
       read(owned('meter_readings').where('periodEnd', '>=', `${month}-01`).where('periodEnd', '<=', monthEnd(month))),
       read(owned('public_meters')), read(owned('meter_groups')), read(owned('bills')),
+      read(owned('properties')), tx.get(db.collection('contract_templates').doc(landlordId)),
     ])
     let plan
     try {
-      plan = buildPlan({ landlordId, month, tenants, rooms, readings, publicMeters, groups, bills, settings: profile.data().settings })
+      plan = buildPlan({ landlordId, month, tenants, rooms, readings, publicMeters, groups, bills, settings: profile.data().settings,
+        properties, templateFeeWater: template.exists ? template.data().feeWater : undefined })
     } catch (e) { throw new HttpsError('failed-precondition', e.message) }
     if (mode === 'preview') return publicPlan(plan)
 
