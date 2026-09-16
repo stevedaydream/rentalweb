@@ -111,6 +111,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // 新房東資料接管任務：不保存原始 Excel，只保存操作者、版本與執行結果。
+    match /data_imports/{importId} {
+      allow read: if isAdmin() || isLandlordData();
+      allow create: if isAdmin() || isCreatingAsLandlord();
+      allow update, delete: if isAdmin() || isLandlordData();
+    }
+
     // 帳務帳單 (bills)
     match /bills/{id} {
       allow read: if isAdmin()
