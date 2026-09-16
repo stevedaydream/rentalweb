@@ -14,6 +14,17 @@
 | `sendLineReply` | Callable | `sendLineReply` | 房東回覆租客 LINE 訊息 |
 | `sendLineBillNotifications` | Callable | `sendLineBillNotifications` | 推播帳單通知給租客 |
 | `promotePendingRenewal` | Callable | `promotePendingRenewal` | 房東／管理員接續已到期的下一期租約；不發通知 |
+| `createContractSignLink` | Callable | `createContractSignLink` | 房東為待租客簽名的合約發（重發）一次性簽署連結 |
+| `getContractForSigning` | Callable（免登入） | `getContractForSigning` | 驗證簽署連結；帶證件號碼相符才回合約預覽欄位 |
+| `submitContractSignature` | Callable（免登入） | `submitContractSignature` | 租客送出簽名，合約轉待房東確認並 LINE 通知房東 |
+
+#### 遠端簽約（createContractSignLink / getContractForSigning / submitContractSignature）
+
+- `createContractSignLink`：請求 `{ contractId, origin }`，須登入且為該合約房東（或管理員）；合約須為 `status: 'awaiting_tenant'` 且有 `tenantId`（證件號碼）。回傳 `{ code, url, expireAt, expireDays }`，同一合約舊的未使用連結會被刪除。
+- `getContractForSigning`：請求 `{ code, idNumber? }`。不帶 `idNumber` 回 `{ ok, needIdNumber: true, name }`；相符（不分大小寫、去空白）回 `{ ok, name, contract }`，`contract` 只含預覽欄位（不含 `landlordUid`、`templateHtml`）。
+- `submitContractSignature`：請求 `{ code, idNumber, signature }`，`signature` 須為 `data:image/png;base64,` 且 ≤ 600KB。交易內寫入 `signature`、`status: 'awaiting_landlord'`、`tenantSignedAt`、`tenantAcknowledgedAt`，並標記連結 `usedAt`。
+- 錯誤碼：`not-found`（連結或合約不存在）、`failed-precondition`（已使用／合約非待租客簽名）、`deadline-exceeded`（過期）、`permission-denied`（證件號碼不符，累計 `failedAttempts`）、`resource-exhausted`（錯 5 次鎖定）、`invalid-argument`。
+- 房東生效與退回在前端 `signedContractService` 的 `confirmLandlordSignature`／`returnForResign` 以 batch 寫入。
 
 #### promotePendingRenewal
 

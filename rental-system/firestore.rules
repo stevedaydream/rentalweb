@@ -303,6 +303,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // 合約簽署連結 (contract_sign_links) — 遠端簽約的一次性連結，同上僅由 Cloud Function 存取
+    match /contract_sign_links/{code} {
+      allow read, write: if false;
+    }
+
     // 建物年度費用 (property_costs) — 房屋稅／地價稅／火災險的稅單與保單主檔
     // 標記已繳時才依 allocations 落帳到 bills，維持 bills 為純現金流
     match /property_costs/{costId} {

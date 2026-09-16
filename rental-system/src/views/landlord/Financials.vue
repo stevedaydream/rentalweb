@@ -516,7 +516,7 @@
     </template>
 
     <BillTransactionModal v-model:show="showModal" v-model="form" :is-editing="isEditing" :tenants="tenantsList"
-      :open-bills="openBills" :groups="taipowerGroupOptions" @save="saveTransaction" @receive="onManualReceive" />
+      :open-bills="openBills" :groups="taipowerGroupOptions" :properties="propertiesList" @save="saveTransaction" @receive="onManualReceive" />
     <ReceivePaymentModal
       :show="!!receiveTarget" @update:show="closeReceive"
       :label="receiveTarget?.label || ''" :bills="receiveTarget?.bills || []"
@@ -778,6 +778,8 @@ interface Transaction {
   groupId?: string
   /** 台電支出對應的 taipower_bills */
   taipowerBillId?: string
+  /** 支出所屬建物 */
+  propertyId?: string
   relatedContractId?: string
   dueDate?: string
   paidAt?: string
@@ -1394,9 +1396,14 @@ const sendLineNotifications = async () => {
 const saveTransaction = async () => {
   if (!authStore.user) return
   if (!form.value.amount && form.value.amount !== 0) { toast.warning('請填寫金額'); return }
+  // 建物支出可不填對象，以建物名稱代替
+  const propertyName = form.value.propertyId ? propertiesList.value.find(p => p.id === form.value.propertyId)?.name : ''
+  if (!form.value.target?.trim() && propertyName) form.value.target = propertyName
   if (!form.value.target || !form.value.date) { toast.warning('請填寫完整資訊'); return }
   try {
     const payload = { ...form.value, landlordId: authStore.effectiveUid, updatedAt: serverTimestamp() }
+    // 新增時沒選建物就不寫欄位；編輯時留空值才能清掉舊的歸屬
+    if (!payload.propertyId && !isEditing.value) delete payload.propertyId
     // 手動新增的電費也要知道屬於哪一棟，否則電費盈虧會把它歸到「未分組電表」
     if ((payload.category === '電費' || payload.category === '公共電費') && payload.relatedTenantDocId && !payload.groupId) {
       const room = tenantRoomIndex.value.get(payload.relatedTenantDocId)

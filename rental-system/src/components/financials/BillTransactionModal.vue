@@ -100,7 +100,7 @@
               <input id="bill-date" v-model="local.date" type="date" class="form-input text-sm" />
             </div>
             <div class="relative" ref="targetRef">
-              <label for="bill-target" class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-2">對象 / 房號</label>
+              <label for="bill-target" class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-2">對象 / 房號{{ local.propertyId ? '（選填）' : '' }}</label>
               <div class="relative">
                 <input
                   id="bill-target"
@@ -109,7 +109,7 @@
                   @input="showTargetDrop = true"
                   type="text"
                   class="form-input text-sm pr-8"
-                  placeholder="搜尋租客或房號..."
+                  :placeholder="local.propertyId ? '留空則記為建物名稱' : '搜尋租客或房號...'"
                   autocomplete="off"
                 />
                 <button v-if="local.target" @click="clearTarget"
@@ -182,6 +182,16 @@
               </template>
             </div>
             <p v-else class="text-xs text-text-secondary-light">會另外新增一張帳單（例如補收清潔費），不會沖銷既有欠款。</p>
+          </div>
+
+          <!-- 建物支出（如屋頂防水）：寫入 propertyId，年度損益才歸得到棟 -->
+          <div v-if="local.type === 'expense' && local.category !== '台電帳單' && (properties?.length ?? 0) > 0">
+            <label for="bill-property" class="block text-xs font-semibold text-text-secondary-light uppercase tracking-wide mb-2">所屬建物</label>
+            <select id="bill-property" v-model="local.propertyId" class="form-input text-sm">
+              <option value="">不指定</option>
+              <option v-for="p in properties" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+            <p class="text-xs text-text-secondary-light mt-1">整棟的支出（例如屋頂防水工程）請選建物，年度損益會算進該棟。</p>
           </div>
 
           <!-- 台電支出的所屬總表：選錯棟時在這裡改，對應的台電帳單會一併更新 -->
@@ -261,6 +271,8 @@ const props = defineProps<{
   openBills?: OpenBill[]
   /** 台電總表；超過一顆時台電支出可選所屬總表 */
   groups?: { id: string; name: string }[]
+  /** 建物；支出可指定所屬建物 */
+  properties?: { id: string; name: string }[]
 }>()
 
 const emit = defineEmits<{
@@ -281,6 +293,7 @@ const openedTarget = ref('')
 watch(() => props.show, (val) => {
   if (val) {
     local.value = JSON.parse(JSON.stringify(props.modelValue))
+    local.value.propertyId ??= ''
     openedTarget.value = props.modelValue.target || ''
     targetSearch.value = openedTarget.value
     // 早期手動帳單只有 target 字串：沒改對象直接儲存也要補上綁定
@@ -420,6 +433,7 @@ const currentCategories = computed(() =>
 
 const setType = (type: 'income' | 'expense') => {
   local.value.type = type
+  if (type === 'income') local.value.propertyId = ''
   // auto-select first category of new type
   const cats = type === 'income' ? incomeCategories : expenseCategories
   if (!cats.find(c => c.value === local.value.category)) {

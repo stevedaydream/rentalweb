@@ -16,12 +16,14 @@ export const useNotificationStore = defineStore('notification', () => {
   const messages = ref(0);    // 未讀訊息數
   const tenants = ref(0);     // 即將到期合約數（90 天內）
   const financials = ref(false); // 台電帳單未登錄提示
+  const contracts = ref(0);   // 遠端簽約：租客已簽、待房東核對
 
   const totalBadge = computed(() => messages.value + tenants.value);
 
   let unsubMessages: Unsubscribe | null = null;
   let unsubTenants: Unsubscribe | null = null;
   let unsubBills: Unsubscribe | null = null;
+  let unsubContracts: Unsubscribe | null = null;
 
   /**
    * 啟動三個 Firestore 監聽器（在 LandlordLayout onMounted 呼叫）
@@ -70,6 +72,16 @@ export const useNotificationStore = defineStore('notification', () => {
       const currentMonth = new Date().toISOString().slice(0, 7);
       financials.value = !snap.docs.some(d => d.data().month === currentMonth);
     });
+
+    // 4. 待房東核對簽名的合約
+    const qContracts = query(
+      collection(db, 'signed_contracts'),
+      where('landlordUid', '==', uid),
+      where('status', '==', 'awaiting_landlord')
+    );
+    unsubContracts = onSnapshot(qContracts, (snap) => {
+      contracts.value = snap.size;
+    }, (e) => console.warn('待簽合約監聽失敗:', e));
   };
 
   /**
@@ -79,6 +91,7 @@ export const useNotificationStore = defineStore('notification', () => {
     unsubMessages?.(); unsubMessages = null;
     unsubTenants?.(); unsubTenants = null;
     unsubBills?.(); unsubBills = null;
+    unsubContracts?.(); unsubContracts = null;
   };
 
   /**
@@ -87,6 +100,7 @@ export const useNotificationStore = defineStore('notification', () => {
   const getBadgeCount = (id: string): number => {
     if (id === 'messages') return messages.value;
     if (id === 'tenants') return tenants.value;
+    if (id === 'contract') return contracts.value;
     return 0;
   };
 
@@ -102,6 +116,7 @@ export const useNotificationStore = defineStore('notification', () => {
     messages,
     tenants,
     financials,
+    contracts,
     totalBadge,
     startListeners,
     stopListeners,

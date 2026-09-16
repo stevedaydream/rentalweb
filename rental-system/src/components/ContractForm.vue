@@ -144,6 +144,24 @@
       {{ loading ? '正在生成合約…' : '確認簽署並產生合約' }}
     </button>
 
+    <!-- 遠端簽約：租客不在現場時，傳一次性連結讓租客自己簽，房東核對後再簽名生效 -->
+    <div v-if="allowRemote && !overlaps.length"
+      class="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl border border-dashed border-gold-300 dark:border-gold-700">
+      <div class="flex-1 text-sm">
+        <p class="font-bold text-text-primary-light dark:text-text-primary-dark">租客不在現場？</p>
+        <p class="text-xs text-text-secondary-light mt-0.5">傳送簽署連結給租客，租客簽名後您會收到通知，核對並簽名後合約才生效。</p>
+      </div>
+      <button type="button" :disabled="loading || sendingLink" @click="sendSignLink"
+        class="shrink-0 px-4 py-2.5 rounded-xl border border-gold-400 text-gold-700 dark:text-gold-300 text-sm font-bold hover:bg-gold-50 dark:hover:bg-gold-900/20 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5">
+        <span class="material-symbols-outlined text-[18px]" aria-hidden="true">{{ sendingLink ? 'sync' : 'send' }}</span>
+        {{ sendingLink ? '建立中…' : '傳送簽署連結' }}
+      </button>
+    </div>
+
+    <ContractSignLinkModal :show="!!linkModal" :link="linkModal?.url" :expire-days="linkModal?.expireDays"
+      :tenant-name="form.tenant" :error="linkModal?.error" :generating="!!linkModal && !linkModal.url && !linkModal.error"
+      @close="closeLinkModal" />
+
     <Signature v-model:visible="showSignModal" @confirm="setSignature" />
     <ContractTemplateModal v-model:show="showTemplateModal" @saved="onTemplateSaved" />
   </div>
@@ -156,11 +174,12 @@ import { useAuthStore } from '../stores/auth'
 import { useToastStore } from '../stores/toast'
 import { db, auth } from '../firebase/config'
 import { collection, getDoc, getDocs, query, where, doc, serverTimestamp } from 'firebase/firestore'
-import { findOverlappingSignedContracts, createSignedContract } from '../services/signedContractService'
+import { findOverlappingSignedContracts, createSignedContract, requestContractSignLink } from '../services/signedContractService'
 import Preview from './Preview.vue'
 import Signature from './Signature.vue'
 import LandlordSignatureField from './LandlordSignatureField.vue'
 import ContractTemplateModal from './ContractTemplateModal.vue'
+import ContractSignLinkModal from './ContractSignLinkModal.vue'
 import { printHtmlPdf } from '../utils/contractRender'
 import contractTemplate from '../templates/contractTemplate.html?raw'
 
@@ -171,6 +190,7 @@ const props = defineProps({
   prefill: { type: Object, default: () => ({}) },
   landlordId: { type: String, required: true },
   showSelectors: { type: Boolean, default: false }, // 獨立合約頁：顯示房源/租客下拉
+  allowRemote: { type: Boolean, default: false }, // 允許傳送簽署連結（上線精靈為現場流程，不開放）
 })
 const emit = defineEmits(['saved'])
 
@@ -362,6 +382,60 @@ const submitContract = async (confirmedReplace = false) => {
   } finally {
     loading.value = false
   }
+}
+
+// ---- 遠端簽約 ----
+const sendingLink = ref(false)
+const linkModal = ref(null) // { contractId, url?, expireDays?, error? }
+
+const sendSignLink = async () => {
+  const f = form.value
+  if (!f.tenant?.trim() || !f.tenantId?.trim()) {
+    toast.warning('請填寫承租人姓名與證件號碼，租客開啟連結時需以證件號碼驗證身分')
+    return
+  }
+  if (!f.startDate || !f.endDate || !Number(f.rentfee)) {
+    toast.warning('請填寫租金與租期')
+    return
+  }
+  sendingLink.value = true
+  try {
+    const docRef = await createSignedContract({
+      landlordUid: props.landlordId,
+      contractSource: 'digital',
+      tenantUid: props.prefill?.tenantUid || selectedTenantUid.value || null,
+      ...f,
+      tenantId: f.tenantId.trim().toUpperCase(),
+      // 雙方簽名都在之後各自補上：租客經連結簽，房東核對後簽
+      signature: '',
+      landlordSignature: '',
+      rentfee: Number(f.rentfee) || 0,
+      deposit: Number(f.deposit) || 0,
+      templateHtml: contractTemplate,
+      templateVersion: CONTRACT_TEMPLATE_VERSION,
+      status: 'awaiting_tenant',
+      signedAt: serverTimestamp(),
+    })
+    linkModal.value = { contractId: docRef.id }
+    try {
+      const res = await requestContractSignLink(docRef.id)
+      linkModal.value = { contractId: docRef.id, url: res.url, expireDays: res.expireDays }
+    } catch (e) {
+      console.error('產生簽署連結失敗:', e)
+      linkModal.value = { contractId: docRef.id, error: '合約已建立，但連結產生失敗。請至「合約記錄」重發連結。' }
+    }
+  } catch (e) {
+    console.error('建立待簽合約失敗:', e)
+    toast.error('建立合約失敗，請稍後再試')
+  } finally {
+    sendingLink.value = false
+  }
+}
+
+const closeLinkModal = () => {
+  const id = linkModal.value?.contractId
+  linkModal.value = null
+  if (id) emit('saved', id)
 }
 
 onMounted(async () => {

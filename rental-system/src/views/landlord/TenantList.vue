@@ -1206,6 +1206,7 @@ import { tenantLifecycle, LIFECYCLE_BADGE, type OnboardingState } from '../../ut
 import TenantImportModal from '../../components/TenantImportModal.vue';
 import TenantStatModal, { type TenantStatCategory } from '../../components/tenants/TenantStatModal.vue';
 import { printHtmlPdf } from '../../utils/contractRender';
+import { isPendingSignature } from '../../utils/signedContract';
 import { amountToChineseCapital } from '../../utils/chineseAmount';
 import moveoutSummaryTemplate from '../../templates/moveoutSummary.html?raw';
 import {
@@ -2650,11 +2651,13 @@ const downloadTenantArchive = async (tenant: Tenant) => {
         where('landlordUid', '==', authStore.effectiveUid),
         where('tenant', '==', tenant.name),
         orderBy('signedAt', 'desc'),
-        limit(1),
+        limit(5),
       );
       const contractSnap = await getDocs(contractQ);
-      if (!contractSnap.empty) {
-        const cd = contractSnap.docs[0]!.data();
+      // 遠端簽約尚未雙方簽完的合約不算數
+      const contractDoc = contractSnap.docs.find(d => !isPendingSignature(d.data()));
+      if (contractDoc) {
+        const cd = contractDoc.data();
         function pText(val: string) {
           if (!val || val === 'none') return '無';
           if (val === 'landlord') return '由出租人負擔';

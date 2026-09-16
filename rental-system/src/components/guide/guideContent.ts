@@ -89,6 +89,7 @@ export const GUIDE_CONTENT: GuideRoleContent[] = [
         tips: [
           '合約若顯示「尚未連結租客帳號」，選擇租客後按「連結」，租客端才看得到並能線上確認。',
           '續約產生的新合約，起租日前會顯示「待生效」，不會跟目前的合約衝突。',
+          '租客不在現場時，按「傳送簽署連結」把連結傳給租客；租客簽名後側邊欄會出現提醒，到「合約記錄」按「核對並簽名」，合約才正式生效。',
         ],
         illustration: 'landlord-contract',
         routeName: 'Contract',
@@ -259,6 +260,7 @@ export const GUIDE_CONTENT: GuideRoleContent[] = [
         tips: [
           '合約標籤：待生效（尚未到起租日）、生效中、已被取代（已重新簽約）、已到期。',
           '顯示「僅供查閱」表示房東還沒連結您的帳號，請透過「聯繫房東」告知房東。',
+          '收到房東傳來的簽署連結時，不用登入：輸入證件號碼、詳閱合約後簽名送出，房東簽名後合約即生效。',
         ],
         illustration: 'tenant-contract',
         routeName: 'TenantMyContract',

@@ -2272,6 +2272,156 @@ exports.activateTenant = onCall({ region: 'asia-east1' }, async (request) => {
   return { ok: true, token, name: tenant.name || '' };
 });
 
+// ─── 遠端簽約（一次性簽署連結） ─────────────────────────────────────────────
+// 流程：房東建立 signed_contracts(status=awaiting_tenant) → createContractSignLink 發連結
+//   → 租客免登入開 /sign/:code，以證件號碼驗證後 getContractForSigning 取合約
+//   → submitContractSignature 寫入租客簽名、status=awaiting_landlord、通知房東
+//   → 房東於合約記錄核對、簽名後 status=signed 才生效。
+// 連結碼存在 contract_sign_links（前端不可讀寫），與租客啟用連結同一套模式。
+const SIGN_LINK_TTL_DAYS = 7;
+const SIGN_LINK_MAX_ATTEMPTS = 5;
+// 合約預覽需要的欄位；房東 uid、範本骨架等內部欄位不外流
+const SIGNING_FIELDS = [
+  'roomNo', 'address', 'tenant', 'tenantId', 'tenantPhone', 'landlord', 'landlordId', 'landlordPhone',
+  'rentfee', 'deposit', 'duration', 'startDate', 'endDate', 'today', 'paymentFrequency', 'paymentDay',
+  'feeWater', 'feeElectricity', 'feeElectricityNote', 'feeGas', 'feeInternet', 'feeManagement', 'customArticle21',
+];
+const normId = v => String(v || '').trim().toUpperCase();
+
+exports.createContractSignLink = onCall({ region: 'asia-east1' }, async (request) => {
+  const { HttpsError } = require('firebase-functions/v2/https');
+  if (!request.auth) throw new HttpsError('unauthenticated', '請先登入');
+
+  const db = getFirestore();
+  const callerUid = request.auth.uid;
+  const callerDoc = await db.collection('users').doc(callerUid).get();
+  const callerRole = callerDoc.exists ? callerDoc.data().role : null;
+  if (callerRole !== 'landlord' && callerRole !== 'admin') {
+    throw new HttpsError('permission-denied', '僅房東可產生簽署連結');
+  }
+
+  const { contractId, origin } = request.data || {};
+  if (!contractId) throw new HttpsError('invalid-argument', '缺少合約');
+
+  const contractSnap = await db.collection('signed_contracts').doc(String(contractId)).get();
+  if (!contractSnap.exists) throw new HttpsError('not-found', '合約不存在');
+  const c = contractSnap.data();
+  if (c.landlordUid !== callerUid && callerRole !== 'admin') {
+    throw new HttpsError('permission-denied', '無權操作此合約');
+  }
+  if (c.status !== 'awaiting_tenant') throw new HttpsError('failed-precondition', '此合約目前不需要租客簽名');
+  if (!normId(c.tenantId)) throw new HttpsError('failed-precondition', '合約缺少承租人證件號碼，無法驗證身分');
+
+  // 同一份合約只留一把有效的鑰匙
+  const oldSnap = await db.collection('contract_sign_links')
+    .where('contractId', '==', contractSnap.id)
+    .where('usedAt', '==', null)
+    .get();
+  await Promise.all(oldSnap.docs.map(d => d.ref.delete()));
+
+  const code = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+  const expireAt = Date.now() + SIGN_LINK_TTL_DAYS * 24 * 60 * 60 * 1000;
+  await db.collection('contract_sign_links').doc(code).set({
+    contractId: contractSnap.id,
+    landlordId: c.landlordUid,
+    expireAt,
+    usedAt: null,
+    failedAttempts: 0,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  await contractSnap.ref.update({ signLinkSentAt: FieldValue.serverTimestamp() });
+
+  const base = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  logger.info('createContractSignLink', { callerUid, contractId: contractSnap.id });
+  return { code, url: `${base}/sign/${code}`, expireAt, expireDays: SIGN_LINK_TTL_DAYS };
+});
+
+// 驗證連結與證件號碼；兩支兌換函式共用。證件號碼錯太多次連結直接作廢，避免被暴力猜測
+async function verifySignLink(db, code, idNumber) {
+  const { HttpsError } = require('firebase-functions/v2/https');
+  if (!code) throw new HttpsError('invalid-argument', '缺少簽署碼');
+  const linkRef = db.collection('contract_sign_links').doc(String(code));
+  const linkSnap = await linkRef.get();
+  if (!linkSnap.exists) throw new HttpsError('not-found', '連結無效');
+  const link = linkSnap.data();
+  if (link.usedAt) throw new HttpsError('failed-precondition', '此連結已使用過');
+  if (link.expireAt && Date.now() > link.expireAt) throw new HttpsError('deadline-exceeded', '連結已過期');
+  if ((link.failedAttempts || 0) >= SIGN_LINK_MAX_ATTEMPTS) {
+    throw new HttpsError('resource-exhausted', '驗證失敗次數過多');
+  }
+
+  const contractRef = db.collection('signed_contracts').doc(link.contractId);
+  const contractSnap = await contractRef.get();
+  if (!contractSnap.exists) throw new HttpsError('not-found', '合約已不存在');
+  const c = contractSnap.data();
+  if (c.status !== 'awaiting_tenant') throw new HttpsError('failed-precondition', '此合約已完成簽名');
+
+  if (idNumber === undefined) return { linkRef, contractRef, c, verified: false };
+  if (!normId(idNumber) || normId(idNumber) !== normId(c.tenantId)) {
+    await linkRef.update({ failedAttempts: FieldValue.increment(1) });
+    throw new HttpsError('permission-denied', '證件號碼不符');
+  }
+  return { linkRef, contractRef, c, verified: true };
+}
+
+// 免登入。只帶 code 時僅回姓名供稱呼；證件號碼相符才回合約內容
+exports.getContractForSigning = onCall({ region: 'asia-east1' }, async (request) => {
+  const db = getFirestore();
+  const { code, idNumber } = request.data || {};
+  const { c, verified } = await verifySignLink(db, code, idNumber);
+  if (!verified) return { ok: true, needIdNumber: true, name: c.tenant || '' };
+
+  const contract = {};
+  for (const k of SIGNING_FIELDS) if (c[k] !== undefined) contract[k] = c[k];
+  return { ok: true, name: c.tenant || '', contract };
+});
+
+exports.submitContractSignature = onCall({ region: 'asia-east1' }, async (request) => {
+  const { HttpsError } = require('firebase-functions/v2/https');
+  const db = getFirestore();
+  const { code, idNumber, signature } = request.data || {};
+  if (typeof signature !== 'string' || !signature.startsWith('data:image/png;base64,')) {
+    throw new HttpsError('invalid-argument', '簽名格式錯誤');
+  }
+  if (signature.length > 600 * 1024) throw new HttpsError('invalid-argument', '簽名檔過大');
+
+  const { linkRef, contractRef, c } = await verifySignLink(db, code, idNumber ?? '');
+
+  // 交易內再確認一次，避免同一連結被兩個分頁同時送出
+  await db.runTransaction(async (tx) => {
+    const [linkNow, contractNow] = await Promise.all([tx.get(linkRef), tx.get(contractRef)]);
+    if (!linkNow.exists || linkNow.data().usedAt) throw new HttpsError('failed-precondition', '此連結已使用過');
+    if (contractNow.data()?.status !== 'awaiting_tenant') throw new HttpsError('failed-precondition', '此合約已完成簽名');
+    tx.update(contractRef, {
+      signature,
+      status: 'awaiting_landlord',
+      tenantSignedAt: FieldValue.serverTimestamp(),
+      // 租客親自簽名即等同已確認合約內容
+      tenantAcknowledgedAt: FieldValue.serverTimestamp(),
+      tenantAcknowledgedUid: c.tenantUid || null,
+    });
+    tx.update(linkRef, { usedAt: FieldValue.serverTimestamp() });
+  });
+
+  try {
+    const config = await getLineConfig(c.landlordUid);
+    if (config.ownerLineUserId) {
+      const client = new line.messagingApi.MessagingApiClient({ channelAccessToken: config.channelAccessToken });
+      const text =
+        `✍️ 租客已完成合約簽名\n━━━━━━━━━━\n` +
+        `${c.tenant || '租客'}${c.roomNo ? `（${c.roomNo}）` : ''}\n` +
+        `租期：${c.startDate || ''} ~ ${c.endDate || ''}\n` +
+        `━━━━━━━━━━\n請至「電子合約 → 合約記錄」核對並簽名，合約才會正式生效。`;
+      await client.pushMessage({ to: config.ownerLineUserId, messages: [{ type: 'text', text }] });
+    }
+  } catch (e) {
+    logger.warn('submitContractSignature: LINE notify failed', { contractId: contractRef.id, error: e.message });
+  }
+
+  logger.info('submitContractSignature: success', { contractId: contractRef.id });
+  return { ok: true };
+});
+
 // ─── getTenantAccountStatus ────────────────────────────────────────────────
 // 房東查詢自己所有租客的登入帳號狀態。
 //

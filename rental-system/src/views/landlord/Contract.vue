@@ -22,6 +22,17 @@
       <p v-else role="alert" class="text-sm text-amber-700 dark:text-amber-300">無法取得這份目前租約，請回房源頁重新確認。</p>
     </section>
 
+    <!-- 遠端簽約：租客已簽、等房東核對 -->
+    <div v-if="notificationStore.contracts > 0 && activeTab !== 'history'" role="status"
+      class="flex flex-wrap items-center gap-3 p-4 rounded-2xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20">
+      <span class="material-symbols-outlined text-amber-600" aria-hidden="true">draw</span>
+      <p class="flex-1 text-sm font-medium text-amber-800 dark:text-amber-300">有 {{ notificationStore.contracts }} 份合約租客已簽名，等待您核對並簽名</p>
+      <button type="button" @click="switchTab('history')"
+        class="px-4 py-2 rounded-xl bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 transition-colors">
+        前往核對
+      </button>
+    </div>
+
     <!-- Tabs -->
     <div class="flex gap-1 p-1 bg-surface-light dark:bg-surface-dark rounded-xl w-fit">
       <button
@@ -47,6 +58,7 @@
         :landlord-id="authStore.effectiveUid"
         :prefill="newPrefill"
         :show-selectors="true"
+        :allow-remote="true"
         @saved="onNewSaved"
       />
     </div>
@@ -233,15 +245,47 @@
                     : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'">
                   {{ c.contractSource === 'paper' ? '紙本' : '電子' }}
                 </span>
+                <template v-if="!isPendingSignature(c)">
                 <span v-if="c.tenantAcknowledgedAt" class="text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
                   租客已確認
                 </span>
                 <span v-else class="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
                   待租客確認
                 </span>
+                </template>
               </div>
               <span class="text-xs text-text-secondary-light">建立：{{ formatDate(c.signedAt) }}</span>
-              <div class="flex gap-2">
+              <!-- 遠端簽約進行中 -->
+              <div v-if="c.status === 'awaiting_landlord'" class="flex gap-2">
+                <button @click="openReview(c)"
+                  class="flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors">
+                  <span class="material-symbols-outlined text-sm" aria-hidden="true">draw</span>
+                  核對並簽名
+                </button>
+              </div>
+              <div v-else-if="c.status === 'awaiting_tenant'" class="flex flex-wrap justify-end gap-2">
+                <button @click="previewContract = c"
+                  class="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors">
+                  <span class="material-symbols-outlined text-sm" aria-hidden="true">visibility</span>
+                  查閱
+                </button>
+                <button @click="resendLink(c)"
+                  class="flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-lg bg-gold-50 text-gold-600 hover:bg-gold-100 dark:bg-gold-900/20 dark:text-gold-400 dark:hover:bg-gold-900/40 transition-colors">
+                  <span class="material-symbols-outlined text-sm" aria-hidden="true">send</span>
+                  重發連結
+                </button>
+                <template v-if="cancelingId === c.id">
+                  <button @click="cancelPending(c)"
+                    class="px-3 py-1 text-xs font-bold rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors">確定取消</button>
+                  <button @click="cancelingId = null"
+                    class="px-3 py-1 text-xs font-medium rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">不要</button>
+                </template>
+                <button v-else @click="cancelingId = c.id"
+                  class="px-3 py-1 text-xs font-medium rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                  取消合約
+                </button>
+              </div>
+              <div v-else class="flex gap-2">
                 <!-- Paper: open attachment -->
                 <a v-if="c.contractSource === 'paper' && c.attachmentUrl"
                   :href="c.attachmentUrl" target="_blank" rel="noopener"
@@ -283,7 +327,7 @@
             合約查閱 — {{ previewContract.tenant }} · {{ previewContract.roomNo }}
           </h2>
           <div class="flex items-center gap-2">
-            <button
+            <button v-if="!isPendingSignature(previewContract)"
               @click="redownloadContract(previewContract); previewContract = null"
               :disabled="redownloading !== null"
               class="flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 transition-colors disabled:opacity-50">
@@ -302,6 +346,67 @@
       </div>
     </div>
   </Teleport>
+
+  <!-- 核對租客簽名並簽署 -->
+  <Teleport to="body">
+    <div v-if="reviewing"
+      class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto"
+      @click.self="closeReview">
+      <div role="dialog" aria-modal="true" aria-labelledby="review-contract-title"
+        class="w-full max-w-3xl bg-white dark:bg-card-dark rounded-2xl shadow-2xl my-8">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+          <h2 id="review-contract-title" class="font-bold text-text-primary-light dark:text-text-primary-dark">
+            核對合約 — {{ reviewing.tenant }} · {{ reviewing.roomNo }}
+          </h2>
+          <button @click="closeReview" aria-label="關閉"
+            class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            <span class="material-symbols-outlined text-gray-500" aria-hidden="true">close</span>
+          </button>
+        </div>
+        <div class="p-6 space-y-4">
+          <p class="text-sm text-text-secondary-light">
+            租客已於 {{ formatDate(reviewing.tenantSignedAt) }} 簽名。請核對內容與簽名，確認無誤後簽名，合約即正式生效。
+          </p>
+          <div class="max-h-[55vh] overflow-y-auto bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+            <Preview :form="reviewing" signable="landlord" />
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <LandlordSignatureField v-model="reviewing.landlordSignature" :landlord-id="authStore.effectiveUid" />
+            <div class="p-3 rounded-xl border border-gray-100 dark:border-gray-800">
+              <p class="text-[11px] text-text-secondary-light mb-1">承租人（租客）</p>
+              <img v-if="reviewing.signature" :src="reviewing.signature" alt="租客簽名" class="max-h-14 max-w-full object-contain" />
+            </div>
+          </div>
+
+          <div v-if="reviewOverlaps.length" role="alert"
+            class="p-4 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 space-y-1">
+            <p class="text-sm font-bold text-amber-800 dark:text-amber-300">此承租人已有租期重疊的合約，生效後以下合約將標記為「已被取代」：</p>
+            <ul class="text-xs text-amber-800 dark:text-amber-300 list-disc pl-5 space-y-0.5">
+              <li v-for="o in reviewOverlaps" :key="o.id">
+                {{ o.roomNo || '—' }}・{{ o.startDate }} ～ {{ o.endDate }}（{{ o.contractSource === 'paper' ? '紙本' : '電子' }}）
+              </li>
+            </ul>
+          </div>
+
+          <div class="flex flex-col-reverse sm:flex-row gap-2 sm:justify-between pt-2">
+            <button type="button" :disabled="reviewBusy" @click="returnContract"
+              class="px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 transition-colors">
+              內容有誤，退回重簽
+            </button>
+            <button type="button" :disabled="!reviewing.landlordSignature || reviewBusy" @click="confirmReview"
+              class="px-5 py-2.5 rounded-xl bg-green-600 text-white text-sm font-bold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+              {{ reviewBusy ? '處理中…' : reviewOverlaps.length ? '確認取代並簽署生效' : '簽署並生效' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <ContractSignLinkModal :show="!!linkModal" :link="linkModal?.url" :expire-days="linkModal?.expireDays"
+    :tenant-name="linkModal?.tenant" :error="linkModal?.error"
+    :generating="!!linkModal && !linkModal.url && !linkModal.error" @close="linkModal = null" />
 </template>
 
 <script setup>
@@ -312,20 +417,26 @@ import { useAuthStore } from '../../stores/auth'
 import { useToastStore } from '../../stores/toast'
 import { db, auth, storage } from '../../firebase/config'
 import {
-  collection, query, where, getDocs, getDoc, doc, updateDoc, orderBy, serverTimestamp
+  collection, query, where, getDocs, getDoc, doc, updateDoc, deleteDoc, orderBy, serverTimestamp
 } from 'firebase/firestore'
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import Preview from '../../components/Preview.vue'
 import ContractForm from '../../components/ContractForm.vue'
 import { printHtmlPdf } from '../../utils/contractRender'
 import { getLeaseContract } from '../../services/leaseService'
-import { findOverlappingSignedContracts, createSignedContract } from '../../services/signedContractService'
-import { signedContractState, SIGNED_CONTRACT_LABELS } from '../../utils/signedContract'
+import {
+  findOverlappingSignedContracts, createSignedContract, requestContractSignLink, confirmLandlordSignature, returnForResign,
+} from '../../services/signedContractService'
+import { signedContractState, SIGNED_CONTRACT_LABELS, isPendingSignature } from '../../utils/signedContract'
+import { useNotificationStore } from '../../stores/notification'
+import LandlordSignatureField from '../../components/LandlordSignatureField.vue'
+import ContractSignLinkModal from '../../components/ContractSignLinkModal.vue'
 import { taipeiToday } from '../../utils/roomLease'
 
 const authStore = useAuthStore()
 const toast = useToastStore()
 const route = useRoute()
+const notificationStore = useNotificationStore()
 
 const activeTab = ref(route.query.contract ? 'history' : 'new')
 const currentLease = ref(null)
@@ -369,7 +480,9 @@ const paperForm = ref({
 // ---- Helpers ----
 const getTodayString = () => new Date().toISOString().split('T')[0]
 const contractState = (c) => signedContractState(c, signedContracts.value, taipeiToday())
-const stateBadgeClass = (state) => state === 'active'
+const stateBadgeClass = (state) => state === 'awaiting_tenant' || state === 'awaiting_landlord'
+  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+  : state === 'active'
   ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
   : state === 'upcoming'
     ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
@@ -508,6 +621,98 @@ const redownloadContract = async (c) => {
     toast.error('重新下載失敗，請稍後再試')
   } finally {
     redownloading.value = null
+  }
+}
+
+// ---- 遠端簽約 ----
+const linkModal = ref(null) // { tenant, url?, expireDays?, error? }
+const cancelingId = ref(null)
+
+const resendLink = async (c) => {
+  linkModal.value = { tenant: c.tenant }
+  try {
+    const res = await requestContractSignLink(c.id)
+    linkModal.value = { tenant: c.tenant, url: res.url, expireDays: res.expireDays }
+  } catch (e) {
+    console.error('重發簽署連結失敗:', e)
+    linkModal.value = { tenant: c.tenant, error: e?.message || '連結產生失敗，請稍後再試' }
+  }
+}
+
+// 租客還沒簽的合約可直接取消；簽署連結隨合約消失而失效
+const cancelPending = async (c) => {
+  cancelingId.value = null
+  try {
+    await deleteDoc(doc(db, 'signed_contracts', c.id))
+    signedContracts.value = signedContracts.value.filter(x => x.id !== c.id)
+    toast.success('已取消這份待簽合約')
+  } catch (e) {
+    console.error('取消合約失敗:', e)
+    toast.error('取消失敗，請稍後再試')
+  }
+}
+
+const reviewing = ref(null)
+const reviewOverlaps = ref([])
+const reviewBusy = ref(false)
+
+// 複本：房東簽名先存在這裡，確認前不動到列表資料
+const openReview = async (c) => {
+  reviewing.value = { ...c, landlordSignature: '' }
+  reviewOverlaps.value = []
+  try {
+    reviewOverlaps.value = await findOverlappingSignedContracts(authStore.effectiveUid, c)
+  } catch (e) {
+    console.warn('檢查重疊合約失敗:', e)
+  }
+}
+const closeReview = () => {
+  if (reviewBusy.value) return
+  reviewing.value = null
+}
+
+const confirmReview = async () => {
+  const c = reviewing.value
+  if (!c?.landlordSignature) return
+  reviewBusy.value = true
+  try {
+    // 開啟後才出現的重疊合約，重新提示一次
+    const found = await findOverlappingSignedContracts(authStore.effectiveUid, c)
+    const seen = new Set(reviewOverlaps.value.map(o => o.id))
+    if (found.some(o => !seen.has(o.id))) {
+      reviewOverlaps.value = found
+      toast.warning('發現新的租期重疊合約，請確認後再簽署')
+      return
+    }
+    await confirmLandlordSignature(c.id, c.landlordSignature, found.map(o => o.id))
+    reviewing.value = null
+    toast.success('合約已生效')
+    await loadHistory(false)
+    const signed = signedContracts.value.find(x => x.id === c.id)
+    if (signed) redownloadContract(signed)
+  } catch (e) {
+    console.error('簽署合約失敗:', e)
+    toast.error('簽署失敗，請稍後再試')
+  } finally {
+    reviewBusy.value = false
+  }
+}
+
+const returnContract = async () => {
+  const c = reviewing.value
+  if (!c) return
+  reviewBusy.value = true
+  try {
+    await returnForResign(c.id)
+    reviewing.value = null
+    await loadHistory(false)
+    toast.info('已退回，請把新的簽署連結傳給租客')
+    await resendLink(c)
+  } catch (e) {
+    console.error('退回合約失敗:', e)
+    toast.error('退回失敗，請稍後再試')
+  } finally {
+    reviewBusy.value = false
   }
 }
 

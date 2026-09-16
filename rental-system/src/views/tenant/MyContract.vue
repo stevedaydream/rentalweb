@@ -255,7 +255,10 @@ const loadContracts = async () => {
       console.warn('比對未連結合約失敗（不影響已連結的合約）:', e)
     }
 
-    contracts.value = [...linked, ...unlinked].sort((a, b) => signedAtMs(b) - signedAtMs(a))
+    // 待租客簽名的合約經由簽署連結處理，不在這裡顯示
+    contracts.value = [...linked, ...unlinked]
+      .filter(c => c.status !== 'awaiting_tenant')
+      .sort((a, b) => signedAtMs(b) - signedAtMs(a))
     contracts.value.forEach(c => { acknowledgeChecked.value[c.id] = false })
   } catch (e) {
     console.error('載入合約失敗:', e)

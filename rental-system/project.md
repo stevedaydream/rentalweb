@@ -10,6 +10,12 @@ Firebase 專案 ID：`rental-system-7675e`
 
 ## 技術架構
 
+### 2026-09-16 遠端簽約＋建物支出
+
+- **遠端簽約**：電子合約「新建合約」可改按「傳送簽署連結」。建立 `signed_contracts`（`status: awaiting_tenant`，內容當下凍結、雙方簽名留空），由 `createContractSignLink` 發一次性連結 `/sign/:code`（7 天、送出即失效、重發作廢舊連結、證件號碼錯 5 次鎖定）。租客免登入開啟（`views/SignContract.vue`）→ 輸入合約上的證件號碼 → 閱覽並簽名 → `submitContractSignature` 寫入簽名、轉 `awaiting_landlord`、視同租客已確認，並以 LINE 通知房東（有綁定時）。房東端側邊欄「電子合約」顯示待核對數（`notification` store 監聽），合約記錄「核對並簽名」後才轉 `signed`、處理重疊合約的「已被取代」並開啟列印；也可退回重簽（清除租客簽名並重發連結）或取消待簽合約。
+- 簽署中的合約不生效、不取代他人（`utils/signedContract.ts` 的 `isPendingSignature`）；租客「我的合約」不顯示待租客簽名者，租客首頁與退租結清的合約 PDF 略過未簽完者。無 `status` 的舊資料視為已簽。上線精靈維持現場簽約，不提供連結。
+- **建物支出**：帳務「記一筆」選支出時可指定「所屬建物」，寫入 `bills.propertyId`（年度損益本來就以此優先歸棟）；選了建物對象可留空，自動記為建物名稱。僅單棟，跨棟請分開記。
+
 ### 2026-09-14 操作說明頁
 
 - 公開路由 `/guide`（`views/Guide.vue`，免登入、不掛 Layout），分房東／租客／找房訪客／管理員四個分頁，`?role=` 決定分頁，未指定時依登入角色、未登入為訪客。
@@ -111,7 +117,7 @@ rental-system/
 | `property_costs` | id, landlordId, type('房屋稅'\|'地價稅'\|'火災險'), periodStart/periodEnd(所屬期間，與繳款日分開), amount(稅單總額), allocations[{propertyId, amount}](加總須等於 amount), dueDate, paidAt?, docNo?, attachmentUrl?, billIds[](落帳產生的 bills，供同步/回收)　※**無論繳沒繳都存在；只有標記已繳時才依 allocations 落帳到 `bills`**，因帳務頁「本月支出」不看狀態、月內全算，未繳先落帳會讓當月支出提前虛增 |
 | `properties` | id, landlordId, name, address?, houseTaxNo?(房屋稅籍), landNos?[](地號，一棟可多筆), fireInsurance?{insurer,policyNo,startDate,endDate,amount}, publicWelfare?[{year,houseTax,landTax,incomeTax,docNo,validFrom,validTo}], seededFromGroupId?(遷移冪等標記)　※**建物＝稅／險／公益出租人的歸屬單位，與 `meter_groups`（台電總表）是兩個獨立維度**：台電按電號寄帳單，一棟可能兩個電號、公共電表也可能跨棟 |
 | `tenants` | id, uid, name, email, phone, landlordId, roomId, roomName, boundLandlordCode, status('active'\|'inactive'), moveInDate, paymentFrequency('monthly'\|'quarterly'\|'semiannual'\|'yearly'), **credit?(預收餘額，生成帳單時自動沖抵、退租時併入退款), creditLog[]?**, **rentSubsidy?{hasSubsidy, from, to, docNo}**（政府租金補貼＝公益出租人資格的**事實來源**，與 `properties.publicWelfare`（稅捐處實際核定年度）分開存，兩者不一致時系統提示落差） |
-| `bills` | id, tenantId(租客 uid，手動建立的租客為 null), relatedTenantDocId(tenants 文件 ID), landlordId, target(`姓名 房號` 字串), date(YYYY-MM-DD), type('income'\|'expense'), category('租金收入'\|'電費'\|'公共電費'…), description, amount, status('pending'\|'waiting_confirmation'\|'completed'\|'overdue'), dueDate, paidAt, relatedUsageId?, history[], paymentProofUrl?, ecpayOrderId?, paymentMethod?, paymentGateway?, **paidAmount?(部分付款已收；未設者 completed 視為全額), payments[]?({amount, date, source('manual'\|'credit'), note?, at}), coverFrom?/coverTo?(租金單涵蓋起訖月 YYYY-MM；舊單由摘要反推)**　※**無 tenantName / roomName / month 欄位**，租客資訊須以 relatedTenantDocId / tenantId 反查 `tenants` |
+| `bills` | id, propertyId?(支出所屬建物；稅費落帳與「記一筆」建物支出寫入), tenantId(租客 uid，手動建立的租客為 null), relatedTenantDocId(tenants 文件 ID), landlordId, target(`姓名 房號` 字串), date(YYYY-MM-DD), type('income'\|'expense'), category('租金收入'\|'電費'\|'公共電費'…), description, amount, status('pending'\|'waiting_confirmation'\|'completed'\|'overdue'), dueDate, paidAt, relatedUsageId?, history[], paymentProofUrl?, ecpayOrderId?, paymentMethod?, paymentGateway?, **paidAmount?(部分付款已收；未設者 completed 視為全額), payments[]?({amount, date, source('manual'\|'credit'), note?, at}), coverFrom?/coverTo?(租金單涵蓋起訖月 YYYY-MM；舊單由摘要反推)**　※**無 tenantName / roomName / month 欄位**，租客資訊須以 relatedTenantDocId / tenantId 反查 `tenants` |
 | `payment_proofs` | id, billId, tenantId, landlordId, imageUrl, uploadedAt, ocrRaw?(預留), matchResult?(預留), status('pending'\|'approved'\|'rejected') |
 | `repair_requests` | id, tenantId, tenantName, landlordId, roomId, type, description, status('pending'\|'processing'\|'resolved'), priority('low'\|'medium'\|'high'), imageUrl |
 | `meter_readings` | id, landlordId, roomId, roomName, reading, previousReading, usage, readingDate, meterType?('public'=公共表, roomId=public_meters id), subGroupId?, cycle?('monthly'/'bimonthly'), cycleIndex?(1/2) |
@@ -121,7 +127,8 @@ rental-system/
 | `messages` | landlordId, tenantId, content, source('line'\|'web'), ... |
 | `contracts` | id, landlordId, tenantId, ... |
 | `contract_templates` | doc ID = landlordId，HTML 範本 |
-| `signed_contracts` | id, landlordUid, 簽署資料, supersededBy?(取代它的新合約 id), supersededAt? |
+| `signed_contracts` | id, landlordUid, 簽署資料, supersededBy?(取代它的新合約 id), supersededAt?, status?('awaiting_tenant'\|'awaiting_landlord'\|'signed'；無此欄＝已簽), signLinkSentAt?, tenantSignedAt?, landlordSignedAt?, returnedAt?　※遠端簽約時 `signedAt` 建立時先寫入（供排序），房東簽署生效時覆寫 |
+| `contract_sign_links` | 遠端簽約連結：code(doc id), contractId, landlordId, expireAt(7 天), usedAt?(一次性), failedAttempts(≥5 鎖定)　※**前端完全禁止讀寫**，同 `tenant_activations` |
 | `line_configs` | doc ID = landlordId，LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN |
 | `line_bindings` | 綁定碼，uid, expiry |
 | `tenant_activations` | 租客帳號啟用連結：code(doc id), tenantDocId, uid, landlordId, expireAt(7 天), usedAt?(一次性)　※**前端完全禁止讀寫**，發放與兌換全由 Cloud Function 處理——它等同鑰匙，可列舉則二次驗證形同虛設 |
@@ -198,7 +205,7 @@ rental-system/
 - 帳務管理版面重整（2026-09-13）：月度拆成「收款」與「分析」兩個子頁。**收款頁**＝一條摘要（本月已出帳／已收、待收含前期欠款、待確認）＋依租客清單＋出帳與通知動作；**分析頁**（`components/financials/MonthlyAnalysis.vue`）＝四個本月數字、類別明細（點一列跳回收款頁並套用該類別）、電費盈虧卡。解掉三個毛病：①類別卡與頁籤其實是同一個 `currentTab`，等於同一個篩選器有兩個 UI、還隔了兩個螢幕互相跳動 —— 改為 `statusFilter`（全部／待收／待確認）與 `categoryFilter` 兩個獨立條件，類別改用下拉；②「待收」同時出現在統計卡與頁籤 badge，電費金額又與電費盈虧卡各一份且尺度不同；③電費盈虧看的是台電帳期（跨兩個月），與「本月」並排容易誤讀，移到分析頁並加註期間
 - 報修管理（查看/處理租客報修申請）
 - 公告發布
-- 合約管理（自訂範本、PDF 匯出、電子簽名、排程續約：續約後目前租期維持到期滿、新租期存 pendingRenewal 到期自動接續+通知租客+導向重簽；房東「標記不續約」註記；同一承租人租期重疊時簽署前提示並標記舊合約「已被取代」，合約記錄顯示待生效／生效中／已被取代／已到期）
+- 合約管理（自訂範本、PDF 匯出、電子簽名、排程續約：續約後目前租期維持到期滿、新租期存 pendingRenewal 到期自動接續+通知租客+導向重簽；房東「標記不續約」註記；同一承租人租期重疊時簽署前提示並標記舊合約「已被取代」，合約記錄顯示待生效／生效中／已被取代／已到期；遠端簽約：傳一次性連結給租客簽名，房東核對簽名後生效）
 - 收據管理（押金/保證書 PDF）
 - 房東設定（LINE Bot 設定、個人資料）
 - 訊息中心（LINE 訊息收發）
@@ -248,6 +255,7 @@ rental-system/
 | `createTenantAccount` | Callable（房東/Admin）：以手機+身分證建立租客 Firebase Auth 帳號 |
 | `resetTenantPassword` | Callable（房東/Admin）：重設租客登入密碼，房東僅限自己名下租客 |
 | `getTenantAccountStatus` | Callable（房東/Admin）：讀 Auth `metadata.lastSignInTime` 判定帳號狀態；**不接受前端傳 uid** |
+| `createContractSignLink` / `getContractForSigning` / `submitContractSignature` | Callable：遠端簽約。發連結限合約房東；後兩者免登入，需合約上的證件號碼相符，只回合約預覽欄位 |
 | `createActivationLink` / `activateTenant` | Callable：一次性啟用連結（7 天、限用一次）與兌換（免登入，需證件號碼相符才發 custom token） |
 | `setTenantAccountDisabled` | Callable（房東/Admin）：停用／恢復租客登入，資料全部保留 |
 | `purgeData` | Callable（房東/Admin）：級聯刪除單一租客或所有 `isTest` 資料；preview 與 execute 共用同一段掃描 |
@@ -349,3 +357,4 @@ rental-system/
 | 2026-09-14 | **電費盈虧「未分組電表」排除**：多總表時無 `groupId` 的舊資料不臆測歸屬，任一月份有一筆就會出現未分組卡片。修 `BillTransactionModal`：編輯舊帳單時對象未改動卻未綁租客者，開啟時即依 target 比對補綁（原本「對象未改動就保留綁定」連帶保留了「未綁定」）。正式資料校正：台電 2026-04 補基隆總表；刪除 8/20 無總表無度數的重複 2026-08 帳單；9/13 誤登為 2026-09 的台電帳單改回 2026-08（台電帳單視窗月份預設為當下檢視月份）；789 手動電費綁定 401 並改日期為 2026-06-12。回讀確認所有台電帳單與電費帳單皆可歸棟。另修 `buildElectricityStatsList` 錨定規則：原為「迄月 ≤ 檢視月份中最近一張」且無上限，漏登一期（如缺 2026-06 帳單）會讓 6、7 月一路顯示 4 月那期；改為只沿用迄月為檢視月份或前一個月的帳單（雙月帳期的次月），更早則以檢視月份為本期並顯示等待帳單 |
 | 2026-09-14 | **台電帳單雙寫同步**：登錄台電帳單會寫 `taipower_bills`（電費盈虧）與 `bills` 台電支出（交易清單），兩者原本互不相認，從帳務管理刪除支出只刪 `bills`，`taipower_bills` 變成前端看不到、卻仍參與結算的孤兒（例：選錯棟的桃園 2026-02 帳單）。改為同批寫入並互存 `expenseBillId`／`taipowerBillId`；刪除支出一併刪台電帳單，編輯支出金額／日期同步台電帳單的金額／月份。舊資料以 `utils/financials/taipowerLink.ts` 依「月份＋金額＋總表」比對，恰好一筆才算（同月同額可能分屬兩棟）。編輯台電支出時（多總表才顯示）可改「所屬總表」，對應台電帳單的 `groupId` 同批更新，說明文字的「（總表名）」一併換成新棟名 |
 | 2026-09-14 | **房東系統設定分頁化**：原本單頁堆疊九個區塊，右上「儲存變更」只存部分欄位、其餘區塊各有儲存鈕，看不出哪顆存哪裡。改為四個分頁（`?tab=` 記在網址）：帳戶（基本資料、帳號安全）／收款與帳單（收款帳戶、帳單週期）／LINE（Bot 整合與圖文選單在前，個人通知綁定在後——需先有 Bot 才能綁）／簽名與點交（簽名印章、物品主檔、屋況檢查項）。帳戶與收款分頁各自儲存，未儲存時分頁標籤顯示黃點並提示。順帶：「重設密碼」原為無作用按鈕，改為寄送重設信（僅 Email/密碼帳號，Google 登入顯示說明，模擬房東時隱藏）；移除全系統無人讀取的「接收 Email 通知」；`users.settings` 改以欄位路徑更新，不再整包覆蓋。操作說明頁同步更新 |
+| 2026-09-16 | **遠端簽約＋建物支出**：電子合約可傳一次性簽署連結給租客（證件號碼驗證、7 天、送出即失效），租客簽名後通知房東（側邊欄待核對數＋LINE），房東核對簽名後才生效，可退回重簽或取消；簽署中的合約不生效也不取代舊約。帳務「記一筆」支出可指定所屬建物（`bills.propertyId`），年度損益歸到該棟 |

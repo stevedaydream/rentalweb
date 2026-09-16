@@ -49,3 +49,20 @@ describe('簽署前重疊檢查', () => {
     expect(overlappingSignedContracts([base], { ...draft, startDate: '2027-03-31', endDate: '2028-03-30' })).toEqual([]);
   });
 });
+
+describe('遠端簽署中的合約', () => {
+  it('待租客簽名／待房東確認直接顯示簽署進度，簽完才依租期判斷', () => {
+    expect(state({ ...base, status: 'awaiting_tenant' })).toBe('awaiting_tenant');
+    expect(state({ ...base, status: 'awaiting_landlord' })).toBe('awaiting_landlord');
+    expect(state({ ...base, status: 'signed' })).toBe('active');
+  });
+  it('簽署中的合約即使較晚建立，也不會讓既有合約變成已被取代', () => {
+    const pending = { ...base, id: 'b', signedAt: { seconds: 200 }, status: 'awaiting_landlord' as const };
+    expect(state(base, [base, pending])).toBe('active');
+  });
+  it('找重疊合約時略過簽署中的合約與自己', () => {
+    const pending = { ...base, id: 'b', signedAt: { seconds: 200 }, status: 'awaiting_tenant' as const };
+    expect(overlappingSignedContracts([base, pending], { ...pending, status: undefined }).map(c => c.id)).toEqual(['a']);
+    expect(overlappingSignedContracts([base, pending], base)).toEqual([]);
+  });
+});

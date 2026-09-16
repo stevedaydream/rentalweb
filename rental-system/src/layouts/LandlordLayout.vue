@@ -50,7 +50,12 @@
               @click="isToolsExpanded = !isToolsExpanded"
               class="w-full flex items-center justify-between px-4 py-2 text-xs font-bold text-ink-500 hover:text-ink-300 uppercase tracking-wider rounded-xl hover:bg-ink-700/50 transition-colors"
             >
-              <span>工具</span>
+              <span class="flex items-center gap-1.5">
+                工具
+                <!-- 收合時看不到「電子合約」的待簽數，改在群組標題提示 -->
+                <span v-if="!isToolsExpanded && notificationStore.contracts > 0"
+                  class="w-2 h-2 rounded-full bg-red-500" :aria-label="notificationStore.contracts + ' 份合約待核對'"></span>
+              </span>
               <span class="material-symbols-outlined text-[16px] transition-transform duration-200" :class="isToolsExpanded ? 'rotate-180' : ''" aria-hidden="true">
                 expand_more
               </span>

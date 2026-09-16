@@ -2,10 +2,22 @@
 import { ref, computed } from 'vue'
 import Signature from './Signature.vue'
 
-const props = defineProps({ form: Object })
+const props = defineProps({
+  form: Object,
+  // 可點擊簽名的一方：遠端簽約時租客只能簽承租人欄，房東核對時只能簽出租人欄
+  signable: { type: String, default: 'both' }, // 'both' | 'tenant' | 'landlord'
+})
 
-const showTenantSignModal = ref(false)
-const showLandlordSignModal = ref(false)
+const tenantSignModal = ref(false)
+const landlordSignModal = ref(false)
+const showTenantSignModal = computed({
+  get: () => tenantSignModal.value,
+  set: (v) => { tenantSignModal.value = v && props.signable !== 'landlord' },
+})
+const showLandlordSignModal = computed({
+  get: () => landlordSignModal.value,
+  set: (v) => { landlordSignModal.value = v && props.signable !== 'tenant' },
+})
 
 function setTenantSignature(img) {
   props.form.signature = img

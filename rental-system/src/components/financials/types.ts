@@ -43,6 +43,8 @@ export interface TransactionForm {
   groupId?: string
   /** 台電支出對應的 taipower_bills；刪除與編輯時同步 */
   taipowerBillId?: string
+  /** 支出所屬建物（如屋頂防水工程）；年度損益依此歸棟 */
+  propertyId?: string
 }
 
 export interface TaipowerForm {

@@ -408,6 +408,7 @@ import { outstandingOf } from '../../utils/financials/payments';
 import { db, auth, functions } from '../../firebase/config';
 import { httpsCallable } from 'firebase/functions';
 import Preview from '../../components/Preview.vue';
+import { isPendingSignature } from '../../utils/signedContract';
 import {
   doc,
   collection,
@@ -709,10 +710,12 @@ const fetchDashboardData = async () => {
         where('landlordUid', '==', userProfile.landlordId),
         where('roomNo', '==', rentalInfo.roomNumber),
         orderBy('signedAt', 'desc'),
-        limit(1)
+        limit(5)
       );
       const scSnap = await getDocs(scQ);
-      signedContract.value = scSnap.empty ? null : { id: scSnap.docs[0]!.id, ...scSnap.docs[0]!.data() };
+      // 遠端簽約尚未雙方簽完的合約不算數
+      const done = scSnap.docs.find(d => !isPendingSignature(d.data()));
+      signedContract.value = done ? { id: done.id, ...done.data() } : null;
     }
   } catch (err) {
     console.error('signed_contracts 查詢失敗:', err);

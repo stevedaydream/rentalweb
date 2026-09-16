@@ -55,6 +55,7 @@ const RoomExplore = () => import('../views/explore/RoomExplore.vue');
 const LandlordProfile = () => import('../views/explore/LandlordProfile.vue');
 const LandlordReviews = () => import('../views/landlord/Reviews.vue');
 const Guide = () => import('../views/Guide.vue');
+const SignContract = () => import('../views/SignContract.vue');
 
 const routes = [
   { path: '/', name: 'Identity', component: Identity },
@@ -63,6 +64,7 @@ const routes = [
   { path: '/onboarding', name: 'Onboarding', component: Onboarding, meta: { requiresAuth: true } },
   { path: '/onboard/:code', name: 'TenantOnboard', component: TenantOnboardForm }, // 公開填表（免登入）
   { path: '/activate/:code', name: 'ActivateTenant', component: ActivateTenant }, // 帳號啟用（免登入）
+  { path: '/sign/:code', name: 'SignContract', component: SignContract }, // 遠端簽約（免登入）
   { path: '/explore', name: 'RoomExplore', component: RoomExplore },
   { path: '/explore/landlord/:landlordId', name: 'LandlordProfile', component: LandlordProfile },
   { path: '/guide', name: 'Guide', component: Guide }, // 操作說明（免登入）
