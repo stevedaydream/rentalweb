@@ -54,10 +54,12 @@
             <p v-if="p.address" class="text-xs text-text-secondary-light truncate">{{ p.address }}</p>
           </div>
           <button
-            @click="openTerms(p)" :aria-label="`${p.name} 合約附件設定`" title="合約附件設定"
-            class="shrink-0 p-2 rounded-lg text-ink-400 hover:text-gold-600 hover:bg-surface-light dark:hover:bg-surface-dark transition-colors"
+            @click="openTerms(p)" :aria-label="`${p.name} 合約附件設定`"
+            class="shrink-0 self-center flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gold-300 dark:border-gold-700 text-xs font-bold text-gold-700 dark:text-gold-300 hover:bg-gold-50 dark:hover:bg-gold-900/20 transition-colors"
           >
-            <span class="material-symbols-outlined text-[20px]" aria-hidden="true">history_edu</span>
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">history_edu</span>
+            合約附件
+            <span v-if="!p.contractTerms" class="w-1.5 h-1.5 rounded-full bg-amber-500" aria-hidden="true"></span>
           </button>
           <button
             @click="openForm(p)" :aria-label="`編輯 ${p.name}`"
