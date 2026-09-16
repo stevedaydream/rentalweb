@@ -156,6 +156,8 @@ export interface Property {
    * 不代表兩者語意上有從屬關係。
    */
   seededFromGroupId?: string;
+  /** 對應的台電總表（meter_groups）；新增建物時同時建立，樓層即其子群組 */
+  meterGroupId?: string;
   /** 合約附件設定（現況確認書、修繕明細、賠償價目表）；未設定時用預設內容 */
   contractTerms?: ContractTerms;
   /** 測試資料標記 */

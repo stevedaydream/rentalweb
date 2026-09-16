@@ -29,7 +29,7 @@
         房屋稅、地價稅、火災險與公益出租人皆以建物為單位。
       </p>
       <button
-        @click="openForm(null)"
+        @click="openWizard(null)"
         class="px-4 py-2 bg-gold-500 text-white rounded-lg shadow-sm hover:bg-gold-600 transition-colors text-sm font-medium flex items-center shrink-0"
       >
         <span class="material-symbols-outlined text-[18px] mr-1" aria-hidden="true">add</span>新增建物
@@ -54,14 +54,6 @@
             <p v-if="p.address" class="text-xs text-text-secondary-light truncate">{{ p.address }}</p>
           </div>
           <button
-            @click="openTerms(p)" :aria-label="`${p.name} 合約附件設定`"
-            class="shrink-0 self-center flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gold-300 dark:border-gold-700 text-xs font-bold text-gold-700 dark:text-gold-300 hover:bg-gold-50 dark:hover:bg-gold-900/20 transition-colors"
-          >
-            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">history_edu</span>
-            合約附件
-            <span v-if="!p.contractTerms" class="w-1.5 h-1.5 rounded-full bg-amber-500" aria-hidden="true"></span>
-          </button>
-          <button
             @click="openForm(p)" :aria-label="`編輯 ${p.name}`"
             class="shrink-0 p-2 rounded-lg text-ink-400 hover:text-gold-600 hover:bg-surface-light dark:hover:bg-surface-dark transition-colors"
           >
@@ -76,6 +68,23 @@
             class="shrink-0 p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
           >
             <span class="material-symbols-outlined text-[20px]" aria-hidden="true">delete</span>
+          </button>
+        </div>
+        <div class="px-5 pt-3 flex flex-wrap gap-2">
+          <button
+            @click="openWizard(p.id)" :aria-label="`${p.name} 批量新增房間`"
+            class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-ink-200 dark:border-ink-700 text-xs font-bold text-text-secondary-light hover:bg-surface-light dark:hover:bg-surface-dark transition-colors"
+          >
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">add_home</span>
+            批量新增房間
+          </button>
+          <button
+            @click="openTerms(p)" :aria-label="`${p.name} 合約附件設定`"
+            class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gold-300 dark:border-gold-700 text-xs font-bold text-gold-700 dark:text-gold-300 hover:bg-gold-50 dark:hover:bg-gold-900/20 transition-colors"
+          >
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">history_edu</span>
+            合約附件
+            <span v-if="!p.contractTerms" class="w-1.5 h-1.5 rounded-full bg-amber-500" aria-hidden="true"></span>
           </button>
         </div>
 
@@ -178,6 +187,8 @@
     </div>
 
     <PropertyFormModal v-model:show="showForm" :property="editing" @save="handleSave" />
+    <BatchRoomWizard v-model:show="showWizard" :properties="properties" :rooms="rooms"
+      :property-id="wizardPropertyId" :new-only="!wizardPropertyId" @done="load" />
     <PropertyContractTermsModal v-model:show="showTerms" :property="termsTarget" :saving="savingTerms" @save="saveTerms" />
   </div>
 </template>
@@ -187,6 +198,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useToastStore } from '../../stores/toast'
 import { useAuthStore } from '../../stores/auth'
 import PropertyFormModal from './PropertyFormModal.vue'
+import BatchRoomWizard from './BatchRoomWizard.vue'
 import PropertyContractTermsModal from './PropertyContractTermsModal.vue'
 import type { ContractTerms } from '../../utils/contractTerms'
 import {
@@ -227,10 +239,8 @@ onMounted(load)
 const roomsOf = (propertyId: string) => props.rooms.filter(r => r.propertyId === propertyId)
 const unassignedRooms = computed(() => props.rooms.filter(r => !r.propertyId))
 
-// 沒有任何建物，或還有房間沒歸位時，才提示可以自動建立
-const showSeedBanner = computed(() =>
-  !loading.value && (properties.value.length === 0 || unassignedRooms.value.length > 0)
-)
+// 還有房間沒歸位時才提示可以自動建立；全新房東直接用「新增建物」
+const showSeedBanner = computed(() => !loading.value && unassignedRooms.value.length > 0)
 
 const runSeed = async () => {
   seeding.value = true
@@ -256,6 +266,14 @@ const runSeed = async () => {
   } finally {
     seeding.value = false
   }
+}
+
+// 新增建物（兩步驟精靈）／既有建物批量新增房間
+const showWizard = ref(false)
+const wizardPropertyId = ref<string | undefined>()
+const openWizard = (propertyId: string | null) => {
+  wizardPropertyId.value = propertyId ?? undefined
+  showWizard.value = true
 }
 
 const openForm = (p: Property | null) => {

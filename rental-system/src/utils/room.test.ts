@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { roomMonthlyRent } from './room'
+import { roomMonthlyRent, roomCoverImage, roomPhotos, LEGACY_PLACEHOLDER_IMAGE } from './room'
 
 describe('roomMonthlyRent：房源月租金', () => {
   // 迴歸：簽約流程曾讀取 r.rent，但 rooms 文件的欄位是 price，
@@ -35,5 +35,17 @@ describe('roomMonthlyRent：房源月租金', () => {
 
   it('price 為 0 時不會退回 rent（0 是明確的「未設定租金」）', () => {
     expect(roomMonthlyRent({ price: 0, rent: 7000 })).toBe(7000)
+  })
+})
+
+describe('房間封面', () => {
+  it('舊版 Unsplash 佔位圖視為沒有照片', () => {
+    expect(roomCoverImage({ coverImage: LEGACY_PLACEHOLDER_IMAGE, images: [] })).toBe('')
+    expect(roomPhotos({ images: [LEGACY_PLACEHOLDER_IMAGE, 'a.jpg'] })).toEqual(['a.jpg'])
+  })
+  it('有封面用封面，否則用第一張照片', () => {
+    expect(roomCoverImage({ coverImage: 'c.jpg', images: ['a.jpg'] })).toBe('c.jpg')
+    expect(roomCoverImage({ coverImage: '', images: ['a.jpg'] })).toBe('a.jpg')
+    expect(roomCoverImage(null)).toBe('')
   })
 })

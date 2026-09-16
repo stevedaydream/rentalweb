@@ -9,7 +9,14 @@
         <p class="text-text-secondary-light">管理您的所有出租物業與房間狀態</p>
       </div>
       <div v-if="activeTab === 'rooms'" class="flex gap-3">
-        <button 
+        <button
+          @click="showWizard = true"
+          class="px-4 py-2 border border-gold-400 text-gold-700 dark:text-gold-300 rounded-lg hover:bg-gold-50 dark:hover:bg-gold-900/20 transition-colors text-sm font-medium flex items-center"
+        >
+          <span class="material-symbols-outlined text-[18px] mr-2" aria-hidden="true">add_home</span>
+          批量新增
+        </button>
+        <button
           @click="openModal(undefined, 'create')"
           class="px-4 py-2 bg-gold-500 text-white rounded-lg shadow-sm hover:bg-gold-600 transition-colors text-sm font-medium flex items-center"
         >
@@ -18,6 +25,8 @@
         </button>
       </div>
     </div>
+
+    <BatchRoomWizard v-model:show="showWizard" :properties="properties" :rooms="sourceRooms" @done="loadBuildings" />
 
     <!-- 分頁切換 -->
     <div class="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit">
@@ -113,11 +122,16 @@
         class="group bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 hover:shadow-md transition-all overflow-hidden flex flex-col"
       >
         <div class="relative h-48 bg-gray-200 dark:bg-gray-800 overflow-hidden">
-           <img 
-            :src="getCoverImage(room)" 
+           <img
+            v-if="getCoverImage(room)"
+            :src="getCoverImage(room)"
             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            alt="Room Image"
+            :alt="`${room.name} 照片`"
            >
+           <div v-else class="w-full h-full flex flex-col items-center justify-center gap-1 text-ink-300 dark:text-ink-500">
+             <span class="material-symbols-outlined text-4xl" aria-hidden="true">no_photography</span>
+             <span class="text-xs">尚無照片</span>
+           </div>
            
            <div class="absolute top-3 right-3 flex flex-col items-end gap-1.5">
              <span
@@ -276,7 +290,7 @@
              <div class="flex justify-between items-end">
                <label class="block text-sm font-bold text-text-primary-light">
                  房源照片畫廊 
-                 <span class="text-xs font-normal text-text-secondary-light ml-1">(最少 1 張，最多 10 張)</span>
+                 <span class="text-xs font-normal text-text-secondary-light ml-1">(公開刊登至少 1 張，最多 10 張)</span>
                </label>
                <span class="text-xs font-bold" :class="form.images!.length >= 10 ? 'text-red-500' : 'text-blue-500'">
                  {{ form.images!.length }} / 10
@@ -440,17 +454,48 @@
             </div>
           </div>
 
-          <!-- 所屬電表群組（樓層） -->
-          <div v-if="subGroupOptions.length > 0">
-            <label class="block text-sm font-medium text-text-secondary-light mb-1">所屬電表群組</label>
-            <select
-              v-model="form.subGroupId"
-              class="form-input disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed dark:disabled:bg-gray-800"
-              :disabled="isViewMode"
-            >
-              <option value="">未分組</option>
-              <option v-for="sg in subGroupOptions" :key="sg.id" :value="sg.id">{{ sg.name }}</option>
-            </select>
+          <!-- 所屬建物與樓層：樓層即該建物電表總表的子群組，選好電表歸屬就跟著帶好 -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="room-property" class="block text-sm font-medium text-text-secondary-light mb-1">
+                所屬建物{{ isEditing ? '' : ' *' }}
+              </label>
+              <select id="room-property" v-model="form.propertyId" @change="onPropertyChange"
+                class="form-input disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed dark:disabled:bg-gray-800"
+                :disabled="isViewMode">
+                <option value="" :disabled="!isEditing">{{ isEditing ? '未指派' : '請選擇建物' }}</option>
+                <option v-for="p in properties" :key="p.id" :value="p.id">{{ p.name }}</option>
+                <option value="__new__">＋ 新增建物…</option>
+              </select>
+              <p v-if="isEditing && !form.propertyId && !isViewMode" class="text-xs text-amber-600 mt-1">
+                此房間尚未指派建物，建議選擇，稅費與合約附件才歸得到棟。
+              </p>
+            </div>
+            <div>
+              <label for="room-floor" class="block text-sm font-medium text-text-secondary-light mb-1">樓層</label>
+              <select id="room-floor" v-model="form.subGroupId"
+                class="form-input disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed dark:disabled:bg-gray-800"
+                :disabled="isViewMode || !form.propertyId">
+                <option value="">未指定</option>
+                <option v-for="sg in floorOptions" :key="sg.id" :value="sg.id">{{ sg.name }}</option>
+                <option value="__new__">＋ 新增樓層…</option>
+              </select>
+            </div>
+            <div v-if="form.propertyId === '__new__'" class="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 rounded-xl bg-surface-light dark:bg-surface-dark">
+              <div>
+                <label for="room-new-property" class="block text-xs font-medium text-text-secondary-light mb-1">新建物名稱</label>
+                <input id="room-new-property" v-model="newPropertyName" class="form-input" placeholder="例如：桃園中正路">
+              </div>
+              <div>
+                <label for="room-new-property-address" class="block text-xs font-medium text-text-secondary-light mb-1">門牌地址</label>
+                <input id="room-new-property-address" v-model="newPropertyAddress" class="form-input">
+              </div>
+              <p class="sm:col-span-2 text-xs text-text-secondary-light">存檔時會建立建物與同名電表總表。</p>
+            </div>
+            <div v-if="form.subGroupId === '__new__'" class="sm:col-span-2">
+              <label for="room-new-floor" class="block text-xs font-medium text-text-secondary-light mb-1">新樓層名稱</label>
+              <input id="room-new-floor" v-model="newFloorName" class="form-input" placeholder="例如：4F">
+            </div>
           </div>
 
           <label v-if="!isViewMode" class="flex items-center gap-2 text-sm text-text-secondary-light">
@@ -702,10 +747,10 @@
               </button>
               <button 
                 @click="saveRoom"
-                :disabled="uploading"
+                :disabled="uploading || savingRoom"
                 class="px-5 py-2 rounded-xl bg-gold-500 text-white font-bold shadow-lg shadow-gold-500/30 hover:bg-gold-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {{ uploading ? '上傳中...' : '儲存' }}
+                {{ uploading ? '上傳中...' : savingRoom ? '儲存中…' : '儲存' }}
               </button>
             </div>
           </template>
@@ -722,12 +767,18 @@ import { storage } from '../../firebase/config';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
 import { useRoute } from 'vue-router';
-import type { ManagedRoom as Room, RoomLeaseContract } from '../../types';
+import type { ManagedRoom as Room, RoomLeaseContract, Property } from '../../types';
 import { subscribeRooms, saveManagedRoom, deleteRoom as deleteRoomRecord } from '../../services/roomService';
 import { subscribeLeaseContracts } from '../../services/leaseService';
 import { resolveRoomLease, taipeiToday, leaseDaysRemaining } from '../../utils/roomLease';
 import { getMeterGroups } from '../../services/meterGroupService';
+import { getProperties } from '../../services/propertyService';
+import { createPropertyWithMeterGroup, ensurePropertyMeterGroup, ensureNamedSubGroup } from '../../services/buildingService';
+import { isDuplicateRoomName } from '../../utils/roomBatch';
+import { roomCoverImage } from '../../utils/room';
+import type { MeterGroupDoc } from '../../components/meter/types';
 import PropertyTab from '../../components/rooms/PropertyTab.vue';
+import BatchRoomWizard from '../../components/rooms/BatchRoomWizard.vue';
 import RoomListView from '../../components/rooms/RoomListView.vue';
 
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -751,8 +802,6 @@ const loading = ref(true);
 const activeTab = ref<'rooms' | 'properties'>('rooms');
 const unassignedRoomCount = computed(() => rooms.value.filter(r => !r.propertyId).length);
 
-// Default placeholder
-const defaultImage = 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1470&q=80'; 
 
 // --- Firestore Integration ---
 
@@ -799,22 +848,53 @@ onUnmounted(() => {
 // 2. 儲存與更新
 const saveRoom = async () => {
   if (!authStore.user) return; // [新增] 安全檢查
-  if (!form.value.name) { toast.warning('請輸入房源名稱'); return; }
+  if (!form.value.name?.trim()) { toast.warning('請輸入房源名稱'); return; }
+  form.value.name = form.value.name.trim();
+  // 系統多處以房號文字對應房間，同一房東底下不可重名
+  if (isDuplicateRoomName(form.value.name, sourceRooms.value, form.value.id)) {
+    toast.warning(`已有房號「${form.value.name}」的房間，多棟時可加前綴區分（例如：桃園-401）`); return;
+  }
   const imgCount = form.value.images?.length || 0;
-  if (imgCount < 1) { toast.warning('請至少上傳 1 張照片'); return; }
+  // 照片只在公開刊登時必填；批量建立與一般編輯可以先沒有照片
+  if (form.value.isPublic && imgCount < 1) { toast.warning('公開到找房頁需至少上傳 1 張照片'); return; }
   if (imgCount > 10) { toast.warning('照片數量不能超過 10 張'); return; }
+  if (!isEditing.value && !form.value.propertyId) { toast.warning('請選擇所屬建物'); return; }
+  if (form.value.propertyId === '__new__' && !newPropertyName.value.trim()) { toast.warning('請填寫新建物名稱'); return; }
+  if (form.value.subGroupId === '__new__' && !newFloorName.value.trim()) { toast.warning('請填寫新樓層名稱'); return; }
 
+  savingRoom.value = true;
   try {
-    // 決定封面照片
-    const finalCover = form.value.coverImage || (form.value.images && form.value.images.length > 0 ? form.value.images[0] : defaultImage);
-    
-    await saveManagedRoom(authStore.effectiveUid, { ...form.value, coverImage: finalCover,
-      landlordName: authStore.userProfile?.name || '', landlordPhone: authStore.userProfile?.phone || '' }, originalStatus.value);
+    const uid = authStore.effectiveUid;
+    // 新建物：建立建物與同名總表
+    if (form.value.propertyId === '__new__') {
+      const created = await createPropertyWithMeterGroup(uid, { name: newPropertyName.value, address: newPropertyAddress.value });
+      properties.value.push(created);
+      form.value.propertyId = created.id;
+      if (!form.value.address) form.value.address = created.address || '';
+    }
+    // 新樓層：加到該建物總表的子群組
+    if (form.value.subGroupId === '__new__') {
+      const property = properties.value.find(p => p.id === form.value.propertyId);
+      if (!property) throw new Error('找不到所屬建物');
+      const group = await ensurePropertyMeterGroup(uid, property);
+      form.value.subGroupId = await ensureNamedSubGroup(group, newFloorName.value);
+      await loadBuildings();
+    }
+
+    const photos = form.value.images ?? [];
+    const finalCover = form.value.coverImage && photos.includes(form.value.coverImage) ? form.value.coverImage : (photos[0] ?? '');
+    const propertyChanged = (form.value.propertyId || '') !== originalPropertyId.value;
+
+    await saveManagedRoom(uid, { ...form.value, coverImage: finalCover,
+      landlordName: authStore.userProfile?.name || '', landlordPhone: authStore.userProfile?.phone || '' },
+      originalStatus.value, propertyChanged ? { propertyId: form.value.propertyId || '' } : undefined);
     toast.success('房源已儲存');
     showModal.value = false;
   } catch (err) {
     console.error(err);
     toast.error(err instanceof Error ? err.message : '儲存失敗');
+  } finally {
+    savingRoom.value = false;
   }
 };
 
@@ -898,25 +978,50 @@ const form = ref<Partial<Room>>({
   subGroupId: '', isTest: false
 });
 
-// 電表子群組選項（僅供顯示所屬群組下拉；CRUD 在抄表頁「計算參數設定」）
-// 多棟房東有多顆總表，必須列出全部總表的子群組——原本只取 groups[0]，
-// 導致非第一棟的房間根本選不到自己的子群組，電費與建物歸屬都會跟著錯。
-const subGroupOptions = ref<{ id: string; name: string }[]>([]);
-onMounted(async () => {
+// 建物與電表總表：房間選「建物＋樓層」，樓層＝該建物總表的子群組
+const properties = ref<Property[]>([]);
+const meterGroups = ref<MeterGroupDoc[]>([]);
+const loadBuildings = async () => {
   try {
-    const groups = await getMeterGroups(authStore.effectiveUid);
-    const multi = groups.length > 1;
-    subGroupOptions.value = groups.flatMap(g =>
-      (g.subGroups ?? []).map(sg => ({
-        id: sg.id,
-        // 多顆總表時冠上總表名稱，否則各棟同名的「4樓」無從分辨
-        name: multi ? `${g.name}／${sg.name}` : sg.name,
-      })),
-    );
+    const [ps, gs] = await Promise.all([getProperties(authStore.effectiveUid), getMeterGroups(authStore.effectiveUid)]);
+    properties.value = ps;
+    meterGroups.value = gs;
   } catch (e) {
-    console.error('load meter groups error:', e);
+    console.error('load buildings error:', e);
   }
+};
+onMounted(loadBuildings);
+watch(activeTab, loadBuildings);
+
+const showWizard = ref(false);
+const savingRoom = ref(false);
+const originalPropertyId = ref('');
+const newPropertyName = ref('');
+const newPropertyAddress = ref('');
+const newFloorName = ref('');
+
+const floorOptions = computed(() => {
+  const property = properties.value.find(p => p.id === form.value.propertyId);
+  const groupId = property?.meterGroupId || property?.seededFromGroupId;
+  const own = meterGroups.value.find(g => g.id === groupId)?.subGroups ?? [];
+  const options = own.map(sg => ({ id: sg.id, name: sg.name }));
+  // 舊房間掛在其他總表的子群組時仍顯示，避免開啟編輯就被清掉
+  const current = form.value.subGroupId;
+  if (current && current !== '__new__' && !options.some(o => o.id === current)) {
+    for (const g of meterGroups.value) {
+      const sg = (g.subGroups ?? []).find(s => s.id === current);
+      if (sg) { options.push({ id: sg.id, name: `${g.name}／${sg.name}` }); break; }
+    }
+  }
+  return options;
 });
+
+// 換建物：樓層清空；新房間的地址帶入建物地址
+const onPropertyChange = () => {
+  form.value.subGroupId = '';
+  const property = properties.value.find(p => p.id === form.value.propertyId);
+  if (property?.address && (!isEditing.value || !form.value.address)) form.value.address = property.address;
+};
 
 // 非空置時自動取消公開
 watch(() => form.value.status, (val) => {
@@ -999,11 +1104,7 @@ const removeImage = (index: number) => {
 
 const setCoverImage = (url: string) => { form.value.coverImage = url; };
 
-const getCoverImage = (room: Room) => {
-    if (room.coverImage) return room.coverImage;
-    if (room.images && room.images.length > 0) return room.images[0];
-    return defaultImage;
-};
+const getCoverImage = (room: Room) => roomCoverImage(room);
 
 // --- Lease Expiry Helpers ---
 const selectedRoom = computed(() => rooms.value.find(r => r.id === form.value.id));
@@ -1020,13 +1121,20 @@ const openModal = (room?: Room, mode: 'create' | 'edit' | 'view' = 'create') => 
     form.value = JSON.parse(JSON.stringify(room));
     if (!form.value.images) form.value.images = [];
     if (form.value.subGroupId === undefined) form.value.subGroupId = '';
+    if (form.value.propertyId === undefined) form.value.propertyId = '';
   } else {
     form.value = {
       name: '', price: 0, size: 0, address: '', layout: '獨立套房', status: 'vacant',
       type: '公寓', tenantName: '', leaseEnd: '', images: [], coverImage: '', isPublic: false, purchaseCost: undefined,
-      subGroupId: '', isTest: false
+      subGroupId: '', propertyId: properties.value.length === 1 ? properties.value[0]!.id : '', isTest: false
     };
+    const only = properties.value.length === 1 ? properties.value[0] : undefined;
+    if (only?.address) form.value.address = only.address;
   }
+  originalPropertyId.value = room?.propertyId || '';
+  newPropertyName.value = '';
+  newPropertyAddress.value = '';
+  newFloorName.value = '';
   isEditing.value = !!room;
   isViewMode.value = mode === 'view';
   confirmDeleteRoom.value = false;

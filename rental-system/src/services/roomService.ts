@@ -49,9 +49,10 @@ export const updateRoom = (id: string, payload: Partial<RoomPayload>) =>
 export const deleteRoom = (id: string) =>
   deleteDoc(doc(db, 'rooms', id))
 
+// propertyId 只在表單確實改了建物時才傳入，避免開著舊表單蓋掉在建物分頁剛做的指派
 export const saveManagedRoom = async (landlordId: string, form: Partial<ManagedRoom>,
-  originalStatus?: Room['status']) => {
-  const fields = editableRoomFields(form)
+  originalStatus?: Room['status'], propertyChange?: { propertyId: string }) => {
+  const fields = { ...editableRoomFields(form), ...(propertyChange ?? {}) }
   if (!form.id) return addDoc(collection(db, 'rooms'), {
     ...fields, landlordId, status: form.status || 'vacant',
     landlordName: form.landlordName || '', landlordPhone: form.landlordPhone || '',

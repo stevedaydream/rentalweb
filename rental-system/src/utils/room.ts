@@ -29,3 +29,25 @@ export const roomMonthlyRent = (room: RentBearingRoom | null | undefined): numbe
   }
   return 0
 }
+
+/**
+ * 舊版新增房源時，沒有照片會把這張 Unsplash 圖當封面存進資料庫。
+ * 它看起來像真實房間，會誤導租客，一律視為「沒有照片」。
+ */
+export const LEGACY_PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1470&q=80'
+
+export interface ImageBearingRoom {
+  coverImage?: string
+  images?: string[]
+}
+
+/** 房間的照片（排除舊版佔位圖） */
+export const roomPhotos = (room: ImageBearingRoom | null | undefined): string[] =>
+  (room?.images ?? []).filter(u => !!u && u !== LEGACY_PLACEHOLDER_IMAGE)
+
+/** 房間封面；沒有真實照片時回傳空字串，由畫面顯示「尚無照片」 */
+export const roomCoverImage = (room: ImageBearingRoom | null | undefined): string => {
+  const cover = room?.coverImage
+  if (cover && cover !== LEGACY_PLACEHOLDER_IMAGE) return cover
+  return roomPhotos(room)[0] ?? ''
+}
