@@ -1,3 +1,5 @@
+import type { ContractTerms } from '../utils/contractTerms';
+
 // ===========================
 // Enums
 // ===========================
@@ -154,6 +156,8 @@ export interface Property {
    * 不代表兩者語意上有從屬關係。
    */
   seededFromGroupId?: string;
+  /** 合約附件設定（現況確認書、修繕明細、賠償價目表）；未設定時用預設內容 */
+  contractTerms?: ContractTerms;
   /** 測試資料標記 */
   isTest?: boolean;
   createdAt?: any;

@@ -70,7 +70,7 @@ function injectStyles(html) {
 const ACTIVATION_TTL_DAYS = 7;
 
 // 範本版本：骨架改版時遞增。舊合約已凍存當時骨架（signed_contracts.templateHtml），不受影響。
-const TEMPLATE_VERSIONS = { Contract: 1, Guarantee: 1, Deposit: 1, MoveOutSummary: 1, BillStatement: 1 };
+const TEMPLATE_VERSIONS = { Contract: 2, Guarantee: 1, Deposit: 1, MoveOutSummary: 1, BillStatement: 1 };
 
 const templateFileFor = (templateType) => {
   switch (templateType) {
@@ -2280,11 +2280,14 @@ exports.activateTenant = onCall({ region: 'asia-east1' }, async (request) => {
 // 連結碼存在 contract_sign_links（前端不可讀寫），與租客啟用連結同一套模式。
 const SIGN_LINK_TTL_DAYS = 7;
 const SIGN_LINK_MAX_ATTEMPTS = 5;
-// 合約預覽需要的欄位；房東 uid、範本骨架等內部欄位不外流
+// 合約預覽需要的欄位（含凍結的範本骨架，租客看到的就是要簽的版本）；房東 uid 等內部欄位不外流
 const SIGNING_FIELDS = [
   'roomNo', 'address', 'tenant', 'tenantId', 'tenantPhone', 'landlord', 'landlordId', 'landlordPhone',
   'rentfee', 'deposit', 'duration', 'startDate', 'endDate', 'today', 'paymentFrequency', 'paymentDay',
   'feeWater', 'feeElectricity', 'feeElectricityNote', 'feeGas', 'feeInternet', 'feeManagement', 'customArticle21',
+  'templateHtml', 'contractTerms', 'landlordAddress', 'tenantAddress', 'tenantMailAddress',
+  'guarantor', 'guarantorId', 'guarantorAddress', 'guarantorMailAddress', 'guarantorPhone',
+  'bankCode', 'bankAccount', 'bankAccountName',
 ];
 const normId = v => String(v || '').trim().toUpperCase();
 

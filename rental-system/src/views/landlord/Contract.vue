@@ -368,7 +368,7 @@
             租客已於 {{ formatDate(reviewing.tenantSignedAt) }} 簽名。請核對內容與簽名，確認無誤後簽名，合約即正式生效。
           </p>
           <div class="max-h-[55vh] overflow-y-auto bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
-            <Preview :form="reviewing" signable="landlord" />
+            <Preview :form="reviewing" />
           </div>
 
           <div class="grid grid-cols-2 gap-3">
@@ -432,6 +432,7 @@ import { useNotificationStore } from '../../stores/notification'
 import LandlordSignatureField from '../../components/LandlordSignatureField.vue'
 import ContractSignLinkModal from '../../components/ContractSignLinkModal.vue'
 import { taipeiToday } from '../../utils/roomLease'
+import { buildContractPayload } from '../../utils/contractPayload'
 
 const authStore = useAuthStore()
 const toast = useToastStore()
@@ -499,20 +500,7 @@ const switchTab = (id) => {
 }
 
 // ---- 重新下載用 payload ----
-const buildPdfPayload = (data) => {
-  const pText = (v) => (!v || v === 'none') ? '無' : v === 'landlord' ? '由出租人負擔' : v === 'tenant' ? '由承租人負擔' : v
-  const elec = pText(data.feeElectricity)
-  return {
-    ...data,
-    feeWaterDisplay: pText(data.feeWater),
-    feeElectricityDisplay: data.feeElectricityNote ? `${elec}（備註：${data.feeElectricityNote}）` : elec,
-    feeGasDisplay: pText(data.feeGas),
-    feeInternetDisplay: pText(data.feeInternet),
-    feeManagementDisplay: pText(data.feeManagement),
-    customArticle21Display: data.customArticle21 || '',
-    templateType: 'Contract',
-  }
-}
+const buildPdfPayload = (data) => buildContractPayload(data)
 
 const apiBase = import.meta.env.VITE_API_BASE
 const serverGeneratePdfDownload = async (payload, token, filename) => {

@@ -54,6 +54,12 @@
             <p v-if="p.address" class="text-xs text-text-secondary-light truncate">{{ p.address }}</p>
           </div>
           <button
+            @click="openTerms(p)" :aria-label="`${p.name} 合約附件設定`" title="合約附件設定"
+            class="shrink-0 p-2 rounded-lg text-ink-400 hover:text-gold-600 hover:bg-surface-light dark:hover:bg-surface-dark transition-colors"
+          >
+            <span class="material-symbols-outlined text-[20px]" aria-hidden="true">history_edu</span>
+          </button>
+          <button
             @click="openForm(p)" :aria-label="`編輯 ${p.name}`"
             class="shrink-0 p-2 rounded-lg text-ink-400 hover:text-gold-600 hover:bg-surface-light dark:hover:bg-surface-dark transition-colors"
           >
@@ -170,6 +176,7 @@
     </div>
 
     <PropertyFormModal v-model:show="showForm" :property="editing" @save="handleSave" />
+    <PropertyContractTermsModal v-model:show="showTerms" :property="termsTarget" :saving="savingTerms" @save="saveTerms" />
   </div>
 </template>
 
@@ -178,6 +185,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useToastStore } from '../../stores/toast'
 import { useAuthStore } from '../../stores/auth'
 import PropertyFormModal from './PropertyFormModal.vue'
+import PropertyContractTermsModal from './PropertyContractTermsModal.vue'
+import type { ContractTerms } from '../../utils/contractTerms'
 import {
   getProperties, addProperty, updateProperty, deleteProperty,
   assignRoomProperty, seedPropertiesFromMeterGroups,
@@ -267,6 +276,32 @@ const handleSave = async (payload: PropertyPayload) => {
   } catch (e) {
     console.error('save property error:', e)
     toast.error('儲存失敗')
+  }
+}
+
+// --- 合約附件設定 ---
+const showTerms = ref(false)
+const termsTarget = ref<Property | null>(null)
+const savingTerms = ref(false)
+
+const openTerms = (p: Property) => {
+  termsTarget.value = p
+  showTerms.value = true
+}
+
+const saveTerms = async (terms: ContractTerms) => {
+  if (!termsTarget.value) return
+  savingTerms.value = true
+  try {
+    await updateProperty(termsTarget.value.id, { contractTerms: terms })
+    showTerms.value = false
+    toast.success('合約附件設定已儲存')
+    await load()
+  } catch (e) {
+    console.error('save contract terms error:', e)
+    toast.error('儲存失敗')
+  } finally {
+    savingTerms.value = false
   }
 }
 

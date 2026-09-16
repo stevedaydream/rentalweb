@@ -3,7 +3,7 @@
 // 與 functions/index.js 的同名函式保持一致；骨架已凍存於 signed_contracts.templateHtml。
 
 // {{key}} → data[key]（與伺服端 applyTemplate 相同）
-const applyTemplate = (template: string, data: Record<string, unknown>): string =>
+export const applyTemplate = (template: string, data: Record<string, unknown>): string =>
   template.replace(/{{(.*?)}}/g, (_, key: string) => {
     const v = data[key.trim()]
     return v !== undefined && v !== null ? String(v) : ''

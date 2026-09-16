@@ -10,6 +10,14 @@ Firebase 專案 ID：`rental-system-7675e`
 
 ## 技術架構
 
+### 2026-09-16 合約範本改版（復興路版本）
+
+- `contractTemplate.html`（前端與 functions 兩份同步，`TEMPLATE_VERSIONS.Contract`／`CONTRACT_TEMPLATE_VERSION` = 2）改依 `docs/contract_template.md`（由 Word 復興路版本整理）：勾選項以 ■／□ 呈現，補契約審閱權、立契約書人完整資料（地址、保證人）、四份附件。附件重新編號：一 現況確認書（含附屬設備）／二 轉租同意確認書（空白，同意轉租時出具）／三 承租人負責修繕確認書／四 退租賠償價目表；第七條（寵物）保留系統原有約定。已簽合約使用凍結的 `templateHtml`，不受影響。
+- **條文共用、附件依建物**：`properties.contractTerms`（`utils/contractTerms.ts`）存第一條全部／部分出租、附件一勾選、修繕明細、賠償價目表；「房源管理 → 建物」卡片的合約圖示開 `PropertyContractTermsModal` 編輯，可一鍵套用復興路版本。未設定的建物用預設（現況全無、沿用範例清單）。`ContractForm` 依房號 → 房間 → 建物帶入，簽署時凍結進 `signed_contracts.contractTerms`。
+- 填值集中於 `utils/contractPayload.ts` 的 `buildContractPayload`（費用文字、繳款週期、轉帳資訊、勾選與附件表格 HTML、空簽名透明圖；自由文字先跳脫），預覽、本地列印、伺服端 PDF、租客首頁、退租封存共用，取代原本四份各自組的 payload。
+- `Preview.vue` 改為以 iframe 渲染範本本身（畫面即列印內容），不再有「點擊簽名」：房東只在 `LandlordSignatureField`（含解鎖）簽、租客只在各頁的簽名按鈕簽。
+- 簽約表單新增承租人戶籍／通訊地址、出租人地址、保證人（選填）；出租人地址預設取「系統設定 → 帳戶」新增的通訊地址（`users.address`），收款帳戶取 `users.bankInfo`。遠端簽約的 `SIGNING_FIELDS` 一併開放這些欄位與凍結範本，租客看到的就是要簽的版本。
+
 ### 2026-09-16 遠端簽約＋建物支出
 
 - **遠端簽約**：電子合約「新建合約」可改按「傳送簽署連結」。建立 `signed_contracts`（`status: awaiting_tenant`，內容當下凍結、雙方簽名留空），由 `createContractSignLink` 發一次性連結 `/sign/:code`（7 天、送出即失效、重發作廢舊連結、證件號碼錯 5 次鎖定）。租客免登入開啟（`views/SignContract.vue`）→ 輸入合約上的證件號碼 → 閱覽並簽名 → `submitContractSignature` 寫入簽名、轉 `awaiting_landlord`、視同租客已確認，並以 LINE 通知房東（有綁定時）。房東端側邊欄「電子合約」顯示待核對數（`notification` store 監聽），合約記錄「核對並簽名」後才轉 `signed`、處理重疊合約的「已被取代」並開啟列印；也可退回重簽（清除租客簽名並重發連結）或取消待簽合約。
@@ -115,7 +123,7 @@ rental-system/
 | `users` | uid, role('landlord'\|'tenant'\|'admin'), landlordId? |
 | `rooms` | id, name, status('occupied'\|'vacant'\|'maintenance'), landlordId, floor, rent, deposit, tenantId, tenantName, isPublic?, subGroupId?(電表子群組), **propertyId?(所屬建物)** |
 | `property_costs` | id, landlordId, type('房屋稅'\|'地價稅'\|'火災險'), periodStart/periodEnd(所屬期間，與繳款日分開), amount(稅單總額), allocations[{propertyId, amount}](加總須等於 amount), dueDate, paidAt?, docNo?, attachmentUrl?, billIds[](落帳產生的 bills，供同步/回收)　※**無論繳沒繳都存在；只有標記已繳時才依 allocations 落帳到 `bills`**，因帳務頁「本月支出」不看狀態、月內全算，未繳先落帳會讓當月支出提前虛增 |
-| `properties` | id, landlordId, name, address?, houseTaxNo?(房屋稅籍), landNos?[](地號，一棟可多筆), fireInsurance?{insurer,policyNo,startDate,endDate,amount}, publicWelfare?[{year,houseTax,landTax,incomeTax,docNo,validFrom,validTo}], seededFromGroupId?(遷移冪等標記)　※**建物＝稅／險／公益出租人的歸屬單位，與 `meter_groups`（台電總表）是兩個獨立維度**：台電按電號寄帳單，一棟可能兩個電號、公共電表也可能跨棟 |
+| `properties` | id, landlordId, name, address?, contractTerms?(合約附件設定，見 utils/contractTerms.ts), houseTaxNo?(房屋稅籍), landNos?[](地號，一棟可多筆), fireInsurance?{insurer,policyNo,startDate,endDate,amount}, publicWelfare?[{year,houseTax,landTax,incomeTax,docNo,validFrom,validTo}], seededFromGroupId?(遷移冪等標記)　※**建物＝稅／險／公益出租人的歸屬單位，與 `meter_groups`（台電總表）是兩個獨立維度**：台電按電號寄帳單，一棟可能兩個電號、公共電表也可能跨棟 |
 | `tenants` | id, uid, name, email, phone, landlordId, roomId, roomName, boundLandlordCode, status('active'\|'inactive'), moveInDate, paymentFrequency('monthly'\|'quarterly'\|'semiannual'\|'yearly'), **credit?(預收餘額，生成帳單時自動沖抵、退租時併入退款), creditLog[]?**, **rentSubsidy?{hasSubsidy, from, to, docNo}**（政府租金補貼＝公益出租人資格的**事實來源**，與 `properties.publicWelfare`（稅捐處實際核定年度）分開存，兩者不一致時系統提示落差） |
 | `bills` | id, propertyId?(支出所屬建物；稅費落帳與「記一筆」建物支出寫入), tenantId(租客 uid，手動建立的租客為 null), relatedTenantDocId(tenants 文件 ID), landlordId, target(`姓名 房號` 字串), date(YYYY-MM-DD), type('income'\|'expense'), category('租金收入'\|'電費'\|'公共電費'…), description, amount, status('pending'\|'waiting_confirmation'\|'completed'\|'overdue'), dueDate, paidAt, relatedUsageId?, history[], paymentProofUrl?, ecpayOrderId?, paymentMethod?, paymentGateway?, **paidAmount?(部分付款已收；未設者 completed 視為全額), payments[]?({amount, date, source('manual'\|'credit'), note?, at}), coverFrom?/coverTo?(租金單涵蓋起訖月 YYYY-MM；舊單由摘要反推)**　※**無 tenantName / roomName / month 欄位**，租客資訊須以 relatedTenantDocId / tenantId 反查 `tenants` |
 | `payment_proofs` | id, billId, tenantId, landlordId, imageUrl, uploadedAt, ocrRaw?(預留), matchResult?(預留), status('pending'\|'approved'\|'rejected') |
@@ -127,7 +135,7 @@ rental-system/
 | `messages` | landlordId, tenantId, content, source('line'\|'web'), ... |
 | `contracts` | id, landlordId, tenantId, ... |
 | `contract_templates` | doc ID = landlordId，HTML 範本 |
-| `signed_contracts` | id, landlordUid, 簽署資料, supersededBy?(取代它的新合約 id), supersededAt?, status?('awaiting_tenant'\|'awaiting_landlord'\|'signed'；無此欄＝已簽), signLinkSentAt?, tenantSignedAt?, landlordSignedAt?, returnedAt?　※遠端簽約時 `signedAt` 建立時先寫入（供排序），房東簽署生效時覆寫 |
+| `signed_contracts` | id, landlordUid, 簽署資料, supersededBy?(取代它的新合約 id), supersededAt?, status?('awaiting_tenant'\|'awaiting_landlord'\|'signed'；無此欄＝已簽), contractTerms?(簽署時凍結的建物附件), landlordAddress?, tenantAddress?, tenantMailAddress?, guarantor*?, bankCode?/bankAccount?/bankAccountName?, signLinkSentAt?, tenantSignedAt?, landlordSignedAt?, returnedAt?　※遠端簽約時 `signedAt` 建立時先寫入（供排序），房東簽署生效時覆寫 |
 | `contract_sign_links` | 遠端簽約連結：code(doc id), contractId, landlordId, expireAt(7 天), usedAt?(一次性), failedAttempts(≥5 鎖定)　※**前端完全禁止讀寫**，同 `tenant_activations` |
 | `line_configs` | doc ID = landlordId，LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN |
 | `line_bindings` | 綁定碼，uid, expiry |
@@ -358,3 +366,4 @@ rental-system/
 | 2026-09-14 | **台電帳單雙寫同步**：登錄台電帳單會寫 `taipower_bills`（電費盈虧）與 `bills` 台電支出（交易清單），兩者原本互不相認，從帳務管理刪除支出只刪 `bills`，`taipower_bills` 變成前端看不到、卻仍參與結算的孤兒（例：選錯棟的桃園 2026-02 帳單）。改為同批寫入並互存 `expenseBillId`／`taipowerBillId`；刪除支出一併刪台電帳單，編輯支出金額／日期同步台電帳單的金額／月份。舊資料以 `utils/financials/taipowerLink.ts` 依「月份＋金額＋總表」比對，恰好一筆才算（同月同額可能分屬兩棟）。編輯台電支出時（多總表才顯示）可改「所屬總表」，對應台電帳單的 `groupId` 同批更新，說明文字的「（總表名）」一併換成新棟名 |
 | 2026-09-14 | **房東系統設定分頁化**：原本單頁堆疊九個區塊，右上「儲存變更」只存部分欄位、其餘區塊各有儲存鈕，看不出哪顆存哪裡。改為四個分頁（`?tab=` 記在網址）：帳戶（基本資料、帳號安全）／收款與帳單（收款帳戶、帳單週期）／LINE（Bot 整合與圖文選單在前，個人通知綁定在後——需先有 Bot 才能綁）／簽名與點交（簽名印章、物品主檔、屋況檢查項）。帳戶與收款分頁各自儲存，未儲存時分頁標籤顯示黃點並提示。順帶：「重設密碼」原為無作用按鈕，改為寄送重設信（僅 Email/密碼帳號，Google 登入顯示說明，模擬房東時隱藏）；移除全系統無人讀取的「接收 Email 通知」；`users.settings` 改以欄位路徑更新，不再整包覆蓋。操作說明頁同步更新 |
 | 2026-09-16 | **遠端簽約＋建物支出**：電子合約可傳一次性簽署連結給租客（證件號碼驗證、7 天、送出即失效），租客簽名後通知房東（側邊欄待核對數＋LINE），房東核對簽名後才生效，可退回重簽或取消；簽署中的合約不生效也不取代舊約。帳務「記一筆」支出可指定所屬建物（`bills.propertyId`），年度損益歸到該棟 |
+| 2026-09-16 | **合約範本改版（復興路版本）**：依 Word 復興路版本重寫合約範本（版本 2），附件重新編號為四份；附件內容改為依建物設定（房源管理 → 建物 → 合約附件設定，可套用復興路版本）並於簽署時凍結；新增出租人／承租人地址與保證人欄位；合約填值集中為 `buildContractPayload`；預覽改為直接渲染範本並移除重複的點擊簽名入口 |

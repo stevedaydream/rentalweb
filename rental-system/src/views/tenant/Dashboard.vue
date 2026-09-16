@@ -409,6 +409,7 @@ import { db, auth, functions } from '../../firebase/config';
 import { httpsCallable } from 'firebase/functions';
 import Preview from '../../components/Preview.vue';
 import { isPendingSignature } from '../../utils/signedContract';
+import { buildContractPayload } from '../../utils/contractPayload';
 import {
   doc,
   collection,
@@ -554,23 +555,7 @@ const downloadSignedContract = async () => {
   try {
     const token = await auth.currentUser?.getIdToken();
     const c = signedContract.value;
-    function pText(val: any) {
-      if (!val || val === 'none') return '無';
-      if (val === 'landlord') return '由出租人負擔';
-      if (val === 'tenant') return '由承租人負擔';
-      return val;
-    }
-    const elec = pText(c.feeElectricity);
-    const payload = {
-      ...c,
-      feeWaterDisplay: pText(c.feeWater),
-      feeElectricityDisplay: c.feeElectricityNote ? `${elec}（備註：${c.feeElectricityNote}）` : elec,
-      feeGasDisplay: pText(c.feeGas),
-      feeInternetDisplay: pText(c.feeInternet),
-      feeManagementDisplay: pText(c.feeManagement),
-      customArticle21Display: c.customArticle21 || '',
-      templateType: 'Contract'
-    };
+    const payload = buildContractPayload(c);
     const res = await axios.post(`${apiBase}/generatePdf`, payload, {
       responseType: 'arraybuffer',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }

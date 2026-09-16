@@ -49,7 +49,7 @@
         </div>
 
         <div class="bg-white dark:bg-card-dark rounded-2xl border border-ink-100 dark:border-ink-800 shadow-sm p-4 max-h-[60vh] overflow-y-auto">
-          <Preview :form="contract" signable="tenant" />
+          <Preview :form="contract" />
         </div>
 
         <div class="bg-white dark:bg-card-dark rounded-2xl border border-ink-100 dark:border-ink-800 shadow-sm p-4 space-y-4">

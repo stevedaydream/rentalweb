@@ -70,6 +70,17 @@
               >
             </div>
             <div>
+              <label for="settings-address" class="block text-sm font-medium text-text-secondary-light mb-1">通訊地址（合約出租人欄位）</label>
+              <input
+                id="settings-address"
+                v-model="formData.address"
+                type="text"
+                autocomplete="street-address"
+                class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-gold-500 outline-none text-text-primary-light dark:text-text-primary-dark transition-colors"
+                placeholder="戶籍或通訊地址"
+              >
+            </div>
+            <div>
               <label for="settings-email" class="block text-sm font-medium text-text-secondary-light mb-1">電子信箱 (帳號)</label>
               <input
                 id="settings-email"
@@ -819,6 +830,7 @@ interface SettingsForm {
   name: string;
   phone: string;
   idNumber: string;
+  address: string;
   description: string;
   bankCode: string;
   bankAccount: string;
@@ -828,7 +840,7 @@ interface SettingsForm {
 }
 
 const emptyForm = (): SettingsForm => ({
-  name: '', phone: '', idNumber: '', description: '',
+  name: '', phone: '', idNumber: '', address: '', description: '',
   bankCode: '', bankAccount: '', bankAccountName: '',
   billSendDay: 1, paymentDay: 12,
 });
@@ -844,6 +856,7 @@ watchEffect(() => {
       name: p.name || '',
       phone: p.phone || '',
       idNumber: p.idNumber || '',
+      address: p.address || '',
       description: p.description || '',
       bankCode: p.bankInfo?.code || '',
       bankAccount: p.bankInfo?.account || '',
@@ -857,7 +870,7 @@ watchEffect(() => {
 });
 
 const changed = (keys: (keyof SettingsForm)[]) => keys.some(k => formData.value[k] !== savedForm.value[k]);
-const accountDirty = computed(() => changed(['name', 'phone', 'idNumber', 'description']));
+const accountDirty = computed(() => changed(['name', 'phone', 'idNumber', 'address', 'description']));
 const billingDirty = computed(() => changed(['bankCode', 'bankAccount', 'bankAccountName', 'billSendDay', 'paymentDay']));
 
 // ── 分頁（記在網址，重新整理或從操作說明連過來都能停在同一頁） ──
@@ -908,6 +921,7 @@ const handleSave = async () => {
       name: formData.value.name,
       phone: formData.value.phone,
       idNumber: formData.value.idNumber,
+      address: formData.value.address,
       description: formData.value.description,
       bankInfo: {
         code: formData.value.bankCode,

@@ -67,7 +67,56 @@
           <option value="yearly">年繳</option>
         </select>
       </div>
+      <div>
+        <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">承租人戶籍地址</label>
+        <input v-model="form.tenantAddress" class="form-input" placeholder="選填" />
+      </div>
+      <div>
+        <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">承租人通訊地址</label>
+        <input v-model="form.tenantMailAddress" class="form-input" placeholder="同戶籍地址可留空" />
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">出租人地址</label>
+        <input v-model="form.landlordAddress" class="form-input" placeholder="可在「系統設定 → 帳戶」設定預設值" />
+      </div>
     </div>
+
+    <details class="rounded-xl border border-gray-100 dark:border-gray-800" :open="!!form.guarantor">
+      <summary class="px-4 py-2.5 text-sm font-bold text-gray-700 dark:text-gray-300 cursor-pointer select-none">保證人（選填）</summary>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 px-4 pb-4">
+        <div>
+          <label class="block text-xs font-medium text-text-secondary-light mb-1">姓名</label>
+          <input v-model="form.guarantor" class="form-input" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-text-secondary-light mb-1">證件號碼</label>
+          <input v-model="form.guarantorId" class="form-input" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-text-secondary-light mb-1">戶籍地址</label>
+          <input v-model="form.guarantorAddress" class="form-input" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-text-secondary-light mb-1">通訊地址</label>
+          <input v-model="form.guarantorMailAddress" class="form-input" placeholder="同戶籍地址可留空" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-text-secondary-light mb-1">聯絡電話</label>
+          <input v-model="form.guarantorPhone" class="form-input" />
+        </div>
+      </div>
+    </details>
+
+    <!-- 附件（現況確認書、修繕明細、賠償價目表）依房間所屬建物帶入 -->
+    <p class="text-xs" :class="termsProperty ? 'text-text-secondary-light' : 'text-amber-700 dark:text-amber-300'">
+      <span class="material-symbols-outlined text-[14px] align-middle" aria-hidden="true">attach_file</span>
+      <template v-if="termsProperty">
+        合約附件依「{{ termsProperty.name }}」的建物設定帶入{{ termsProperty.contractTerms ? '' : '（尚未設定，使用預設內容）' }}，可在「房源管理 → 建物」修改。
+      </template>
+      <template v-else>
+        找不到此房號所屬的建物，合約附件使用預設內容。可在「房源管理 → 建物」指派房間並設定附件。
+      </template>
+    </p>
 
     <!-- 費用約定 -->
     <div>
@@ -182,9 +231,11 @@ import ContractTemplateModal from './ContractTemplateModal.vue'
 import ContractSignLinkModal from './ContractSignLinkModal.vue'
 import { printHtmlPdf } from '../utils/contractRender'
 import contractTemplate from '../templates/contractTemplate.html?raw'
+import { buildContractPayload } from '../utils/contractPayload'
+import { normalizeContractTerms } from '../utils/contractTerms'
 
 // 與 functions/index.js TEMPLATE_VERSIONS.Contract 對齊
-const CONTRACT_TEMPLATE_VERSION = 1
+const CONTRACT_TEMPLATE_VERSION = 2
 
 const props = defineProps({
   prefill: { type: Object, default: () => ({}) },
@@ -241,7 +292,23 @@ const form = ref({
   paymentFrequency: 'monthly', paymentDay: 5,
   feeWater: 'landlord', feeElectricity: 'tenant', feeElectricityNote: '公共區域電費由房東負擔',
   feeGas: 'none', feeInternet: 'landlord', feeManagement: 'none', customArticle21: '',
+  landlordAddress: '', tenantAddress: '', tenantMailAddress: '',
+  guarantor: '', guarantorId: '', guarantorAddress: '', guarantorMailAddress: '', guarantorPhone: '',
+  bankCode: '', bankAccount: '', bankAccountName: '',
+  // 建物附件設定；簽署時隨合約凍結，之後改建物設定不影響已簽合約
+  contractTerms: normalizeContractTerms(),
 })
+
+// 房號 → 房間 → 建物，帶入該棟的附件設定
+const properties = ref([])
+const termsProperty = computed(() => {
+  const roomNo = String(form.value.roomNo || '').trim()
+  const room = rooms.value.find(r => (r.name || r.roomName) === roomNo)
+  return room?.propertyId ? properties.value.find(p => p.id === room.propertyId) || null : null
+})
+watch(termsProperty, (p) => {
+  form.value.contractTerms = normalizeContractTerms(p?.contractTerms)
+}, { immediate: true })
 
 watch(() => form.value.rentfee, (fee) => {
   const n = Number(fee)
@@ -288,20 +355,7 @@ const onTemplateSaved = (tmpl) => {
   form.value.customArticle21 = tmpl.customArticle21
 }
 
-const buildPdfPayload = (data = form.value) => {
-  const pText = (v) => (!v || v === 'none') ? '無' : v === 'landlord' ? '由出租人負擔' : v === 'tenant' ? '由承租人負擔' : v
-  const elec = pText(data.feeElectricity)
-  return {
-    ...data,
-    feeWaterDisplay: pText(data.feeWater),
-    feeElectricityDisplay: data.feeElectricityNote ? `${elec}（備註：${data.feeElectricityNote}）` : elec,
-    feeGasDisplay: pText(data.feeGas),
-    feeInternetDisplay: pText(data.feeInternet),
-    feeManagementDisplay: pText(data.feeManagement),
-    customArticle21Display: data.customArticle21 || '',
-    templateType: 'Contract',
-  }
-}
+const buildPdfPayload = (data = form.value) => buildContractPayload(data)
 
 const apiBase = import.meta.env.VITE_API_BASE
 const serverGeneratePdfDownload = async (payload, token, filename) => {
@@ -443,6 +497,10 @@ onMounted(async () => {
   form.value.landlord = profile?.name || ''
   form.value.landlordId = profile?.idNumber || ''
   form.value.landlordPhone = profile?.phone || ''
+  form.value.landlordAddress = profile?.address || ''
+  form.value.bankCode = profile?.bankInfo?.code || ''
+  form.value.bankAccount = profile?.bankInfo?.account || ''
+  form.value.bankAccountName = profile?.bankInfo?.name || profile?.name || ''
 
   // 套用租客帶入
   const p = props.prefill || {}
@@ -457,18 +515,20 @@ onMounted(async () => {
   // 續約自訂到期日：待 start/duration 的 watcher 算完後覆寫
   if (p.endDate) { await nextTick(); form.value.endDate = p.endDate }
 
-  // 獨立頁：載入房源 / 租客供下拉
-  if (props.showSelectors) {
-    try {
-      const [roomsSnap, tenantsSnap] = await Promise.all([
-        getDocs(query(collection(db, 'rooms'), where('landlordId', '==', props.landlordId))),
-        getDocs(query(collection(db, 'tenants'), where('landlordId', '==', props.landlordId))),
-      ])
-      rooms.value = roomsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
-      tenants.value = tenantsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
-    } catch (e) {
-      console.warn('載入房源/租客失敗:', e)
-    }
+  // 房源與建物：附件依房間所屬建物帶入；獨立頁另載入租客供下拉
+  try {
+    const [roomsSnap, propertiesSnap, tenantsSnap] = await Promise.all([
+      getDocs(query(collection(db, 'rooms'), where('landlordId', '==', props.landlordId))),
+      getDocs(query(collection(db, 'properties'), where('landlordId', '==', props.landlordId))),
+      props.showSelectors
+        ? getDocs(query(collection(db, 'tenants'), where('landlordId', '==', props.landlordId)))
+        : Promise.resolve(null),
+    ])
+    rooms.value = roomsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    properties.value = propertiesSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    if (tenantsSnap) tenants.value = tenantsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+  } catch (e) {
+    console.warn('載入房源/建物/租客失敗:', e)
   }
 
   try {

@@ -1207,6 +1207,7 @@ import TenantImportModal from '../../components/TenantImportModal.vue';
 import TenantStatModal, { type TenantStatCategory } from '../../components/tenants/TenantStatModal.vue';
 import { printHtmlPdf } from '../../utils/contractRender';
 import { isPendingSignature } from '../../utils/signedContract';
+import { buildContractPayload } from '../../utils/contractPayload';
 import { amountToChineseCapital } from '../../utils/chineseAmount';
 import moveoutSummaryTemplate from '../../templates/moveoutSummary.html?raw';
 import {
@@ -2658,23 +2659,7 @@ const downloadTenantArchive = async (tenant: Tenant) => {
       const contractDoc = contractSnap.docs.find(d => !isPendingSignature(d.data()));
       if (contractDoc) {
         const cd = contractDoc.data();
-        function pText(val: string) {
-          if (!val || val === 'none') return '無';
-          if (val === 'landlord') return '由出租人負擔';
-          if (val === 'tenant') return '由承租人負擔';
-          return val;
-        }
-        const elec = pText(cd.feeElectricity);
-        await callGeneratePdf({
-          ...cd,
-          feeWaterDisplay: pText(cd.feeWater),
-          feeElectricityDisplay: cd.feeElectricityNote ? `${elec}（備註：${cd.feeElectricityNote}）` : elec,
-          feeGasDisplay: pText(cd.feeGas),
-          feeInternetDisplay: pText(cd.feeInternet),
-          feeManagementDisplay: pText(cd.feeManagement),
-          customArticle21Display: cd.customArticle21 || '',
-          templateType: 'Contract',
-        }, `${tenant.name}_租賃合約_${moveOutDateStr}.pdf`);
+        await callGeneratePdf(buildContractPayload(cd), `${tenant.name}_租賃合約_${moveOutDateStr}.pdf`);
         toast.success('合約 PDF 已下載');
       }
     } catch (e) {
