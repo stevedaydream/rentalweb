@@ -31,6 +31,7 @@ const Contract = () => import('../views/landlord/Contract.vue');
 const Receipts = () => import('../views/landlord/Receipts.vue');
 const LandlordSettings = () => import('../views/landlord/Settings.vue');
 const LandlordDataImport = () => import('../views/landlord/DataImport.vue');
+const LandlordHistoricalImport = () => import('../views/landlord/HistoricalImport.vue');
 const LandlordMessages = () => import('../views/landlord/Messages.vue');
 const InvestmentCalculator = () => import('../views/landlord/InvestmentCalculator.vue');
 const LandlordBuildingInfo = () => import('../views/landlord/BuildingInfo.vue');
@@ -88,6 +89,7 @@ const routes = [
       { path: 'repairs', name: 'RepairRequests', component: RepairRequests },
       { path: 'settings', name: 'Settings', component: LandlordSettings },
       { path: 'data-import', name: 'LandlordDataImport', component: LandlordDataImport },
+      { path: 'historical-import', name: 'LandlordHistoricalImport', component: LandlordHistoricalImport },
       { path: 'contract', name: 'Contract', component: Contract },
       { path: 'receipts', name: 'Receipts', component: Receipts },
       { path: 'investment', name: 'InvestmentCalculator', component: InvestmentCalculator },

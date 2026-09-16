@@ -3,6 +3,7 @@ import { db } from '../firebase/config'
 import { getProperties } from './propertyService'
 import { getRooms } from './roomService'
 import { importKey, type LandlordImportPlan } from '../utils/landlordImport'
+import type { buildHistoricalImportPlan } from '../utils/historicalImport'
 
 // 單個作業最多會寫兩份文件（建物＋總表、租客＋房間），保守留在 500 上限內。
 const BATCH_SIZE = 150
@@ -117,4 +118,18 @@ export const executeLandlordImport = async (
     throw error
   }
   return { runId: runRef.id, summary: plan.summary }
+}
+
+type HistoricalPlan = NonNullable<ReturnType<typeof buildHistoricalImportPlan>['plan']>
+
+/** 寫入可查詢但不參與現況營運的歷史租客、帳單與付款。 */
+export const executeHistoricalImport = async (landlordId: string, plan: HistoricalPlan, fileName: string) => {
+  const runRef = doc(collection(db, 'data_imports'))
+  const tenantRefs = new Map(plan.tenants.map(t => [t.legacyTenantKey, doc(collection(db, 'tenants'))]))
+  const ops: Array<(batch: ReturnType<typeof writeBatch>) => void> = []
+  ops.push(batch => batch.set(runRef, { landlordId, fileName, templateVersion: 2, status: 'running', source: 'historical', summary: { tenants: plan.tenants.length, bills: plan.bills.length }, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+  plan.tenants.forEach(t => ops.push(batch => batch.set(tenantRefs.get(t.legacyTenantKey)!, { landlordId, name: t.name, phone: t.phone || '', status: 'inactive', isHistorical: true, legacyTenantKey: t.legacyTenantKey, legacyRoomKey: t.legacyRoomKey || '', moveOutDate: t.moveOutDate || '', importRunId: runRef.id, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })))
+  plan.bills.forEach(b => ops.push(batch => batch.set(doc(collection(db, 'bills')), { landlordId, relatedTenantDocId: b.legacyTenantKey ? tenantRefs.get(String(b.legacyTenantKey).trim().toUpperCase())?.id || null : null, tenantId: null, date: b.date, dueDate: b.dueDate, type: 'income', category: b.category, target: b.legacyTenantKey || '歷史帳務', description: b.description || '歷史遷移', amount: b.amount, paidAmount: b.paidAmount, payments: b.payments, status: b.status, isHistorical: true, legacyBillKey: b.legacyBillKey, importRunId: runRef.id, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })))
+  try { for (let i = 0; i < ops.length; i += BATCH_SIZE) { const batch = writeBatch(db); ops.slice(i, i + BATCH_SIZE).forEach(op => op(batch)); await batch.commit() }; const batch = writeBatch(db); batch.update(runRef, { status: 'completed', completedAt: serverTimestamp(), updatedAt: serverTimestamp() }); await batch.commit() } catch (error) { const batch = writeBatch(db); batch.update(runRef, { status: 'failed', failedAt: serverTimestamp(), updatedAt: serverTimestamp() }); await batch.commit().catch(() => undefined); throw error }
+  return { runId: runRef.id, summary: { tenants: plan.tenants.length, bills: plan.bills.length } }
 }

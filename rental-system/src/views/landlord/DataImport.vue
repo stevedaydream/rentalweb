@@ -7,6 +7,7 @@
     <section class="rounded-2xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 p-5 text-sm text-amber-900 dark:text-amber-200 space-y-1">
       <p class="font-bold">第一版只做現況接管</p><p>建立建物、房間、水費設定、現役租客與租約、未結清帳款、預收餘額及每房最近兩期電表讀數；不建立登入帳號、不補開帳單，也不保存原始 Excel。</p>
     </section>
+    <RouterLink :to="{ name: 'LandlordHistoricalImport' }" class="block rounded-2xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 p-5 text-blue-900 dark:text-blue-200"><b>第二階段：歷史資料遷移</b><p class="text-sm mt-1">匯入已退租租客、歷史帳單與逐筆付款；歷史資料不觸發營運自動化。</p></RouterLink>
     <section class="rounded-2xl bg-white dark:bg-card-dark border border-gray-100 dark:border-gray-800 p-6">
       <label class="block cursor-pointer border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-gold-500 rounded-xl p-10 text-center">
         <span class="material-symbols-outlined text-4xl text-gold-500">upload_file</span><p class="mt-2 font-medium">{{ parsing ? '解析中…' : '選擇已填好的 Excel 範本' }}</p><p class="text-xs text-text-secondary-light mt-1">.xlsx / .xls / .xlsm；日期必須是 YYYY-MM-DD</p>
