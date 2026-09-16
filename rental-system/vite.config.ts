@@ -11,7 +11,8 @@ export default defineConfig({
       manifest: {
         name: '租賃管家系統',
         short_name: '租賃管家',
-        theme_color: '#2563EB',
+        theme_color: '#141210',
+        background_color: '#FAFAF8',
         icons: [
           {
             src: 'pwa-192x192.png', // 檔案需放在 public/ 下
@@ -21,7 +22,8 @@ export default defineConfig({
           {
             src: 'pwa-512x512.png',
             sizes: '512x512',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any maskable'
           }
         ]
       },

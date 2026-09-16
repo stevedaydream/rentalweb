@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="租賃管家">
+  <rect width="512" height="512" rx="112" fill="#1C1A16"/>
+  <path transform="translate(96 88) scale(5)" fill="#C9A84C" fill-rule="evenodd" d="M32 2L62 27L59.4 30.1L32 7.2L4.6 30.1L2 27ZM10 30L32 12L54 30V58H10ZM29 43.77A6.5 6.5 0 1 1 35 43.77L37 51H27Z"/>
+</svg>
