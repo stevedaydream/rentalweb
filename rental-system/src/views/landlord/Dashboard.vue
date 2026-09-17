@@ -1,46 +1,54 @@
 <template>
-  <div class="max-w-7xl mx-auto space-y-6">
+  <div class="max-w-7xl mx-auto space-y-4 md:space-y-6">
 
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="flex items-center justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
+        <h1 class="text-xl md:text-2xl font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark">
           {{ greeting }}，{{ authStore.userProfile?.name || '房東' }}
         </h1>
-        <p class="text-text-secondary-light dark:text-text-secondary-dark">這裡是您的物業概況</p>
+        <p class="text-sm text-text-secondary-light dark:text-text-secondary-dark">
+          <span class="md:hidden">{{ attentionCount > 0 ? `${attentionCount} 項待處理` : '查看本月工作進度' }}</span>
+          <span class="hidden md:inline">這裡是您的物業概況</span>
+        </p>
       </div>
-      <div class="flex gap-3">
+      <div class="flex shrink-0 gap-3">
         <RouterLink
           :to="{ name: 'RoomManagement', query: { action: 'new' } }"
-          class="px-4 py-2 bg-gold-500 text-white rounded-xl shadow-sm hover:bg-gold-600 transition-colors text-sm font-medium flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
+          aria-label="新增房源"
+          class="w-10 h-10 md:w-auto md:h-auto md:px-4 md:py-2 bg-gold-500 text-white rounded-xl shadow-sm hover:bg-gold-600 transition-colors text-sm font-medium flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
         >
-          <span class="material-symbols-outlined text-[18px] mr-2" aria-hidden="true">add</span>
-          新增房源
+          <span class="material-symbols-outlined text-[20px] md:mr-2" aria-hidden="true">add</span>
+          <span class="hidden md:inline">新增房源</span>
         </RouterLink>
       </div>
     </div>
 
     <!-- 開始簽約 / 邀請租客填資料：新租客上線入口 -->
-    <div class="rounded-2xl bg-gradient-to-r from-gold-500 to-gold-600 text-white p-5 md:p-6 shadow-lg shadow-gold-500/20">
-      <div class="flex items-center justify-between gap-4 flex-wrap">
-        <div class="flex items-center gap-4">
+    <div class="rounded-2xl bg-gradient-to-r from-gold-500 to-gold-600 text-white p-3.5 md:p-6 shadow-lg shadow-gold-500/20">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4">
+        <div class="hidden md:flex items-center gap-4">
           <span class="material-symbols-outlined text-[34px]" aria-hidden="true">draw</span>
           <div>
             <h2 class="text-lg font-bold">開始簽約</h2>
             <p class="text-sm text-white/85">建檔 → 簽約 → 收押金 → 入住點交，引導新租客一條龍上線</p>
           </div>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="md:hidden flex items-center gap-2">
+          <span class="material-symbols-outlined text-[22px]" aria-hidden="true">draw</span>
+          <h2 class="font-bold">新租客上線</h2>
+        </div>
+        <div class="grid grid-cols-2 md:flex items-center gap-2 w-full md:w-auto">
           <button
             @click="showInvite = true"
-            class="px-4 py-2 bg-white/15 hover:bg-white/25 rounded-xl text-sm font-bold flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+            class="px-3.5 py-2.5 md:px-4 md:py-2 bg-white/15 hover:bg-white/25 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
           >
-            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">mail</span>邀請填資料
+            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">mail</span>邀請租客
           </button>
           <RouterLink
             :to="{ name: 'OnboardingMode' }"
-            class="px-4 py-2 bg-white text-gold-600 rounded-xl text-sm font-bold flex items-center gap-1.5 hover:bg-gold-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            class="px-3.5 py-2.5 md:px-4 md:py-2 bg-white text-gold-600 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 hover:bg-gold-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
-            開始<span class="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_forward</span>
+            開始簽約<span class="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_forward</span>
           </RouterLink>
         </div>
       </div>
@@ -58,11 +66,12 @@
       <span class="material-symbols-outlined animate-spin motion-reduce:animate-none text-4xl text-ink-200">progress_activity</span>
     </div>
 
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6">
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 md:gap-6">
 
-      <TaxReminderCard :reminders="taxReminders" />
+      <TaxReminderCard class="order-4 md:order-1" :reminders="taxReminders" />
 
       <MonthlyTaskCard
+        class="order-1 md:order-2"
         :landlord-id="authStore.effectiveUid"
         :pending-count="financial.unpaidTenantCount"
         :bill-send-day="authStore.userProfile?.settings?.billSendDay ?? 1"
@@ -70,16 +79,17 @@
       />
 
       <LandlordProfileCard
+        class="order-3 md:order-3"
         :name="authStore.userProfile?.name || ''"
         :landlord-code="authStore.userProfile?.landlordCode || ''"
         :stats="stats"
       />
 
-      <FinancialOverviewCard :financial="financial" @select="billFilter = $event" />
+      <FinancialOverviewCard class="order-2 md:order-4" :financial="financial" @select="billFilter = $event" />
 
-      <MeterUsageOverview :usage="meterUsage" />
+      <MeterUsageOverview class="order-5" :usage="meterUsage" />
 
-      <RepairTicketCard :tickets="repairTickets" />
+      <RepairTicketCard class="order-6" :tickets="repairTickets" />
 
     </div>
 
@@ -160,6 +170,14 @@ const meterUsage = ref<MeterUsageSummary>({
 });
 const repairTickets = ref<RepairTicket[]>([]);
 const taxReminders = ref<Reminder[]>([]);
+
+const attentionCount = computed(() =>
+  financial.unpaidTenantCount
+  + financial.overdueCount
+  + stats.pendingTenants
+  + repairTickets.value.length
+  + taxReminders.value.length
+);
 
 const billFilter = ref<BillCategory | null>(null);
 const billDetails = reactive<Record<BillCategory, BillLite[]>>({

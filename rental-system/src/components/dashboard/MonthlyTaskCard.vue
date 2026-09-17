@@ -1,15 +1,58 @@
 <template>
-  <div class="lg:col-span-12 bg-white dark:bg-card-dark rounded-2xl p-5 shadow-sm border border-ink-100 dark:border-ink-800">
-    <div class="flex items-center justify-between mb-4">
+  <div class="lg:col-span-12 bg-white dark:bg-card-dark rounded-2xl p-4 md:p-5 shadow-sm border border-ink-100 dark:border-ink-800">
+    <div class="flex items-center justify-between mb-3 md:mb-4">
       <div class="flex items-center gap-2">
         <span class="material-symbols-outlined text-[20px] text-gold-500" aria-hidden="true">task_alt</span>
         <h3 class="font-bold text-text-primary-light dark:text-text-primary-dark">本月工作清單</h3>
-        <span class="text-xs text-text-secondary-light bg-surface-light dark:bg-surface-dark px-2 py-0.5 rounded-full">{{ monthLabel }}</span>
+        <span class="hidden sm:inline text-xs text-text-secondary-light bg-surface-light dark:bg-surface-dark px-2 py-0.5 rounded-full">{{ monthLabel }}</span>
       </div>
       <span class="text-xs text-text-secondary-light">{{ doneCount }}/4 完成</span>
     </div>
 
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div class="md:hidden">
+      <RouterLink
+        v-if="nextTask"
+        :to="{ name: nextTask.route }"
+        class="flex items-center gap-3 p-3 rounded-xl bg-gold-50 dark:bg-gold-900/20 border border-gold-200 dark:border-gold-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
+      >
+        <span class="w-9 h-9 rounded-xl bg-gold-500 text-white flex items-center justify-center shrink-0">
+          <span class="material-symbols-outlined text-[20px]" aria-hidden="true">{{ nextTask.icon }}</span>
+        </span>
+        <div class="min-w-0 flex-1">
+          <p class="text-[11px] text-gold-700 dark:text-gold-300 font-bold">下一步</p>
+          <p class="text-sm font-bold text-text-primary-light dark:text-text-primary-dark">{{ nextTask.title }}</p>
+          <p class="text-xs text-text-secondary-light truncate">{{ nextTask.detail }}</p>
+        </div>
+        <span class="material-symbols-outlined text-gold-600" aria-hidden="true">arrow_forward</span>
+      </RouterLink>
+
+      <div v-else class="flex items-center gap-3 p-3 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300">
+        <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+        <p class="text-sm font-bold">本月工作已全部完成</p>
+      </div>
+
+      <details class="mt-2 group">
+        <summary class="list-none cursor-pointer py-1.5 text-xs text-text-secondary-light flex items-center justify-center gap-1 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500">
+          查看完整清單
+          <span class="material-symbols-outlined text-[16px] transition-transform group-open:rotate-180" aria-hidden="true">expand_more</span>
+        </summary>
+        <div class="mt-2 divide-y divide-ink-100 dark:divide-ink-800 border-t border-ink-100 dark:border-ink-800">
+          <div v-for="task in mobileTasks" :key="task.title" class="flex items-center gap-3 py-2.5">
+            <span class="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
+              :class="task.done ? 'bg-green-100 text-green-600 dark:bg-green-900/30' : 'bg-ink-100 text-ink-400 dark:bg-ink-800'">
+              <span class="material-symbols-outlined text-[15px]" aria-hidden="true">{{ task.done ? 'check' : task.icon }}</span>
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-medium">{{ task.title }}</p>
+              <p class="text-[11px] text-text-secondary-light truncate">{{ task.detail }}</p>
+            </div>
+            <RouterLink v-if="!task.done" :to="{ name: task.route }" class="text-xs font-medium text-gold-600">處理</RouterLink>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="hidden md:grid grid-cols-4 gap-3">
 
       <!-- Step 1: 抄電表 -->
       <div class="flex flex-col gap-2 p-4 rounded-xl border transition-all"
@@ -130,6 +173,39 @@ const steps = computed(() => ({
   notify: billCount.value > 0 && sendDayCountdown.value !== null && sendDayCountdown.value < 0,
   collected: billCount.value > 0 && props.pendingCount === 0,
 }))
+
+const mobileTasks = computed(() => [
+  {
+    title: '抄電表',
+    detail: steps.value.meter ? `已完成 (${meterCount.value} 筆)` : '尚未輸入本月電表度數',
+    done: steps.value.meter,
+    route: 'MeterReading',
+    icon: 'electric_meter',
+  },
+  {
+    title: '生成帳單',
+    detail: steps.value.bills ? `已生成 (${billCount.value} 筆)` : '尚未生成本月帳單',
+    done: steps.value.bills,
+    route: 'Financials',
+    icon: 'receipt_long',
+  },
+  {
+    title: '通知租客',
+    detail: steps.value.notify ? '已發送通知' : sendDayCountdown.value === null ? '生成帳單後發送' : sendDayCountdown.value > 0 ? `${sendDayCountdown.value} 天後發送` : '今日應發送帳單通知',
+    done: steps.value.notify,
+    route: 'Financials',
+    icon: 'notifications',
+  },
+  {
+    title: '確認收款',
+    detail: steps.value.collected ? '全部已收款' : props.pendingCount > 0 ? `還有 ${props.pendingCount} 人未繳` : '等待帳單生成',
+    done: steps.value.collected,
+    route: 'Financials',
+    icon: 'payments',
+  },
+])
+
+const nextTask = computed(() => mobileTasks.value.find(task => !task.done) ?? null)
 
 const doneCount = computed(() =>
   [steps.value.meter, steps.value.bills, steps.value.notify, steps.value.collected].filter(Boolean).length

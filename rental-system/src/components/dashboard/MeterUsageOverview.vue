@@ -1,5 +1,5 @@
 <template>
-  <div class="lg:col-span-7 bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-ink-100 dark:border-ink-800">
+  <div class="lg:col-span-7 bg-white dark:bg-card-dark rounded-2xl p-4 md:p-6 shadow-sm border border-ink-100 dark:border-ink-800">
     <div class="flex justify-between items-center mb-4">
       <h3 class="font-bold text-lg flex items-center">
         <span class="material-symbols-outlined mr-2 text-gold-500" aria-hidden="true">electric_bolt</span>
@@ -27,7 +27,7 @@
     </div>
 
     <!-- 三欄摘要 -->
-    <div class="grid grid-cols-3 gap-3 mb-5">
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3 mb-4 md:mb-5">
       <div class="p-3 rounded-xl bg-surface-light dark:bg-surface-dark">
         <p class="text-[10px] font-bold text-text-secondary-light uppercase">本月用電</p>
         <p class="text-base font-bold mt-0.5 font-mono">{{ usage.totalUsage.toLocaleString() }} <span class="text-xs font-normal">度</span></p>
@@ -36,7 +36,7 @@
         <p class="text-[10px] font-bold text-text-secondary-light uppercase">本月電費</p>
         <p class="text-base font-bold mt-0.5 font-mono">NT$ {{ usage.totalCost.toLocaleString() }}</p>
       </div>
-      <div class="p-3 rounded-xl bg-surface-light dark:bg-surface-dark">
+      <div class="hidden md:block p-3 rounded-xl bg-surface-light dark:bg-surface-dark">
         <p class="text-[10px] font-bold text-text-secondary-light uppercase">較上月</p>
         <p v-if="usage.deltaPct === null" class="text-base font-bold mt-0.5 text-ink-300">—</p>
         <p v-else class="text-base font-bold mt-0.5 font-mono flex items-center gap-0.5"
@@ -50,7 +50,18 @@
     </div>
 
     <!-- 用電排行 -->
-    <div v-if="usage.rows.length > 0">
+    <button
+      v-if="usage.rows.length > 0"
+      type="button"
+      @click="mobileExpanded = !mobileExpanded"
+      class="md:hidden w-full py-2 text-xs font-medium text-text-secondary-light flex items-center justify-center gap-1"
+      :aria-expanded="mobileExpanded"
+    >
+      {{ mobileExpanded ? '收合用電排行' : '展開用電排行' }}
+      <span class="material-symbols-outlined text-[16px] transition-transform" :class="mobileExpanded ? 'rotate-180' : ''" aria-hidden="true">expand_more</span>
+    </button>
+
+    <div v-if="usage.rows.length > 0" :class="mobileExpanded ? 'block' : 'hidden md:block'">
       <p class="text-xs font-bold text-text-secondary-light uppercase mb-2">用電排行</p>
       <div class="space-y-1.5">
         <div v-for="row in topRows" :key="row.name" class="flex items-center gap-2 text-sm">
@@ -67,7 +78,7 @@
         其他 {{ usage.rows.length - TOP_N }} 個電表未列出
       </p>
     </div>
-    <p v-else class="py-4 text-center text-sm text-ink-300">本月尚無抄表紀錄</p>
+    <p v-else class="py-2 md:py-4 text-center text-sm text-ink-300">本月尚無抄表紀錄</p>
 
     <div class="mt-4 text-center">
       <RouterLink
@@ -82,7 +93,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 export interface MeterUsageRow {
   name: string;
@@ -103,6 +114,7 @@ export interface MeterUsageSummary {
 }
 
 const TOP_N = 5;
+const mobileExpanded = ref(false);
 
 const props = defineProps<{
   usage: MeterUsageSummary;

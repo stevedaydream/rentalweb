@@ -1,24 +1,24 @@
 <template>
-  <div class="lg:col-span-8 bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-ink-100 dark:border-ink-800">
-    <div class="flex justify-between items-center mb-6">
-      <h3 class="font-bold text-lg flex items-center">
+  <div class="lg:col-span-8 bg-white dark:bg-card-dark rounded-2xl p-4 md:p-6 shadow-sm border border-ink-100 dark:border-ink-800">
+    <div class="flex justify-between items-center mb-4 md:mb-6">
+      <h3 class="font-bold text-base md:text-lg flex items-center">
         <span class="material-symbols-outlined mr-2 text-gold-500" aria-hidden="true">payments</span>
-        帳務概況 (全覽)
+        帳務概況 <span class="hidden md:inline">（全覽）</span>
       </h3>
-      <RouterLink :to="{ name: 'Financials' }" class="text-sm text-gold-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 rounded">查看詳細報表</RouterLink>
+      <RouterLink :to="{ name: 'Financials' }" class="text-xs md:text-sm text-gold-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 rounded">查看帳務</RouterLink>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
       <button
         type="button"
         @click="$emit('select', 'unpaid')"
         aria-label="查看未繳費租客"
-        class="p-4 rounded-xl border-l-4 border-yellow-400 bg-yellow-50 dark:bg-yellow-900/10 text-left hover:bg-yellow-100 dark:hover:bg-yellow-900/20 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500"
+        class="p-3 md:p-4 rounded-xl border-l-4 border-yellow-400 bg-yellow-50 dark:bg-yellow-900/10 text-left hover:bg-yellow-100 dark:hover:bg-yellow-900/20 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500"
       >
         <p class="text-sm text-text-secondary-light">未繳費</p>
-        <div class="flex items-end justify-between mt-2">
-          <span class="text-2xl font-bold text-text-primary-light">{{ financial.unpaidCount }} 筆</span>
-          <span class="text-sm font-medium text-yellow-600">NT$ {{ financial.unpaidAmount.toLocaleString() }}</span>
+        <div class="mt-1.5 md:mt-2">
+          <span class="text-xl md:text-2xl font-bold text-text-primary-light">{{ financial.unpaidTenantCount }} 人</span>
+          <span class="block mt-1 text-xs md:text-sm font-medium text-yellow-600 tabular-nums">NT$ {{ financial.unpaidAmount.toLocaleString() }}</span>
         </div>
       </button>
 
@@ -26,7 +26,7 @@
         type="button"
         @click="$emit('select', 'paid')"
         aria-label="查看已繳費租客"
-        class="p-4 rounded-xl border-l-4 border-green-500 bg-green-50 dark:bg-green-900/10 text-left hover:bg-green-100 dark:hover:bg-green-900/20 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500"
+        class="hidden md:block p-4 rounded-xl border-l-4 border-green-500 bg-green-50 dark:bg-green-900/10 text-left hover:bg-green-100 dark:hover:bg-green-900/20 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500"
       >
         <p class="text-sm text-text-secondary-light">已繳費</p>
         <div class="flex items-end justify-between mt-2">
@@ -39,17 +39,17 @@
         type="button"
         @click="$emit('select', 'overdue')"
         aria-label="查看逾期欠費租客"
-        class="p-4 rounded-xl border-l-4 border-red-500 bg-red-50 dark:bg-red-900/10 text-left hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+        class="p-3 md:p-4 rounded-xl border-l-4 border-red-500 bg-red-50 dark:bg-red-900/10 text-left hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
       >
         <p class="text-sm text-text-secondary-light">逾期欠費</p>
-        <div class="flex items-end justify-between mt-2">
-          <span class="text-2xl font-bold text-red-600">{{ financial.overdueCount }} 筆</span>
-          <span class="text-sm font-medium text-red-600">NT$ {{ financial.overdueAmount.toLocaleString() }}</span>
+        <div class="mt-1.5 md:mt-2">
+          <span class="text-xl md:text-2xl font-bold text-red-600">{{ financial.overdueCount }} 筆</span>
+          <span class="block mt-1 text-xs md:text-sm font-medium text-red-600 tabular-nums">NT$ {{ financial.overdueAmount.toLocaleString() }}</span>
         </div>
       </button>
     </div>
 
-    <div class="mt-6 flex flex-wrap gap-2">
+    <div class="hidden md:flex mt-6 flex-wrap gap-2">
       <span class="text-sm text-text-secondary-light self-center mr-2">快捷篩選:</span>
       <button class="px-3 py-1 text-xs rounded-full bg-surface-light hover:bg-ink-100 text-ink-500">全部房源</button>
     </div>
@@ -61,6 +61,7 @@ import type { BillCategory } from './BillStatusModal.vue';
 
 interface FinancialStats {
   unpaidCount: number;
+  unpaidTenantCount: number;
   unpaidAmount: number;
   paidCount: number;
   paidAmount: number;

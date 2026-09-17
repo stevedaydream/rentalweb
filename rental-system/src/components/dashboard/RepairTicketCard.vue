@@ -1,5 +1,5 @@
 <template>
-  <div class="lg:col-span-5 bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-ink-100 dark:border-ink-800">
+  <div class="lg:col-span-5 bg-white dark:bg-card-dark rounded-2xl p-4 md:p-6 shadow-sm border border-ink-100 dark:border-ink-800">
     <div class="flex justify-between items-center mb-4">
       <h3 class="font-bold text-lg flex items-center">
         <span class="material-symbols-outlined mr-2 text-orange-500">build_circle</span>
@@ -30,14 +30,14 @@
         </p>
       </RouterLink>
 
-      <div v-if="tickets.length === 0" class="text-center py-6 text-gray-400 text-sm">
+      <div v-if="tickets.length === 0" class="text-center py-2 md:py-6 text-gray-400 text-sm">
         目前沒有待處理的報修
       </div>
     </div>
 
     <RouterLink
       :to="{ name: 'RepairRequests' }"
-      class="mt-4 block w-full py-2 text-center border border-dashed border-ink-200 dark:border-ink-700 rounded-lg text-sm text-text-secondary-light hover:text-gold-600 hover:border-gold-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
+      class="mt-3 md:mt-4 block w-full py-2 text-center border border-dashed border-ink-200 dark:border-ink-700 rounded-lg text-sm text-text-secondary-light hover:text-gold-600 hover:border-gold-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
     >
       查看所有報修紀錄
     </RouterLink>

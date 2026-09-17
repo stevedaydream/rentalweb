@@ -1,6 +1,40 @@
 <template>
-  <div class="lg:col-span-4 bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-ink-100 dark:border-ink-800 flex flex-col justify-between">
-    <div>
+  <div class="lg:col-span-4 bg-white dark:bg-card-dark rounded-2xl p-4 md:p-6 shadow-sm border border-ink-100 dark:border-ink-800 flex flex-col justify-between">
+    <div class="md:hidden">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold flex items-center gap-2">
+          <span class="material-symbols-outlined text-[20px] text-gold-500" aria-hidden="true">apartment</span>
+          房源概況
+        </h3>
+        <RouterLink :to="{ name: 'RoomManagement' }" class="text-xs text-gold-600">管理房源</RouterLink>
+      </div>
+
+      <RouterLink
+        v-if="stats.pendingTenants > 0"
+        :to="{ name: 'TenantList' }"
+        class="mb-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-xl flex items-center justify-between text-purple-700 dark:text-purple-300"
+      >
+        <span class="text-sm font-bold flex items-center gap-2">
+          <span class="material-symbols-outlined text-[18px]" aria-hidden="true">person_add</span>
+          新租客待確認
+        </span>
+        <span class="text-xs font-bold">{{ stats.pendingTenants }} 人</span>
+      </RouterLink>
+
+      <div class="grid grid-cols-4 divide-x divide-ink-100 dark:divide-ink-700 text-center">
+        <div><p class="text-xl font-extrabold tabular-nums">{{ stats.totalRooms }}</p><p class="text-[11px] text-text-secondary-light">總房源</p></div>
+        <div><p class="text-xl font-extrabold text-green-600 tabular-nums">{{ stats.occupied }}</p><p class="text-[11px] text-text-secondary-light">出租中</p></div>
+        <div><p class="text-xl font-extrabold text-blue-600 tabular-nums">{{ stats.vacant }}</p><p class="text-[11px] text-text-secondary-light">可出租</p></div>
+        <div><p class="text-xl font-extrabold text-orange-600 tabular-nums">{{ stats.maintenance }}</p><p class="text-[11px] text-text-secondary-light">維修中</p></div>
+      </div>
+
+      <div class="mt-3 pt-3 border-t border-ink-100 dark:border-ink-800 flex items-center justify-between text-sm">
+        <RouterLink :to="{ name: 'TenantList' }" class="text-text-secondary-light hover:text-gold-600">在租租客 {{ stats.activeTenants }} 人</RouterLink>
+        <button @click="handleCopyCode" class="text-xs text-text-secondary-light hover:text-gold-600">複製房東 ID</button>
+      </div>
+    </div>
+
+    <div class="hidden md:block">
       <div class="flex items-start justify-between mb-6">
         <div class="flex items-center">
           <div class="w-12 h-12 rounded-full bg-gold-100 dark:bg-gold-900/30 flex items-center justify-center text-gold-700 font-bold text-xl">

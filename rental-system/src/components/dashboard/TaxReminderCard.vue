@@ -7,7 +7,7 @@
       : 'border-amber-200 dark:border-amber-800'"
   >
     <div
-      class="px-5 py-3.5 border-b flex items-center gap-2 flex-wrap"
+      class="px-4 md:px-5 py-3 md:py-3.5 border-b flex items-center gap-2 flex-wrap"
       :class="hasDanger
         ? 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800'
         : 'bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800'"
@@ -25,7 +25,7 @@
     </div>
 
     <ul class="divide-y divide-ink-50 dark:divide-ink-800">
-      <li v-for="r in reminders" :key="r.id" class="flex items-start gap-3 px-5 py-3">
+      <li v-for="r in reminders" :key="r.id" class="flex items-start gap-3 px-4 md:px-5 py-3">
         <span class="material-symbols-outlined text-[18px] shrink-0 mt-0.5" :class="iconClass(r.severity)" aria-hidden="true">
           {{ icon(r.kind) }}
         </span>

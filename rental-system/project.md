@@ -10,6 +10,12 @@ Firebase 專案 ID：`rental-system-7675e`
 
 ## 技術架構
 
+### 2026-09-17 房東儀表板手機版精簡
+
+- 手機版改為行動優先資訊層級：本月下一步 → 未繳／逾期 → 房源摘要 → 提醒、用電與報修；桌機版維持原有完整卡片與排列。
+- 頁首與新租客上線入口縮短高度；新增房源改為圖示按鈕。月工作清單預設只顯示下一個未完成項目，可展開完整四步。
+- 帳務手機版只突出未繳人數與逾期筆數；房東個人卡收斂為四項房源統計；用電排行預設收合，空報修區縮短。
+
 ### 2026-09-17 水費（多房東階段二，ADR-009）
 
 - 規則在 `functions/billing/water.mjs`（前後端共用，前端經 `utils/financials/water.ts` 匯入，型別 `water.d.mts`）：建物 `properties.waterSettings{mode: landlord|fixed|split|tenant_direct|unset, basis: room|person, fixedAmount}`，未設定時依合約範本 `feeWater` 推定（房東負擔→landlord、租客負擔→unset）；房間 `rooms.waterMode`（independent 獨立水號＋`waterNo`／tenant_direct）覆寫建物；租客 `tenants.occupants` 居住人數（預設 1）。
