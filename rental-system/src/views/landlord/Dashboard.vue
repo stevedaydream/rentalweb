@@ -352,6 +352,8 @@ const fetchDashboardData = async () => {
     });
     billsSnap.forEach(d => {
       const data = d.data();
+      // 支出（修繕、台電帳單等）不是向租客收的錢，不列入收款概況
+      if (data.type === 'expense') return;
       const amount = Number(data.amount) || 0;
       // 舊帳單或已刪除租客：退回 target（格式為「姓名 房號」）
       const target = String(data.target || '').trim();
