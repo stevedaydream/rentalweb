@@ -174,6 +174,8 @@ export const planRebills = <T extends PayableBill & RentBillLike>(
   const items: RebillItem<T>[] = []
   for (const b of rentBills) {
     if (b.type !== 'income' || outstandingOf(b) <= 0) continue
+    // 退租末期按日計租的單是依實際天數算的，不能改回整期
+    if (b.prorated) continue
     const cur = rentCoverage(b)
     const plan = rebillRent(tenant, b)
     if (!cur || !plan || cur.to < currentMonth) continue

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import {
   CYCLE_MONTHS, validMonth, validDate, monthEnd, coveragePeriod, leaseIncludesMonth,
   shouldGenerateRent, getBillingAmount, getBillingDescription, rentCoverage,
-  overlapsCoverage, publicMeterShare,
+  overlapsCoverage, publicMeterShare, rentPeriodDates, proratedRent,
 } from './rules.mjs'
 import { normalizeWaterSettings, effectiveWaterMode, fixedWaterCharge, fixedWaterDescription } from './water.mjs'
 
@@ -121,13 +121,31 @@ export function buildPlan(input) {
       warnings.push(`${label}：租金金額無效，未出租金`)
       continue
     }
+    // 月繳且租約在本期計費期間內結束：按日計租，帳單註明計租起訖
+    let prorated = null
+    if (freq === 'monthly' && validDate(tenant.leaseEnd)) {
+      const period = rentPeriodDates(month, day)
+      if (tenant.leaseEnd < period.from) {
+        skipped.push(`${label}：租約於 ${tenant.leaseEnd} 結束，早於本期計費起日 ${period.from}，未出租金`)
+        continue
+      }
+      if (tenant.leaseEnd < period.to) {
+        prorated = proratedRent(amount, period.from, tenant.leaseEnd)
+        const formula = prorated.segments.map(g => `${amount}÷${g.daysInMonth}×${g.days}`).join('＋')
+        warnings.push(`${label}：租約於 ${tenant.leaseEnd} 結束，租金按日計 ${prorated.from}～${prorated.to} 共 ${prorated.days} 日`
+          + `（${formula}）NT$${prorated.amount}，請確認`)
+      }
+    }
     if (!tenant.leaseStart) warnings.push(`${label}：缺少起租日，租金沿用月繳整月計收，請補齊租期`)
     if ((tenant.leaseStart?.slice(0, 7) === month && tenant.leaseStart.slice(-2) !== '01')
-      || (tenant.leaseEnd?.slice(0, 7) === cover.to && tenant.leaseEnd !== monthEnd(cover.to))) {
+      || (!prorated && freq !== 'monthly' && tenant.leaseEnd?.slice(0, 7) === cover.to && tenant.leaseEnd !== monthEnd(cover.to))) {
       warnings.push(`${label}：首月或末月不足整月，本次按整月計收，請確認`)
     }
-    add(tenant, '租金收入', getBillingDescription(tenant, month), amount,
-      ['rent', tenant.id, month], { coverFrom: cover.from, coverTo: cover.to })
+    add(tenant, '租金收入', prorated
+      ? `${getBillingDescription(tenant, month)}（按日計 ${prorated.from}～${prorated.to} 共 ${prorated.days} 日）`
+      : getBillingDescription(tenant, month),
+    prorated ? prorated.amount : amount,
+    ['rent', tenant.id, month], { coverFrom: cover.from, coverTo: cover.to, ...(prorated ? { prorated } : {}) })
 
     // 固定月費的水費與租金同批、同涵蓋期間，另開一張以便分開收款與分析
     const room = roomByTenant.get(tenant.id)
