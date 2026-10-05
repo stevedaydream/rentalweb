@@ -76,7 +76,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-export type BillCategory = 'unpaid' | 'paid' | 'overdue';
+export type BillCategory = 'unpaid' | 'paid' | 'overdue' | 'deferred';
 
 export interface BillLite {
   id: string;
@@ -99,7 +99,8 @@ defineEmits<{ close: [] }>();
 const categoryMeta = computed(() => ({
   unpaid: { label: '未繳費', dot: 'bg-yellow-400', amountText: 'text-yellow-600' },
   paid: { label: '已繳費', dot: 'bg-green-500', amountText: 'text-green-600' },
-  overdue: { label: '逾期欠費', dot: 'bg-red-500', amountText: 'text-red-600' }
+  overdue: { label: '逾期欠費', dot: 'bg-red-500', amountText: 'text-red-600' },
+  deferred: { label: '延後收款', dot: 'bg-blue-500', amountText: 'text-blue-600' }
 })[props.category]);
 
 const totalAmount = computed(() => props.bills.reduce((sum, b) => sum + b.amount, 0));

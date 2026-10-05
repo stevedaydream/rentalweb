@@ -133,6 +133,14 @@
           <p class="text-xs text-text-secondary-light">待確認</p>
           <p class="text-lg font-bold text-amber-600">{{ collectSummary.waiting }} 筆</p>
         </div>
+        <button v-if="collectSummary.deferredCount > 0" type="button" @click="showDeferred"
+          class="text-left rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 -mx-2 px-2 transition-colors">
+          <p class="text-xs text-text-secondary-light">延後收款</p>
+          <p class="text-lg font-bold text-blue-600 dark:text-blue-300">
+            NT$ {{ collectSummary.deferredAmount.toLocaleString() }}
+            <span class="ml-1 text-xs font-medium">{{ collectSummary.deferredCount }} 筆</span>
+          </p>
+        </button>
         <button v-if="collectSummary.prior > 0" @click="showPriorArrears"
           class="ml-auto shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-200 transition-colors">
           查看前期欠款
@@ -309,6 +317,10 @@
                 class="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 whitespace-nowrap">
                 前期欠 {{ g.priorOutstanding.toLocaleString() }}
               </span>
+              <span v-if="g.deferredOutstanding > 0"
+                class="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 whitespace-nowrap">
+                延後 {{ g.deferredOutstanding.toLocaleString() }}
+              </span>
               <span v-if="creditOf(g.key) > 0"
                 class="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 whitespace-nowrap">
                 預收 {{ creditOf(g.key).toLocaleString() }}
@@ -356,6 +368,10 @@
                       </span>
                     </span>
                     <span class="shrink-0 sm:w-32 text-right whitespace-nowrap">
+                      <button v-if="canDefer(item)" @click="openDefer(item)"
+                        class="mr-1 px-2 py-1 rounded text-[11px] font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 transition-colors">
+                        延後
+                      </button>
                       <button @click="markPaid(item)"
                         class="px-2 py-1 rounded text-[11px] font-medium bg-red-100 text-red-700 hover:bg-green-100 hover:text-green-700 transition-colors">
                         {{ item.status === 'waiting_confirmation' ? '確認收款' : '收款' }}
@@ -363,14 +379,44 @@
                     </span>
                   </div>
                 </div>
-                <p v-if="g.items.length > 0" class="pt-3 pb-1 sm:pl-7 text-[11px] font-bold text-text-secondary-light">本月</p>
               </template>
+              <template v-if="g.deferred.length > 0">
+                <p class="pt-2 pb-1 sm:pl-7 text-[11px] font-bold text-blue-600 dark:text-blue-300">延後收款</p>
+                <div v-for="item in g.deferred" :key="item.id"
+                  class="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2 sm:pl-7 border-t border-ink-100/60 dark:border-ink-800/60">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium shrink-0"
+                    :class="categoryBadge(item.category)">{{ item.category }}</span>
+                  <span class="text-xs text-text-secondary-light shrink-0 font-mono">{{ item.date }}</span>
+                  <span class="text-xs text-text-secondary-light truncate flex-1 min-w-0">{{ item.description }}</span>
+                  <div class="flex items-center justify-end gap-3 w-full sm:w-auto">
+                    <span class="text-sm font-bold shrink-0 sm:w-24 text-right whitespace-nowrap text-blue-600 dark:text-blue-300">
+                      {{ outstandingOf(item).toLocaleString() }}
+                      <span class="block text-[11px] font-medium">延後至 {{ item.deferredUntil }}</span>
+                    </span>
+                    <span class="shrink-0 sm:w-32 text-right whitespace-nowrap">
+                      <button @click="openDefer(item)"
+                        class="mr-1 px-2 py-1 rounded text-[11px] font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 transition-colors">
+                        再延
+                      </button>
+                      <button @click="markPaid(item)"
+                        class="px-2 py-1 rounded text-[11px] font-medium bg-orange-100 text-orange-700 hover:bg-green-100 hover:text-green-700 transition-colors">
+                        收款
+                      </button>
+                    </span>
+                  </div>
+                </div>
+              </template>
+              <p v-if="(g.prior.length > 0 || g.deferred.length > 0) && g.items.length > 0" class="pt-3 pb-1 sm:pl-7 text-[11px] font-bold text-text-secondary-light">本月</p>
               <div v-for="item in g.items" :key="item.id"
                 class="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2 sm:pl-7 border-t border-ink-100/60 dark:border-ink-800/60">
                 <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium shrink-0"
                   :class="categoryBadge(item.category)">{{ item.category }}</span>
                 <span class="text-xs text-text-secondary-light shrink-0 font-mono">{{ item.date }}</span>
                 <span class="text-xs text-text-secondary-light truncate flex-1 min-w-0">{{ item.description }}</span>
+                <span v-if="deferredOf(item)"
+                  class="shrink-0 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 whitespace-nowrap">
+                  延後至 {{ item.deferredUntil }}
+                </span>
                 <div class="flex items-center justify-end gap-3 w-full sm:w-auto">
                   <span class="text-sm font-bold shrink-0 sm:w-24 text-right whitespace-nowrap"
                     :class="item.type === 'income' ? 'text-green-600' : 'text-red-500'">
@@ -393,11 +439,16 @@
                         確認收款
                       </button>
                     </span>
-                    <button v-else-if="item.type === 'income' && !isCollected(item)"
-                      @click="markPaid(item)"
-                      class="px-2 py-1 rounded text-[11px] font-medium bg-orange-100 text-orange-700 hover:bg-green-100 hover:text-green-700 transition-colors">
-                      {{ isPartial(item) ? '收餘款' : '收款' }}
-                    </button>
+                    <template v-else-if="item.type === 'income' && !isCollected(item)">
+                      <button v-if="canDefer(item)" @click="openDefer(item)"
+                        class="mr-1 px-2 py-1 rounded text-[11px] font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 transition-colors">
+                        延後
+                      </button>
+                      <button @click="markPaid(item)"
+                        class="px-2 py-1 rounded text-[11px] font-medium bg-orange-100 text-orange-700 hover:bg-green-100 hover:text-green-700 transition-colors">
+                        {{ isPartial(item) ? '收餘款' : '收款' }}
+                      </button>
+                    </template>
                     <span v-else-if="item.type === 'income'" class="text-[11px] text-green-600 font-bold">已收 ✓</span>
                     <span v-else class="text-[11px] text-ink-300">支出</span>
                   </span>
@@ -441,6 +492,9 @@
                     <div class="flex flex-col items-center gap-1">
                       <span v-if="isPartial(item)" class="text-[11px] font-medium text-orange-600">
                         已收 {{ collectedOf(item).toLocaleString() }}・剩 {{ outstandingOf(item).toLocaleString() }}
+                      </span>
+                      <span v-if="deferredOf(item)" class="text-[11px] font-medium text-blue-600 dark:text-blue-300">
+                        延後至 {{ item.deferredUntil }}
                       </span>
                       <button
                         @click="markPaid(item)"
@@ -495,6 +549,9 @@
                     <button @click="handleEdit(item)" aria-label="編輯" class="w-full px-4 py-2 text-sm hover:bg-surface-light dark:hover:bg-surface-dark text-ink-600 dark:text-ink-200 flex items-center gap-2">
                       <span class="material-symbols-outlined text-[18px]" aria-hidden="true">edit</span>編輯
                     </button>
+                    <button v-if="canDefer(item)" @click="openDefer(item)" aria-label="延後收款" class="w-full px-4 py-2 text-sm hover:bg-surface-light dark:hover:bg-surface-dark text-blue-600 dark:text-blue-300 flex items-center gap-2">
+                      <span class="material-symbols-outlined text-[18px]" aria-hidden="true">event_upcoming</span>延後收款
+                    </button>
                     <button @click="openHistory(item)" aria-label="修改紀錄" class="w-full px-4 py-2 text-sm hover:bg-surface-light dark:hover:bg-surface-dark text-ink-600 dark:text-ink-200 flex items-center gap-2">
                       <span class="material-symbols-outlined text-[18px]" aria-hidden="true">history</span>修改紀錄
                     </button>
@@ -534,6 +591,7 @@
     <WaterBillModal v-model:show="showWaterModal" :properties="propertiesList" :rooms="roomsList"
       :template-fee-water="templateFeeWater" />
     <BillHistoryModal v-model:show="showHistoryModal" :history="selectedHistory" />
+    <DeferPaymentModal :bill="deferTarget" :busy="deferring" @close="deferTarget = null" @confirm="confirmDefer" />
 
     <!-- 出帳前取得伺服端完整預覽 -->
     <div v-if="showGenerateConfirm" class="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -741,6 +799,8 @@ import PropertyCostsModal from '../../components/financials/PropertyCostsModal.v
 import AnnualSummary from '../../components/financials/AnnualSummary.vue'
 import MonthlyAnalysis from '../../components/financials/MonthlyAnalysis.vue'
 import ReceivePaymentModal from '../../components/financials/ReceivePaymentModal.vue'
+import DeferPaymentModal from '../../components/financials/DeferPaymentModal.vue'
+import { isDeferred, canDefer, deferUpdate } from '../../utils/financials/deferral'
 import { previewBills, commitBills, type BillingPreview, type BillingBatch, type GeneratedBillItem } from '../../services/billingGenerationService'
 import { billingBatches } from '../../utils/financials/billingBatches'
 import {
@@ -800,6 +860,9 @@ interface Transaction {
   /** 租金單涵蓋的起訖月 */
   coverFrom?: string
   coverTo?: string
+  /** 延後收款：約定的新收款日與最初截止日 */
+  deferredUntil?: string
+  originalDueDate?: string
 }
 
 const authStore = useAuthStore()
@@ -1006,10 +1069,20 @@ const monthlyTransactions = computed(() =>
   transactions.value.filter(t => t.date?.startsWith(currentMonth.value))
 )
 
-/** 檢視月份以前還沒繳清的帳單 */
+const todayStr = new Date().toISOString().slice(0, 10)
+const deferredOf = (b: Transaction) => isDeferred(b, todayStr)
+
+/** 檢視月份以前還沒繳清的帳單（延後收款中的另列，不算前期欠款） */
 const priorOpenBills = computed(() => {
   const start = `${currentMonth.value}-01`
-  return openBills.value.filter(b => b.type === 'income' && (b.date || '') < start && outstandingOf(b) > 0)
+  return openBills.value.filter(b => b.type === 'income' && (b.date || '') < start && outstandingOf(b) > 0 && !deferredOf(b))
+})
+
+/** 所有延後收款中的帳單（不分月份） */
+const deferredOpenBills = computed(() => openBills.value.filter(deferredOf))
+const deferredPriorBills = computed(() => {
+  const start = `${currentMonth.value}-01`
+  return deferredOpenBills.value.filter(b => (b.date || '') < start)
 })
 
 /** 前期欠款依租客彙總，供頁首提示與生成帳單確認 */
@@ -1021,18 +1094,19 @@ const priorSummary = computed(() => {
 const creditOf = (tenantDocId: string) => tenantsList.value.find(t => t.id === tenantDocId)?.credit || 0
 
 const stats = computed(() => {
-  let income = 0, incomeCount = 0, pending = 0, pendingCount = 0, expense = 0, expenseCount = 0
+  let income = 0, incomeCount = 0, pending = 0, pendingCount = 0, expense = 0, expenseCount = 0, deferred = 0
   monthlyTransactions.value.forEach(t => {
     if (t.type === 'income') {
       // 部分付款：已收的部分算已收，剩下的算待收
       const got = collectedOf(t), owe = outstandingOf(t)
       if (got > 0) { income += got; incomeCount++ }
-      if (owe > 0) { pending += owe; pendingCount++ }
+      if (owe > 0 && deferredOf(t)) deferred += owe
+      else if (owe > 0) { pending += owe; pendingCount++ }
     } else {
       expense += t.amount; expenseCount++
     }
   })
-  return { income, incomeCount, pending, pendingCount, expense, expenseCount, net: income - expense }
+  return { income, incomeCount, pending, pendingCount, expense, expenseCount, deferred, net: income - expense }
 })
 
 const categoryStats = computed(() => {
@@ -1149,6 +1223,8 @@ const collectSummary = computed(() => ({
   prior: priorSummary.value.total,
   priorTenants: priorSummary.value.groups.length,
   waiting: waitingTotal.value,
+  deferredCount: deferredOpenBills.value.length,
+  deferredAmount: deferredOpenBills.value.reduce((s, b) => s + outstandingOf(b), 0),
 }))
 
 const matchesFilters = (t: Transaction) => {
@@ -1181,7 +1257,40 @@ const toggleGroup = (key: string) => {
 
 // 前期未繳一併掛在各租客底下，本月已繳清但上個月還欠的人才不會被漏掉
 const tenantGroups = computed(() =>
-  buildTenantGroups(filteredTransactions.value, priorOpenBills.value.filter(matchesFilters)))
+  buildTenantGroups(filteredTransactions.value, priorOpenBills.value.filter(matchesFilters), {
+    deferred: deferredPriorBills.value.filter(matchesFilters), isDeferred: deferredOf,
+  }))
+
+/** 摘要條「查看延後收款」：切到依租客並展開所有有延後收款的人 */
+const showDeferred = () => {
+  activeTab.value = 'collect'
+  groupByTenant.value = true
+  statusFilter.value = 'all'
+  categoryFilter.value = 'all'
+  expandedGroups.value = new Set(tenantGroups.value.filter(g => g.deferredOutstanding > 0).map(g => g.key))
+}
+
+// --- 延後收款（實作於 src/utils/financials/deferral.ts） ---
+const deferTarget = ref<Transaction | null>(null)
+const deferring = ref(false)
+const openDefer = (item: Transaction) => { closeDropdown(); deferTarget.value = item }
+const confirmDefer = async (until: string, reason: string) => {
+  const b = deferTarget.value
+  if (!b) return
+  deferring.value = true
+  try {
+    await updateDoc(doc(db, 'bills', b.id), {
+      ...deferUpdate(b, until, reason, new Date().toISOString()),
+      updatedAt: serverTimestamp(),
+    })
+    toast.success(`已延後至 ${until} 收款`)
+    deferTarget.value = null
+  } catch {
+    toast.error('延後失敗，請稍後再試')
+  } finally {
+    deferring.value = false
+  }
+}
 
 /** 摘要條「查看前期欠款」：切到依租客並展開所有有前期欠款的人 */
 const showPriorArrears = () => {

@@ -49,6 +49,17 @@
       </button>
     </div>
 
+    <button
+      v-if="financial.deferredCount > 0"
+      type="button"
+      @click="$emit('select', 'deferred')"
+      aria-label="查看延後收款"
+      class="mt-3 w-full flex items-center justify-between p-3 rounded-xl border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-900/10 text-left hover:bg-blue-100 dark:hover:bg-blue-900/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+    >
+      <span class="text-sm text-text-secondary-light">延後收款 <span class="font-bold text-blue-600">{{ financial.deferredCount }} 筆</span></span>
+      <span class="text-sm font-medium text-blue-600 tabular-nums">NT$ {{ financial.deferredAmount.toLocaleString() }}</span>
+    </button>
+
     <div class="hidden md:flex mt-6 flex-wrap gap-2">
       <span class="text-sm text-text-secondary-light self-center mr-2">快捷篩選:</span>
       <button class="px-3 py-1 text-xs rounded-full bg-surface-light hover:bg-ink-100 text-ink-500">全部房源</button>
@@ -67,6 +78,8 @@ interface FinancialStats {
   paidAmount: number;
   overdueCount: number;
   overdueAmount: number;
+  deferredCount: number;
+  deferredAmount: number;
 }
 
 defineProps<{

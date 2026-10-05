@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { buildPlan, tenantRoom, paidThroughCoverage } from './planner.mjs'
-import { shouldGenerateBill, shouldGenerateRent, publicMeterShare, rentCoverage } from './rules.mjs'
+import { shouldGenerateBill, shouldGenerateRent, publicMeterShare, rentCoverage, rentPeriodDates, proratedRent } from './rules.mjs'
 
 export const fixture = () => ({
   landlordId: 'owner', month: '2026-09', settings: { paymentDay: 12 },
@@ -33,12 +33,15 @@ test('backdated quarterly bill cannot overlap a future monthly bill', () => {
   assert.equal(plan.plans[0].bills.some(b => b.category === '租金收入'), false)
   assert.match(plan.skipped.join(), /重疊/)
 })
-test('cross-lease cycle is blocked; last partial month remains whole-month with a warning', () => {
+test('cross-lease cycle is blocked; monthly lease ending mid-period is prorated by day', () => {
   const input = fixture()
   input.tenants[0].leaseEnd = '2026-09-15'
   let plan = buildPlan(input)
-  assert.equal(plan.plans[0].bills[0].amount, 7000)
-  assert.match(plan.warnings.join(), /不足整月/)
+  // 繳費日 12 號：本期 09/12～10/11，租到 09/15 共 4 日，7000÷30×4
+  const rent = plan.plans[0].bills[0]
+  assert.equal(rent.amount, 933)
+  assert.match(rent.description, /按日計 2026-09-12～2026-09-15 共 4 日/)
+  assert.match(plan.warnings.join(), /按日計/)
   input.tenants[0].paymentFrequency = 'quarterly'
   plan = buildPlan(input)
   assert.match(plan.warnings.join(), /超出租約終月/)
@@ -208,4 +211,55 @@ test('quarterly tenant paid through mid-cycle resumes after the paid quarter', (
 test('invalid rentPaidThrough is ignored', () => {
   assert.equal(paidThroughCoverage({ id: 'x', rentPaidThrough: '2026/9' }), null)
   assert.deepEqual(paidThroughCoverage({ id: 'x', leaseStart: '2026-12-01', rentPaidThrough: '2026-09' }).coverFrom, '2026-09')
+})
+test('rent period runs from payment day to the day before next payment day', () => {
+  assert.deepEqual(rentPeriodDates('2026-10', 12), { from: '2026-10-12', to: '2026-11-11' })
+  assert.deepEqual(rentPeriodDates('2026-02', 1), { from: '2026-02-01', to: '2026-02-28' })
+  assert.deepEqual(rentPeriodDates('2026-01', 31), { from: '2026-01-31', to: '2026-02-27' })
+})
+test('prorated rent splits by calendar month and uses each month days', () => {
+  const one = proratedRent(6200, '2026-10-12', '2026-10-23')
+  assert.equal(one.days, 12)
+  assert.equal(one.amount, 2400)
+  const two = proratedRent(6000, '2026-10-12', '2026-11-05')
+  assert.deepEqual(two.segments.map(g => [g.from, g.to, g.days, g.daysInMonth]),
+    [['2026-10-12', '2026-10-31', 20, 31], ['2026-11-01', '2026-11-05', 5, 30]])
+  assert.equal(two.amount, Math.round(6000 * 20 / 31 + 6000 * 5 / 30))
+})
+test('move-out inside the billing period prorates the last rent; full period stays whole', () => {
+  const input = fixture()
+  input.month = '2026-10'
+  input.readings = []
+  input.tenants[0].leaseEnd = '2026-10-23'
+  const rent = buildPlan(input).plans[0].bills.find(b => b.category === '租金收入')
+  assert.equal(rent.amount, Math.round(7000 * 12 / 31))
+  assert.equal(rent.prorated.days, 12)
+  input.tenants[0].leaseEnd = '2026-11-11'
+  assert.equal(buildPlan(input).plans[0].bills.find(b => b.category === '租金收入').amount, 7000)
+})
+test('lease ending before the period starts bills no rent', () => {
+  const input = fixture()
+  input.month = '2026-10'
+  input.readings = []
+  input.tenants[0].leaseEnd = '2026-10-05'
+  const plan = buildPlan(input)
+  assert.equal(plan.plans.flatMap(p => p.bills).some(b => b.category === '租金收入'), false)
+  assert.match(plan.skipped.join(), /早於本期計費起日/)
+})
+test('first month is prorated from lease start to the day before the next payment day', () => {
+  const input = fixture()
+  input.month = '2026-10'
+  input.readings = []
+  input.tenants[0] = { ...input.tenants[0], leaseStart: '2026-10-24', leaseEnd: '2027-10-23', credit: 0 }
+  const plan = buildPlan(input)
+  const rent = plan.plans[0].bills.find(b => b.category === '租金收入')
+  assert.deepEqual(rent.prorated.segments.map(g => [g.from, g.to, g.days, g.daysInMonth]),
+    [['2026-10-24', '2026-10-31', 8, 31], ['2026-11-01', '2026-11-11', 11, 30]])
+  assert.equal(rent.amount, Math.round(7000 * 8 / 31 + 7000 * 11 / 30))
+  assert.match(plan.warnings.join(), /2026-10-24 起租/)
+  // 首月租金已轉預收：沖抵按日計的首月，多的留著
+  input.tenants[0].credit = 7000
+  const p2 = buildPlan(input).plans[0]
+  assert.equal(p2.bills[0].creditApplied, rent.amount)
+  assert.equal(p2.creditBefore - p2.creditUsed, 7000 - rent.amount)
 })

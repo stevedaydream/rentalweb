@@ -2383,6 +2383,7 @@ const closeDropdown = () => { activeMenuId.value = null; };
 // --- Deposit Logic (used in drawer deposits tab) ---
 const depositItems = ref<DepositItem[]>([]);
 const isMarkingPaid = ref(false);
+const FIRST_RENT_LABEL = '首月租金';
 
 const loadDepositItems = async (tenant: Tenant) => {
   depositItems.value = [];
@@ -2403,23 +2404,35 @@ const markDepositPaid = async (idx: number) => {
     const todayDate = new Date().toISOString().split('T')[0]!;
     const nowLabel = new Date().toLocaleDateString('zh-TW');
     depositItems.value[idx] = { ...item, status: 'paid', paidAt: nowLabel };
-    await updateDoc(doc(db, 'contracts', tenant.contractId!), { deposits: depositItems.value });
-    await addDoc(collection(db, 'bills'), {
-      landlordId: authStore.effectiveUid,
-      tenantId: tenant.uid || null,
-      relatedTenantDocId: tenant.id,
-      relatedContractId: tenant.contractId,
-      date: todayDate,
-      type: 'income',
-      category: '入住款項',
-      target: `${tenant.room} ${tenant.name}`,
-      description: item.label,
-      amount: item.amount,
-      status: 'completed',
-      dueDate: todayDate,
-      history: [],
-      createdAt: serverTimestamp(),
-    });
+    const isFirstRent = item.label === FIRST_RENT_LABEL;
+    if (isFirstRent) {
+      // 首月租金轉預收餘額：出帳時沖抵按日計的首月租金，多的留給下一期；不另記收入，避免重複
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'contracts', tenant.contractId!), { deposits: depositItems.value });
+      batch.update(doc(db, 'tenants', tenant.id), {
+        credit: increment(item.amount),
+        creditLog: arrayUnion(paymentEntry(item.amount, todayDate, 'manual', '首月租金轉預收')),
+      });
+      await batch.commit();
+    } else {
+      await updateDoc(doc(db, 'contracts', tenant.contractId!), { deposits: depositItems.value });
+      await addDoc(collection(db, 'bills'), {
+        landlordId: authStore.effectiveUid,
+        tenantId: tenant.uid || null,
+        relatedTenantDocId: tenant.id,
+        relatedContractId: tenant.contractId,
+        date: todayDate,
+        type: 'income',
+        category: '入住款項',
+        target: `${tenant.room} ${tenant.name}`,
+        description: item.label,
+        amount: item.amount,
+        status: 'completed',
+        dueDate: todayDate,
+        history: [],
+        createdAt: serverTimestamp(),
+      });
+    }
     // 立即更新列表中的 deposits，不等 onSnapshot 重新載入 contracts
     const newDeposits = [...depositItems.value];
     const listIdx = tenants.value.findIndex(t => t.id === tenant.id);
@@ -2429,7 +2442,9 @@ const markDepositPaid = async (idx: number) => {
     if (drawerTenant.value?.id === tenant.id) {
       drawerTenant.value = { ...drawerTenant.value, deposits: newDeposits };
     }
-    toast.success(`已標記「${item.label}」收款完成`);
+    toast.success(isFirstRent
+      ? `已收首月租金 NT$ ${item.amount.toLocaleString()}，轉入預收餘額，出帳時自動沖抵`
+      : `已標記「${item.label}」收款完成`);
   } catch {
     toast.error('更新失敗，請稍後再試');
   } finally {

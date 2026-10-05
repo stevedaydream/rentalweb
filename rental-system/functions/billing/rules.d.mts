@@ -1,6 +1,6 @@
 export type PaymentFrequency = 'monthly' | 'quarterly' | 'semiannual' | 'yearly'
 export interface BillingTenant { paymentFrequency?: string; leaseStart?: string; leaseEnd?: string; rent?: number }
-export interface RentBillLike { id?: string; date?: string; description?: string; coverFrom?: string; coverTo?: string }
+export interface RentBillLike { id?: string; date?: string; description?: string; coverFrom?: string; coverTo?: string; prorated?: unknown }
 export interface Coverage { from: string; to: string }
 export const CYCLE_MONTHS: Readonly<Record<string, number>>
 export function validMonth(value: unknown): boolean
@@ -21,3 +21,7 @@ export function shouldGenerateRent(tenant: BillingTenant, month: string, bills: 
 export function rebillRent(tenant: BillingTenant, bill: RentBillLike): {
   amount: number; description: string; coverFrom: string; coverTo: string
 } | null
+export interface ProratedSegment { from: string; to: string; days: number; daysInMonth: number }
+export interface ProratedRent { from: string; to: string; days: number; monthlyRent: number; segments: ProratedSegment[]; amount: number }
+export function rentPeriodDates(month: string, paymentDay: number): { from: string; to: string }
+export function proratedRent(rent: number, from: string, to: string): ProratedRent

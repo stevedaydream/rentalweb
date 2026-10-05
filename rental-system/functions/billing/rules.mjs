@@ -88,3 +88,23 @@ export const rebillRent = (tenant, bill) => {
     coverFrom: next.from, coverTo: next.to,
   }
 }
+const addDays = (date, n) => new Date(Date.parse(date) + n * 86400000).toISOString().slice(0, 10)
+const anchorOf = (month, day) =>
+  `${month}-${String(Math.min(day, Number(monthEnd(month).slice(-2)))).padStart(2, '0')}`
+// 月繳租金的實際計費期間：以繳費日為起點到下期繳費日前一天（繳費日 1 號即整個日曆月）
+export const rentPeriodDates = (month, paymentDay) => paymentDay <= 1
+  ? { from: `${month}-01`, to: monthEnd(month) }
+  : { from: anchorOf(month, paymentDay), to: addDays(anchorOf(addMonths(month, 1), paymentDay), -1) }
+// 期中退租按日計租：依日曆月拆段，各段＝月租 ÷ 該月天數 × 該段天數（含首尾日），合計後四捨五入
+export const proratedRent = (rent, from, to) => {
+  const segments = []
+  for (let start = from; start <= to;) {
+    const month = start.slice(0, 7)
+    const end = monthEnd(month) < to ? monthEnd(month) : to
+    const days = Math.round((Date.parse(end) - Date.parse(start)) / 86400000) + 1
+    segments.push({ from: start, to: end, days, daysInMonth: Number(monthEnd(month).slice(-2)) })
+    start = addDays(end, 1)
+  }
+  const exact = segments.reduce((s, g) => s + rent * g.days / g.daysInMonth, 0)
+  return { from, to, days: segments.reduce((s, g) => s + g.days, 0), monthlyRent: rent, segments, amount: Math.round(exact) }
+}

@@ -703,7 +703,8 @@ const loadDeposits = async () => {
   const snap = await getDoc(doc(db, 'contracts', props.tenant.contractId));
   if (!snap.exists()) return;
   const deps = (snap.data().deposits || []) as DepositItem[];
-  paidDeposits.value = deps.filter(d => d.status === 'paid');
+  // 首月租金是房租不是押金（已轉預收餘額沖抵），不能當押金退還
+  paidDeposits.value = deps.filter(d => d.status === 'paid' && d.label !== '首月租金');
 };
 
 const loadLastMeterReading = async () => {
