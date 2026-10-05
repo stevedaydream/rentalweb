@@ -32,6 +32,7 @@
               {{ record.modifiedAt ? new Date(record.modifiedAt).toLocaleString() : '未知時間' }}
             </div>
 
+            <p v-if="record.note" class="mb-1.5 text-sm font-bold text-blue-600 dark:text-blue-300">{{ record.note }}</p>
             <div class="bg-surface-light dark:bg-surface-dark p-3 rounded-lg border border-ink-100 dark:border-ink-700 text-sm">
               <p class="font-bold mb-1">變更前版本：</p>
               <div class="space-y-1 text-text-secondary-light">

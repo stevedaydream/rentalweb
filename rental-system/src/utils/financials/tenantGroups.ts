@@ -39,8 +39,12 @@ export interface TenantGroup<T extends GroupableBill = GroupableBill> {
   /** 本月以前還沒繳清的帳單（依帳齡排序） */
   prior: T[]
   priorOutstanding: number
-  /** 本月待收＋前期未繳 */
+  /** 本月待收＋前期未繳（不含延後收款） */
   owed: number
+  /** 房東同意延後、新收款日未到的帳單（前期的）；本月的延後單仍留在 items */
+  deferred: T[]
+  /** 延後收款未收金額（含本月 items 中延後的） */
+  deferredOutstanding: number
 }
 
 /**
@@ -59,7 +63,11 @@ export const groupKeyOf = (b: GroupableBill) =>
  * @param prior 本月以前的未繳帳單。只出現在前期、本月沒有帳單的租客也會成組，
  *              否則上個月欠租、這個月還沒出帳的人會從畫面上消失
  */
-export const buildTenantGroups = <T extends GroupableBill>(bills: T[], prior: T[] = []): TenantGroup<T>[] => {
+export const buildTenantGroups = <T extends GroupableBill>(
+  bills: T[], prior: T[] = [],
+  opts: { deferred?: T[]; isDeferred?: (b: T) => boolean } = {},
+): TenantGroup<T>[] => {
+  const deferredOf = opts.isDeferred ?? (() => false)
   const map = new Map<string, TenantGroup<T>>()
   const ensure = (b: T) => {
     const key = groupKeyOf(b)
@@ -68,7 +76,7 @@ export const buildTenantGroups = <T extends GroupableBill>(bills: T[], prior: T[
         key,
         label: key === OTHER_GROUP ? OTHER_GROUP_LABEL : (b.target || '未指定對象'),
         items: [], total: 0, unpaid: 0, unpaidCount: 0, allCollected: true,
-        prior: [], priorOutstanding: 0, owed: 0,
+        prior: [], priorOutstanding: 0, owed: 0, deferred: [], deferredOutstanding: 0,
       })
     }
     return map.get(key)!
@@ -78,7 +86,9 @@ export const buildTenantGroups = <T extends GroupableBill>(bills: T[], prior: T[
     const g = ensure(b)
     g.items.push(b)
     g.total += b.type === 'income' ? b.amount : -b.amount
-    if (b.type === 'income' && !isCollected(b)) {
+    if (b.type === 'income' && !isCollected(b) && deferredOf(b)) {
+      g.deferredOutstanding += outstandingOf(b)
+    } else if (b.type === 'income' && !isCollected(b)) {
       g.unpaid += outstandingOf(b)
       g.unpaidCount++
       g.allCollected = false
@@ -92,8 +102,16 @@ export const buildTenantGroups = <T extends GroupableBill>(bills: T[], prior: T[
     g.priorOutstanding += outstandingOf(b)
   }
 
+  for (const b of opts.deferred ?? []) {
+    if (b.type !== 'income' || outstandingOf(b) <= 0) continue
+    const g = ensure(b)
+    g.deferred.push(b)
+    g.deferredOutstanding += outstandingOf(b)
+  }
+
   for (const g of map.values()) {
     g.prior.sort(byAge)
+    g.deferred.sort(byAge)
     g.owed = g.unpaid + g.priorOutstanding
   }
 
@@ -109,4 +127,5 @@ export const buildTenantGroups = <T extends GroupableBill>(bills: T[], prior: T[
 export const uncollectedIncome = <T extends GroupableBill>(group: TenantGroup<T>): T[] => [
   ...group.prior,
   ...group.items.filter(b => b.type === 'income' && !isCollected(b)),
+  ...group.deferred,
 ]

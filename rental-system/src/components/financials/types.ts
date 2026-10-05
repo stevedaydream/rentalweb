@@ -26,6 +26,8 @@ export interface ElectricityStats {
 export interface TransactionHistory {
   modifiedAt: string
   data: any
+  /** 非編輯類的變更說明（如延後收款） */
+  note?: string
 }
 
 export interface TransactionForm {

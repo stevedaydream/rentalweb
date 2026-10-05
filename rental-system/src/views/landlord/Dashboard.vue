@@ -159,7 +159,9 @@ const financial = reactive({
   paidCount: 0,
   paidAmount: 0,
   overdueCount: 0,
-  overdueAmount: 0
+  overdueAmount: 0,
+  deferredCount: 0,
+  deferredAmount: 0
 });
 
 const currentMonthStr = new Date().toISOString().slice(0, 7);
@@ -183,7 +185,8 @@ const billFilter = ref<BillCategory | null>(null);
 const billDetails = reactive<Record<BillCategory, BillLite[]>>({
   unpaid: [],
   paid: [],
-  overdue: []
+  overdue: [],
+  deferred: []
 });
 
 // 依本月／上月抄表紀錄組出用電概況。同一電表若當月有多筆，取 periodEnd 最新的一筆。
@@ -339,6 +342,9 @@ const fetchDashboardData = async () => {
     billDetails.unpaid = [];
     billDetails.paid = [];
     billDetails.overdue = [];
+    billDetails.deferred = [];
+    financial.deferredCount = 0;
+    financial.deferredAmount = 0;
     const todayStr = new Date().toISOString().split('T')[0] || '';
     const unpaidTenantIds = new Set<string>();
     // bills 文件不存 tenantName/roomName，需以 relatedTenantDocId / tenantId 反查 tenants
@@ -381,7 +387,12 @@ const fetchDashboardData = async () => {
       const collected = collectedOf({ amount, status: data.status, paidAmount: data.paidAmount });
       financial.paidAmount += collected;
       billLite.amount = amount - collected;
-      if (data.dueDate && data.dueDate < todayStr) {
+      // 房東同意延後、新收款日未到：不算未繳也不算逾期，另列延後收款
+      if (data.deferredUntil && data.deferredUntil >= todayStr && billLite.amount > 0) {
+        financial.deferredCount++;
+        financial.deferredAmount += billLite.amount;
+        billDetails.deferred.push(billLite);
+      } else if (data.dueDate && data.dueDate < todayStr) {
         financial.overdueCount++;
         financial.overdueAmount += billLite.amount;
         if (billLite.groupKey) unpaidTenantIds.add(billLite.groupKey);
