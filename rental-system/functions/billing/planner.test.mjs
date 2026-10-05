@@ -246,3 +246,20 @@ test('lease ending before the period starts bills no rent', () => {
   assert.equal(plan.plans.flatMap(p => p.bills).some(b => b.category === '租金收入'), false)
   assert.match(plan.skipped.join(), /早於本期計費起日/)
 })
+test('first month is prorated from lease start to the day before the next payment day', () => {
+  const input = fixture()
+  input.month = '2026-10'
+  input.readings = []
+  input.tenants[0] = { ...input.tenants[0], leaseStart: '2026-10-24', leaseEnd: '2027-10-23', credit: 0 }
+  const plan = buildPlan(input)
+  const rent = plan.plans[0].bills.find(b => b.category === '租金收入')
+  assert.deepEqual(rent.prorated.segments.map(g => [g.from, g.to, g.days, g.daysInMonth]),
+    [['2026-10-24', '2026-10-31', 8, 31], ['2026-11-01', '2026-11-11', 11, 30]])
+  assert.equal(rent.amount, Math.round(7000 * 8 / 31 + 7000 * 11 / 30))
+  assert.match(plan.warnings.join(), /2026-10-24 起租/)
+  // 首月租金已轉預收：沖抵按日計的首月，多的留著
+  input.tenants[0].credit = 7000
+  const p2 = buildPlan(input).plans[0]
+  assert.equal(p2.bills[0].creditApplied, rent.amount)
+  assert.equal(p2.creditBefore - p2.creditUsed, 7000 - rent.amount)
+})
