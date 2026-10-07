@@ -13,6 +13,7 @@ Firebase 專案 ID：`rental-system-7675e`
 ### 2026-10-07 版權聲明與版本號
 
 - 登入頁卡片下方與房東／租客／管理員側邊選單登出按鈕下方顯示版權聲明與版本號；租客手機版改於內容底部顯示。共用 `AppCopyright.vue`，年份自動更新，版本統一讀取 `package.json`，起始版本為 `1.0.0`。
+- `dev.bat` 選項 9 可更新修正版（patch）、功能版（minor）或重大版（major），透過 `npm version --no-git-tag-version --ignore-scripts` 同步版本與鎖定檔，不自動 commit、建立 tag 或部署；選項 7／8 建置時帶入新版本。
 
 ### 2026-10-05 按日計租與延後收款
 

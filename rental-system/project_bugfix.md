@@ -460,3 +460,18 @@ storage.googleapis.com/<bucket>/…                 →  （無 ACAO，此端點
 - `src/views/landlord/DataImport.vue`、`src/views/landlord/HistoricalImport.vue`
 
 > **避坑**：Excel 讀檔一律 `raw: true`；日期用 `SSF.parse_date_code`，不要用 `cellDates` 的 Date 再 `toISOString()`。
+
+---
+
+## BF-017 Windows 批次檔改成 LF 後指令被截斷
+
+**問題描述**
+修改 `dev.bat` 後若檔案存成 LF 換行，實際以 Windows `cmd.exe` 執行會出現多筆截斷的指令與「不是內部或外部命令」錯誤。
+
+**最終解法**
+保留 CRLF 換行；新增繁體中文選單時使用無 BOM 的 UTF-8 並於檔案開頭執行 `chcp 65001`。驗證使用暫存副本與真正的互動終端，確認版本更新選單及 npm 指令正常執行。
+
+**牽扯檔案**
+- `dev.bat`
+
+> **避坑**：編輯 Windows `.bat` 後要確認 CRLF，不能只依 Git 差異判斷執行是否正常。

@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 title Rental System - Dev Tools
 :: Run from this file's own directory. Double-clicking already does that, but a
 :: shortcut with a different "Start in", or launching from another drive, would
@@ -31,6 +32,9 @@ echo   6. Deploy Firestore rules + indexes
 echo   7. Deploy frontend        (build + hosting)
 echo   8. Deploy all             (functions + rules + frontend)
 echo.
+echo  -- 版本管理 --
+echo   9. 更新版本號
+echo.
 echo   0. Exit
 echo.
 set /p choice= Enter option:
@@ -43,6 +47,7 @@ if "%choice%"=="5" goto deploy_functions
 if "%choice%"=="6" goto deploy_rules
 if "%choice%"=="7" goto deploy_hosting
 if "%choice%"=="8" goto deploy_all
+if "%choice%"=="9" goto update_version
 if "%choice%"=="0" goto exit_program
 echo.
 echo  [!] Invalid option, try again
@@ -219,6 +224,50 @@ goto menu
 :: ==========================================
 :: Exit
 :: ==========================================
+
+:update_version
+cls
+echo.
+echo  [9] 更新版本號
+echo  ----------------------------------------
+echo  目前版本：
+node -p "require('./package.json').version"
+if %errorlevel% neq 0 (
+  echo  [錯誤] 無法讀取目前版本，請確認 Node.js 與 package.json。
+  pause
+  goto menu
+)
+echo.
+echo   1. 修正版 patch：1.0.0 到 1.0.1
+echo   2. 功能版 minor：1.0.0 到 1.1.0
+echo   3. 重大版 major：1.0.0 到 2.0.0
+echo   0. 返回主選單
+echo.
+choice /c 1230 /n /m "選擇版本更新類型："
+if errorlevel 4 goto menu
+if errorlevel 3 (
+  set "releaseType=major"
+) else if errorlevel 2 (
+  set "releaseType=minor"
+) else if errorlevel 1 (
+  set "releaseType=patch"
+) else (
+  goto menu
+)
+echo.
+call npm version %releaseType% --no-git-tag-version --ignore-scripts
+if %errorlevel% neq 0 (
+  echo.
+  echo  [錯誤] 版本更新失敗，請檢查上方輸出。
+  pause
+  goto menu
+)
+echo.
+echo  已同步更新 package.json 與 package-lock.json。
+echo  接著可用選項 7 或 8 建置並部署新版本。
+echo  按任意鍵返回主選單...
+pause >nul
+goto menu
 
 :exit_program
 cls
