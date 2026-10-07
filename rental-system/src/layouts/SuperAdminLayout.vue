@@ -43,6 +43,7 @@
             <span class="material-symbols-outlined mr-2 text-sm" aria-hidden="true">logout</span>
             登出
           </button>
+          <AppCopyright inverse class="pt-3" />
         </div>
       </div>
     </aside>
@@ -75,6 +76,7 @@
 </template>
 
 <script setup lang="ts">
+import AppCopyright from '../components/AppCopyright.vue';
 import { ref, computed } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useRoute } from 'vue-router';

@@ -112,6 +112,7 @@
             <span class="material-symbols-outlined mr-3" aria-hidden="true">{{ authStore.impersonatingLandlord ? 'manage_accounts' : 'logout' }}</span>
             {{ authStore.impersonatingLandlord ? '結束模擬' : '登出系統' }}
           </button>
+          <AppCopyright inverse class="pt-3" />
         </div>
 
       </div>
@@ -171,6 +172,7 @@
 </template>
 
 <script setup lang="ts">
+import AppCopyright from '../components/AppCopyright.vue';
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useNotificationStore } from '../stores/notification';
