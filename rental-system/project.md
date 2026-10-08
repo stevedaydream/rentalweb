@@ -17,7 +17,7 @@ Firebase 專案 ID：`rental-system-7675e`
 - Bot 連結的帳單／用電、合約、公告、報修、租客資料及相關入口統一頁首與手機樣式；帳單手機摘要採墨黑底與霧金金額。未登入時保留原入口，登入後只回到同角色頁面；電費直接開啟帳單的 `tab=meter`，同頁切換同步網址。儲存 LINE 設定使用 merge，保留通知綁定與角色選單資料。
 - 圖文選單使用內嵌 OFL 中文字型子集與 SVG 圖示，三種底圖均可離線產生。更新選單文案時須同步字型子集，見 `functions/line/fonts/README.md`。
 - 驗證：733 項前端與 53 項 Node 測試、型別檢查及正式建置通過，Cloud Functions 模組可載入。以本機模擬器與示範資料檢查房東／租客入口的手機及桌機畫面、360px 帳單與深色文字、同頁用電切換、登入返回原入口、LINE 設定欄位保留；簽署入口使用模擬 API 檢視，未執行正式簽署或 LINE 發送。
-- 本次尚未部署。上線需更新 Hosting 與 `lineWebhook`、`setupLineRichMenu`、`removeLineRichMenu`、`sendLineBillNotifications`、`notifyBillCreated`、`notifyAnnouncementCreated`、`scheduledReminderDaily`、`submitRenewalResponse`、`notifyTenantRenewal`、`onReviewCreated`、`budgetAlert`、`dailyUsageCheck`、`submitContractSignature`；再至「系統設定 → LINE」重新產生三種選單。Rules／Indexes 不需變更。LINE 實機呈現與正式頻道切換仍須上線後確認。
+- 2026-10-09 已部署 Hosting 與 `lineWebhook`、`setupLineRichMenu`、`removeLineRichMenu`、`sendLineBillNotifications`、`notifyBillCreated`、`notifyAnnouncementCreated`、`scheduledReminderDaily`、`submitRenewalResponse`、`notifyTenantRenewal`、`onReviewCreated`、`budgetAlert`、`dailyUsageCheck`、`submitContractSignature`，13 個函式皆更新成功。重新執行 786 項測試、型別檢查及正式建置通過；正式站首頁、JS／CSS 與 Service Worker 回應 200，資產版本與本機建置一致。Rules／Indexes 未變更。仍需至「系統設定 → LINE」重新產生三種選單，並確認 LINE 實機呈現與正式頻道切換。
 
 ### 2026-10-08 無縫續約沿用完整月租週期
 
