@@ -121,7 +121,8 @@ echo  [5] Deploy Cloud Functions
 echo  ----------------------------------------
 echo  [WARNING] This will update production Cloud Functions!
 echo.
-set /p confirm= Continue? (y/N):
+set "confirm=y"
+set /p confirm= Continue? (Y/n, Enter=yes):
 if /i not "%confirm%"=="y" (
   echo  Cancelled.
   timeout /t 1 >nul
@@ -143,7 +144,8 @@ echo  [6] Deploy Firestore rules + indexes
 echo  ----------------------------------------
 echo  [WARNING] This will update production Firestore rules and indexes!
 echo.
-set /p confirm= Continue? (y/N):
+set "confirm=y"
+set /p confirm= Continue? (Y/n, Enter=yes):
 if /i not "%confirm%"=="y" (
   echo  Cancelled.
   timeout /t 1 >nul
@@ -163,7 +165,8 @@ echo  [7] Deploy frontend (build + hosting)
 echo  ----------------------------------------
 echo  [WARNING] This will update production frontend!
 echo.
-set /p confirm= Continue? (y/N):
+set "confirm=y"
+set /p confirm= Continue? (Y/n, Enter=yes):
 if /i not "%confirm%"=="y" (
   echo  Cancelled.
   timeout /t 1 >nul
@@ -194,7 +197,8 @@ echo  [8] Deploy all (functions + rules + frontend)
 echo  ----------------------------------------
 echo  [WARNING] This will update ALL production services!
 echo.
-set /p confirm= Continue? (y/N):
+set "confirm=y"
+set /p confirm= Continue? (Y/n, Enter=yes):
 if /i not "%confirm%"=="y" (
   echo  Cancelled.
   timeout /t 1 >nul
