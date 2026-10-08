@@ -40,10 +40,10 @@ test('三種選單點擊區域完整覆蓋底圖，按鈕不超過 LINE 字數�
 test('Quick Reply 保留主選單，帳單提供繳費與查電費，房東指向房東頁面', () => {
   const tenant = quickReplyFor('tenant', contextFor('帳單'));
   assert.equal(tenant.items[0].action.text, '選單');
-  assert.equal(tenant.items[1].action.uri.endsWith('/tenant/bills'), true);
+  assert.equal(tenant.items[1].action.uri.endsWith('/tenant/bills?openExternalBrowser=1'), true);
   assert.equal(tenant.items[2].action.text, '電費');
   const owner = quickReplyFor('landlord', contextFor('欠費', 'landlord'));
-  assert.equal(owner.items[1].action.uri.endsWith('/landlord/financials'), true);
+  assert.equal(owner.items[1].action.uri.endsWith('/landlord/financials?openExternalBrowser=1'), true);
   assert.equal(owner.items[2].action.text, '到期');
   assert.equal(contextFor('電費').path, '/tenant/bills?tab=meter');
   for (const role of Object.keys(MENUS)) {
@@ -53,12 +53,29 @@ test('Quick Reply 保留主選單，帳單提供繳費與查電費，房東指�
   }
 });
 
+test('網頁入口使用外部瀏覽器，保留頁籤、簽署碼與錨點且不重複參數', () => {
+  for (const role of Object.keys(MENUS)) {
+    const actions = [...richMenuAreas(role).map(item => item.action), ...menuMessage(role).contents.footer.contents.map(item => item.action), ...quickReplyFor(role, contextFor('電費', role)).items.map(item => item.action)];
+    for (const action of actions.filter(item => item.type === 'uri')) {
+      assert.deepEqual(new URL(action.uri).searchParams.getAll('openExternalBrowser'), ['1']);
+    }
+  }
+  const source = 'https://rental-system-7675e.web.app/sign/demo-code?tab=meter&openExternalBrowser=0#details';
+  const result = cardMessage(`合約簽署提醒\n${source}`);
+  const target = new URL(result.contents.footer.contents[0].action.uri);
+  assert.equal(target.pathname, '/sign/demo-code');
+  assert.equal(target.searchParams.get('tab'), 'meter');
+  assert.equal(target.hash, '#details');
+  assert.deepEqual(target.searchParams.getAll('openExternalBrowser'), ['1']);
+  assert.ok(result.contents.body.contents[0].text.includes(target.toString()));
+});
+
 test('多則訊息只由最後一則控制 Quick Reply，且不修改原始卡片', () => {
   const original = menuMessage('tenant');
   const snapshot = JSON.stringify(original);
   const result = decorateMessages([{ type: 'text', text: '電表記錄\n本期 100 度' }, original], 'tenant', contextFor('電費'));
   assert.equal(result[0].type, 'flex');
-  assert.equal(result.at(-1).quickReply.items[1].action.uri.endsWith('?tab=meter'), true);
+  assert.equal(result.at(-1).quickReply.items[1].action.uri.endsWith('?tab=meter&openExternalBrowser=1'), true);
   assert.equal(JSON.stringify(original), snapshot);
 });
 
@@ -69,7 +86,7 @@ test('長公告分卡保留內容，簽署通知保留一次性連結', () => {
   const restored = result.contents.contents.flatMap(item => item.body.contents.map(line => line.text)).join('\n');
   assert.equal(restored, content.join('\n'));
   const signing = cardMessage('合約簽署提醒\nhttps://rental-system-7675e.web.app/sign/demo-code');
-  assert.equal(signing.contents.footer.contents[0].action.uri.endsWith('/sign/demo-code'), true);
+  assert.equal(signing.contents.footer.contents[0].action.uri.endsWith('/sign/demo-code?openExternalBrowser=1'), true);
   assert.ok(signing.altText.length <= 400);
 });
 

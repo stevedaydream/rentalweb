@@ -1,10 +1,16 @@
 const SITE_URL = 'https://rental-system-7675e.web.app';
 const COLORS = { ink: '#211E19', gold: '#A8792E', paper: '#FFFCF5', muted: '#766D60', line: '#E8DFCF', danger: '#B42332' };
-const url = path => SITE_URL + path;
+function externalUrl(value) {
+  const target = new URL(value, SITE_URL);
+  target.searchParams.set('openExternalBrowser', '1');
+  return target.toString();
+}
+const url = path => externalUrl(SITE_URL + path);
+const externalAction = action => action.type === 'uri' ? { ...action, uri: externalUrl(action.uri) } : action;
 const message = (label, text = label) => ({ type: 'message', label, text });
 const uri = (label, path) => ({ type: 'uri', label, uri: url(path) });
 
-const MENUS = require('./menu-items.json');
+const MENUS = Object.fromEntries(Object.entries(require('./menu-items.json')).map(([role, items]) => [role, items.map(item => ({ ...item, action: externalAction(item.action) }))]));
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -43,7 +49,7 @@ function bubble(title, lines, actions = [], metric) {
     ] },
     body: { type: 'box', layout: 'vertical', backgroundColor: COLORS.paper, paddingAll: '20px', spacing: 'md', contents:
       (lines.length ? lines : ['詳細資訊請開啟線上系統查看。']).map(line => ({ type: 'text', text: line || ' ', size: 'sm', color: /已逾期|逾期未繳/.test(line) ? COLORS.danger : COLORS.ink, wrap: true })) },
-    footer: { type: 'box', layout: 'vertical', backgroundColor: COLORS.paper, paddingAll: '16px', spacing: 'sm', contents: actions.map((action, i) => ({ type: 'button', style: i === 0 ? 'primary' : 'secondary', color: i === 0 ? COLORS.ink : undefined, height: 'sm', action })) },
+    footer: { type: 'box', layout: 'vertical', backgroundColor: COLORS.paper, paddingAll: '16px', spacing: 'sm', contents: actions.map((action, i) => ({ type: 'button', style: i === 0 ? 'primary' : 'secondary', color: i === 0 ? COLORS.ink : undefined, height: 'sm', action: externalAction(action) })) },
   };
 }
 
@@ -55,7 +61,7 @@ function menuMessage(role) {
 }
 
 function cardMessage(text, role = 'tenant', context = contextFor(text, role)) {
-  const raw = String(text || '租賃管家通知');
+  const raw = String(text || '租賃管家通知').replace(/https:\/\/rental-system-7675e\.web\.app\/[^\s<>]+/g, externalUrl);
   const lines = raw.split('\n').filter(line => line.trim() && !/^[━─—=]{3,}$/.test(line.trim()));
   let title = lines.shift() || context.title;
   if (title.length > 200) { lines.unshift(title); title = context.title; }
