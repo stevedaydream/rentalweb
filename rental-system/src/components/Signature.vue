@@ -49,9 +49,9 @@ const onCancel = () => {
   emits('update:visible', false)
 }
 const onConfirm = () => {
-  // 回傳 base64 圖片
-  const data = signRef.value.save()
-  if (data.length < 200) {
+  // 裁掉滿版畫布的空白，避免合約縮圖時連筆跡一起縮小。
+  const data = signRef.value.toTrimmedDataURL('image/png')
+  if (!data) {
     alert('請簽名')
     return
   }
