@@ -66,6 +66,7 @@ Firebase 專案 ID：`rental-system-7675e`
 
 ### 2026-09-17 新房東資料匯入（現況接管＋歷史遷移）
 
+- 2026-10-08 提供 `outputs/landlord-import-20261008-01a11a45/新房東現況匯入範例.xlsx`：7 張符合現況匯入格式的資料表、填寫說明，以及不自動匯入的總表／水表整理表；全為虛構資料。9 張工作表已檢視，使用現有畫面讀檔邏輯與純函式驗證通過，未寫入正式資料。水表度數、台電總表電號與公共電表不在現況匯入支援範圍；歷年帳單及付款仍使用歷史遷移範本。
 - 入口：「系統設定 → 資料匯入中心」（`views/landlord/DataImport.vue`）與「歷史資料遷移」（`HistoricalImport.vue`），多工作表 Excel 範本、先預覽再寫入，零錯誤才可匯入；不建立登入帳號、不保存原始 Excel。
 - **讀檔**：一律 `sheet_to_json(raw:true)` 取原始值，再由 `utils/importCells.ts` 正規化（見 BF-016）：日期序號用 `SSF.parse_date_code`、文字日期接受 `/`、`.`、民國年；數字接受千分位、全形、NT$；電話補回被 Excel 吃掉的開頭 0。共用讀寫在 `utils/importWorkbook.ts`。xlsx 升級為 SheetJS 官方 0.20.3（npm 版 0.18.5 有原型污染與 ReDoS 漏洞）。
 - **現況接管**（`utils/landlordImport.ts`）：`buildLandlordImportPlan` 跨表驗證（建物／房號正規化唯一且不得與系統既有重複、水費方式與繳費週期接受中文、未結清帳款類別限系統類別、預收必須掛在現役租客、日期真實存在、數字無法辨識即報錯）；`planLandlordImportWrites` 產生全部文件：租客寫齊 `paymentFrequency`／`depositMonths`／`leaseDuration`／`paymentStatus`／`contractId`，租約含 `deposits`（押金已收、不含首月租金，共用 `utils/tenantRecords.ts`，舊的 `TenantImportModal` 也改用），建物寫 `meterGroupId` 與水費設定（留空則依範本推定）。電表讀數選填，只寫 `rooms.lastMeterReading/lastMeterDate` 當抄表起點，**不建立抄表紀錄**（原本會產生 0 元紀錄，鎖住當月抄表並干擾雙月累計）。
