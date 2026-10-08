@@ -1,5 +1,6 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center p-4 bg-surface-light dark:bg-surface-dark">
+  <div class="entry-page min-h-screen flex flex-col items-center justify-center p-4 bg-surface-light dark:bg-surface-dark">
+    <ServiceBrand label="帳號啟用" />
     <div class="w-full max-w-sm bg-white dark:bg-card-dark rounded-2xl shadow-xl border border-ink-100 dark:border-ink-800 p-6 space-y-5">
 
       <div v-if="phase === 'checking'" class="py-10 text-center text-text-secondary-light">
@@ -57,6 +58,7 @@
 </template>
 
 <script setup lang="ts">
+import ServiceBrand from '../../components/ServiceBrand.vue';
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { httpsCallable } from 'firebase/functions'

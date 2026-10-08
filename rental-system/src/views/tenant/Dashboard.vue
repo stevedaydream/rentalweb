@@ -1,12 +1,12 @@
 <template>
   <div class="service-page max-w-7xl mx-auto space-y-6">
     
-    <div class="flex items-center justify-between">
+    <div class="service-page__header flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
-          {{ greeting }}，{{ authStore.userProfile?.name || '房客' }}
-        </h1>
-        <p class="text-text-secondary-light">歡迎回到您的家</p>
+        <ServicePageHeading role="tenant">
+        <template #title>{{ greeting }}，{{ authStore.userProfile?.name || '房客' }}</template>
+        <template #description>歡迎回到您的家</template>
+      </ServicePageHeading>
       </div>
       <div class="text-right">
         <p class="text-sm font-bold text-text-primary-light hidden md:block">{{ todayDate }}</p>
@@ -400,6 +400,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
 import { useAuthStore } from '../../stores/auth';

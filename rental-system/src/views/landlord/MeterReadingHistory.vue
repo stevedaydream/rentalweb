@@ -1,12 +1,12 @@
 <template>
-  <div class="max-w-7xl mx-auto space-y-6">
+  <div class="service-page max-w-7xl mx-auto space-y-6">
     
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="service-page__header flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
-          電表歷史紀錄
-        </h1>
-        <p class="text-text-secondary-light">{{ activeTab === 'history' ? '查看所有已儲存的抄表數據與費用計算詳情' : '檢視每個月份各房間的抄表完成狀況' }}</p>
+        <ServicePageHeading role="landlord">
+        <template #title>電表歷史紀錄</template>
+        <template #description>{{ activeTab === 'history' ? '查看所有已儲存的抄表數據與費用計算詳情' : '檢視每個月份各房間的抄表完成狀況' }}</template>
+      </ServicePageHeading>
       </div>
 
       <div v-show="activeTab === 'history'" class="flex gap-3">
@@ -233,6 +233,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, onMounted } from 'vue';
 import { db } from '../../firebase/config';
 import { collection, query, where, orderBy, getDocs, deleteDoc, doc, Timestamp } from 'firebase/firestore';

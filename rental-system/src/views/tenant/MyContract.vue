@@ -2,7 +2,7 @@
   <div class="service-page max-w-3xl mx-auto space-y-6">
 
     <!-- Header -->
-    <ServicePageHeading title="我的合約" description="查閱租期與完整文件，完成需要您確認的事項。" role="tenant" :links="[{ label: '聯繫房東', to: '/tenant/contact' }]" />
+    <ServicePageHeading class="service-page__header" title="我的合約" description="查閱租期與完整文件，完成需要您確認的事項。" role="tenant" :links="[{ label: '聯繫房東', to: '/tenant/contact' }]" />
 
     <!-- Loading -->
     <div v-if="loading" class="flex justify-center py-16">

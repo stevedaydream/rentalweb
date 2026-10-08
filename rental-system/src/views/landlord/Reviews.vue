@@ -1,9 +1,8 @@
 <template>
-  <div class="max-w-4xl mx-auto space-y-6">
+  <div class="service-page max-w-4xl mx-auto space-y-6">
 
-    <div>
-      <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">評價管理</h1>
-      <p class="text-text-secondary-light text-sm">管理租客留下的公開評價，可隱藏不當留言或回覆租客</p>
+    <div class="service-page__header">
+      <ServicePageHeading role="landlord" title="評價管理" description="管理租客留下的公開評價，可隱藏不當留言或回覆租客" />
     </div>
 
     <!-- 統計卡 -->
@@ -167,6 +166,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, onMounted } from 'vue';
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase/config';

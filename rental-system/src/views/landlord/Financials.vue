@@ -2,7 +2,7 @@
   <div class="service-page max-w-7xl mx-auto space-y-6" @click="closeDropdown">
 
     <!-- Header -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="service-page__header flex flex-col md:flex-row md:items-center justify-between gap-4">
       <ServicePageHeading title="帳務管理" description="掌握待收款項，查看明細並完成收款作業。" role="landlord" :links="[{ label: '租客資料', to: '/landlord/tenants' }]" />
       <div v-if="activeTab !== 'annual'" class="flex gap-2 flex-wrap items-center">
         <MonthPicker v-model="currentMonth" />

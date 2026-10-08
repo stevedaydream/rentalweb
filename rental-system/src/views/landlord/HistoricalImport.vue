@@ -1,10 +1,9 @@
 <template>
-  <div class="max-w-5xl mx-auto space-y-6">
-    <div class="flex flex-wrap justify-between gap-4">
+  <div class="service-page max-w-5xl mx-auto space-y-6">
+    <div class="service-page__header flex flex-wrap justify-between gap-4">
       <div>
         <RouterLink :to="{ name: 'LandlordDataImport' }" class="text-sm text-gold-600 hover:underline">← 資料匯入中心</RouterLink>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark mt-1">歷史資料遷移</h1>
-        <p class="text-text-secondary-light">以舊系統鍵搬入已退租租客、歷史帳單與付款；不會觸發催繳或通知。</p>
+        <ServicePageHeading role="landlord" title="歷史資料遷移" description="以舊系統鍵搬入已退租租客、歷史帳單與付款；不會觸發催繳或通知。" />
       </div>
       <button type="button" @click="downloadHistoricalTemplate"
         class="self-start px-4 py-2 rounded-xl bg-gold-500 text-white font-medium flex gap-2 items-center hover:bg-gold-600 transition-colors">
@@ -58,6 +57,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useToastStore } from '../../stores/toast'

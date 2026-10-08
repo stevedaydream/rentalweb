@@ -5,15 +5,13 @@
         <span class="material-symbols-outlined text-[40px] text-amber-500" aria-hidden="true">construction</span>
       </div>
 
-      <div class="space-y-2">
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
-          {{ featureLabel }}維修中
-        </h1>
-        <p class="text-text-secondary-light leading-relaxed">
+      <ServicePageHeading :role="authStore.userProfile?.role || 'public'" class="text-left">
+        <template #title>{{ featureLabel }}維修中</template>
+        <template #description>
           此功能目前暫停使用，我們正在全速搶修，造成不便敬請見諒。<br>
           其他功能不受影響，修復後會自動恢復。
-        </p>
-      </div>
+        </template>
+      </ServicePageHeading>
 
       <div class="flex flex-col sm:flex-row gap-3 justify-center pt-2">
         <RouterLink
@@ -35,6 +33,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../components/ServicePageHeading.vue';
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '../stores/auth';

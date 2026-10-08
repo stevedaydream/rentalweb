@@ -3,7 +3,7 @@
     <div class="w-full max-w-md bg-white dark:bg-card-dark rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden">
 
       <!-- Header -->
-      <div class="px-6 py-5 bg-gradient-to-r from-gold-500 to-gold-600 text-white">
+      <div class="px-6 py-5 bg-ink-800 text-white">
         <div class="flex items-center gap-2">
           <span class="material-symbols-outlined">badge</span>
           <h1 class="text-lg font-bold">租客資料填寫</h1>

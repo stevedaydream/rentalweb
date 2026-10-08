@@ -1,11 +1,10 @@
 <template>
-  <div class="max-w-7xl mx-auto space-y-6">
+  <div class="service-page max-w-7xl mx-auto space-y-6">
 
     <!-- Header -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="service-page__header flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">大樓資訊</h1>
-        <p class="text-text-secondary-light">標出逃生出口、滅火器與公共設施位置，租客隨時可查閱</p>
+        <ServicePageHeading role="landlord" title="大樓資訊" description="標出逃生出口、滅火器與公共設施位置，租客隨時可查閱" />
       </div>
       <div class="flex flex-wrap gap-3">
         <!-- 建物切換 -->
@@ -499,6 +498,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useToastStore } from '../../stores/toast'

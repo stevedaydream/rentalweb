@@ -1,14 +1,14 @@
 <template>
-  <div class="min-h-screen bg-gray-50 dark:bg-background-dark">
+  <div class="min-h-screen bg-background-light dark:bg-background-dark">
 
     <!-- Header -->
-    <header class="sticky top-0 z-40 bg-white dark:bg-card-dark border-b border-gray-100 dark:border-gray-800 shadow-sm">
+    <header class="public-masthead sticky top-0 z-40 bg-white dark:bg-card-dark border-b border-gray-100 dark:border-gray-800 shadow-sm">
       <div class="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
         <button @click="$router.back()" class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
           <span class="material-symbols-outlined text-[20px] text-gray-500">arrow_back</span>
         </button>
-        <span class="font-bold text-text-primary-light dark:text-text-primary-dark">房東資料</span>
-        <router-link to="/explore" class="ml-auto text-sm text-blue-600 hover:underline">← 回找房</router-link>
+        <span class="font-bold text-white">房東資料</span>
+        <router-link to="/explore" class="ml-auto text-sm text-gold-600 dark:text-gold-300 hover:underline">← 回找房</router-link>
       </div>
     </header>
 
@@ -32,7 +32,7 @@
         <!-- 房東資訊卡 -->
         <div class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800">
           <div class="flex items-start gap-4">
-            <div class="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-600 font-bold text-2xl flex-shrink-0">
+            <div class="w-16 h-16 rounded-full bg-gold-100 dark:bg-gold-900/40 flex items-center justify-center text-gold-600 dark:text-gold-300 font-bold text-2xl flex-shrink-0">
               {{ profile.displayName?.[0] || '房' }}
             </div>
             <div class="flex-1 min-w-0">
@@ -115,8 +115,8 @@
               <p class="mt-3 text-sm text-text-primary-light dark:text-text-primary-dark leading-relaxed">{{ review.content }}</p>
 
               <!-- 房東回覆 -->
-              <div v-if="review.landlordReply" class="mt-3 ml-4 pl-3 border-l-2 border-blue-200 dark:border-blue-700">
-                <p class="text-xs text-blue-600 dark:text-blue-400 font-medium mb-1">房東回覆</p>
+              <div v-if="review.landlordReply" class="mt-3 ml-4 pl-3 border-l-2 border-gold-200 dark:border-gold-700">
+                <p class="text-xs text-gold-600 dark:text-gold-300 dark:text-gold-400 font-medium mb-1">房東回覆</p>
                 <p class="text-sm text-text-secondary-light">{{ review.landlordReply }}</p>
               </div>
             </div>
@@ -126,14 +126,14 @@
         <!-- 撰寫評價 -->
         <div class="bg-white dark:bg-card-dark rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-800">
           <h2 class="font-bold text-text-primary-light dark:text-text-primary-dark mb-4 flex items-center gap-2">
-            <span class="material-symbols-outlined text-[20px] text-blue-500">edit</span>
+            <span class="material-symbols-outlined text-[20px] text-gold-500">edit</span>
             留下評價
           </h2>
 
           <div v-if="submitSuccess" class="text-center py-6">
             <span class="material-symbols-outlined text-4xl text-green-500" style="font-variation-settings: 'FILL' 1">check_circle</span>
             <p class="mt-2 font-medium text-text-primary-light dark:text-text-primary-dark">感謝您的評價！</p>
-            <button @click="submitSuccess = false" class="mt-3 text-sm text-blue-600 hover:underline">再留一則</button>
+            <button @click="submitSuccess = false" class="mt-3 text-sm text-gold-600 dark:text-gold-300 hover:underline">再留一則</button>
           </div>
 
           <form v-else @submit.prevent="submitReview" class="space-y-4">
@@ -143,7 +143,7 @@
                 v-model="form.authorName"
                 type="text" maxlength="20" required
                 placeholder="例如：前租客小明（可使用暱稱）"
-                class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none"
+                class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-gold-400 outline-none"
               >
             </div>
             <div>
@@ -169,7 +169,7 @@
                 v-model="form.content"
                 rows="4" maxlength="500" required
                 placeholder="分享您的租屋經驗，幫助其他租客做決定..."
-                class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none resize-none"
+                class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-gold-400 outline-none resize-none"
               ></textarea>
               <p class="text-xs text-text-secondary-light mt-1 text-right">{{ form.content.length }}/500</p>
             </div>
@@ -178,7 +178,7 @@
             </p>
             <button
               type="submit" :disabled="submitting || form.rating === 0"
-              class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+              class="w-full py-2.5 bg-gold-600 hover:bg-gold-700 disabled:opacity-50 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
             >
               <span v-if="submitting" class="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
               {{ submitting ? '提交中...' : '提交評價' }}

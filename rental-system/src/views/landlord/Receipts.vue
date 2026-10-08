@@ -1,12 +1,9 @@
 <template>
-  <div class="max-w-4xl mx-auto space-y-6">
+  <div class="service-page max-w-4xl mx-auto space-y-6">
 
-    <div class="flex items-center justify-between">
+    <div class="service-page__header flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
-          收據產生器
-        </h1>
-        <p class="text-text-secondary-light">產生訂金 / 押金收據 PDF（象牙金箔證券版）</p>
+        <ServicePageHeading role="landlord" title="收據產生器" description="產生訂金 / 押金收據 PDF（象牙金箔證券版）" />
       </div>
     </div>
 
@@ -190,6 +187,7 @@
 </template>
 
 <script setup>
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, watch } from 'vue'
 import axios from 'axios'
 import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore'

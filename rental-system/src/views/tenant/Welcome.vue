@@ -1,5 +1,6 @@
 <template>
-  <div class="min-h-screen flex items-start justify-center p-4 py-10 bg-surface-light dark:bg-surface-dark">
+  <div class="entry-page min-h-screen flex flex-col items-center justify-start p-4 py-10 bg-surface-light dark:bg-surface-dark">
+    <ServiceBrand label="入住準備" />
     <div class="w-full max-w-md space-y-5">
 
       <div class="text-center space-y-1">
@@ -109,6 +110,7 @@
 </template>
 
 <script setup lang="ts">
+import ServiceBrand from '../../components/ServiceBrand.vue';
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { updatePassword } from 'firebase/auth'

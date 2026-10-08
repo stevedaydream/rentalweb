@@ -1,9 +1,8 @@
 <template>
-  <div class="max-w-7xl mx-auto space-y-8">
+  <div class="service-page max-w-7xl mx-auto space-y-8">
     
-    <div>
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">系統控制台</h1>
-      <p class="text-gray-500">Super Admin Control Panel</p>
+    <div class="service-page__header">
+      <ServicePageHeading role="admin" title="系統控制台" description="Super Admin Control Panel" />
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -14,7 +13,7 @@
             {{ loadingStats ? '...' : stats.landlords }}
           </p>
         </div>
-        <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center">
+        <div class="w-12 h-12 bg-gold-50 text-gold-600 rounded-full flex items-center justify-center">
           <span class="material-symbols-outlined">vpn_key</span>
         </div>
       </div>
@@ -54,18 +53,18 @@
           <h3 class="font-bold text-lg">資料管理</h3>
         </div>
         <div class="p-6 grid gap-4">
-          <RouterLink :to="{ name: 'AdminLandlords' }" class="flex items-center p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-            <div class="bg-blue-100 text-blue-600 p-2 rounded-lg mr-4 group-hover:bg-blue-200">
+          <RouterLink :to="{ name: 'AdminLandlords' }" class="flex items-center p-4 border border-gray-200 rounded-lg hover:border-gold-500 hover:bg-gold-50 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500">
+            <div class="bg-gold-100 text-gold-600 p-2 rounded-lg mr-4 group-hover:bg-gold-200">
               <span class="material-symbols-outlined" aria-hidden="true">supervisor_account</span>
             </div>
             <div class="text-left">
               <span class="block font-bold">房東列表管理</span>
               <span class="text-xs text-gray-500">查看房東、刪除房東(連動刪除ID)、查看旗下租客</span>
             </div>
-            <span class="material-symbols-outlined ml-auto text-gray-400 group-hover:text-blue-500" aria-hidden="true">arrow_forward</span>
+            <span class="material-symbols-outlined ml-auto text-gray-400 group-hover:text-gold-500" aria-hidden="true">arrow_forward</span>
           </RouterLink>
 
-          <RouterLink :to="{ name: 'AdminTenants' }" class="flex items-center p-4 border border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500">
+          <RouterLink :to="{ name: 'AdminTenants' }" class="flex items-center p-4 border border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500">
             <div class="bg-green-100 text-green-600 p-2 rounded-lg mr-4 group-hover:bg-green-200">
               <span class="material-symbols-outlined" aria-hidden="true">person_add</span>
             </div>
@@ -81,20 +80,20 @@
       <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         <div class="p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
           <h3 class="font-bold text-lg flex items-center gap-2">
-            <span class="material-symbols-outlined text-purple-500">construction</span>
+            <span class="material-symbols-outlined text-gold-500">construction</span>
             測試資料生成
           </h3>
         </div>
         <div class="p-6 space-y-4">
-          <div class="p-4 bg-purple-50 dark:bg-purple-900/10 rounded-lg border border-purple-100 dark:border-purple-900/20">
-            <h4 class="font-bold text-purple-700 dark:text-purple-300 mb-2">一鍵生成測試房東</h4>
+          <div class="p-4 bg-gold-50 dark:bg-gold-900/10 rounded-lg border border-gold-100 dark:border-gold-900/20">
+            <h4 class="font-bold text-gold-700 dark:text-gold-300 mb-2">一鍵生成測試房東</h4>
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
               自動建立一個測試用的房東帳號(User)，並寫入 3 間房間(Rooms)與 5 位測試租客(Tenants)數據。
             </p>
             <button 
               @click="generateTestLandlord" 
               :disabled="generating"
-              class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold rounded-lg shadow-sm transition-colors flex items-center disabled:opacity-50"
+              class="px-4 py-2 bg-gold-600 hover:bg-gold-700 text-white text-sm font-bold rounded-lg shadow-sm transition-colors flex items-center disabled:opacity-50"
             >
               <span class="material-symbols-outlined text-sm mr-2">add_circle</span>
               {{ generating ? '生成中...' : '生成測試資料' }}
@@ -157,6 +156,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, onMounted } from 'vue';
 import { db } from '../../firebase/config';
 import { useToastStore } from '../../stores/toast';

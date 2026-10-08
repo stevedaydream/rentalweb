@@ -2,9 +2,9 @@
   <div class="service-page max-w-7xl mx-auto space-y-6">
 
     <!-- 頁面標題列 -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="service-page__header flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">智慧電表登錄</h1>
+        <ServicePageHeading role="landlord" title="智慧電表登錄" description="登錄各房用電，確認計算方式與本期費用。" />
         <div class="flex items-center gap-2 text-text-secondary-light mt-1 flex-wrap">
           <span>目前模式：</span>
           <span class="font-bold text-blue-600 px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 rounded text-sm">
@@ -468,6 +468,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, onMounted, watch } from 'vue';
 import { db } from '../../firebase/config';
 import { useToastStore } from '../../stores/toast';

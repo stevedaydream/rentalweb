@@ -1,11 +1,8 @@
 <template>
-  <div class="max-w-4xl mx-auto space-y-6">
+  <div class="service-page max-w-4xl mx-auto space-y-6">
 
-    <div>
-      <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">功能維護開關</h1>
-      <p class="text-text-secondary-light mt-0.5">
-        關閉後，該身分的選單會隱藏此功能，直接輸入網址也會導向「功能維修中」頁。設定即時生效，不需重新部署。
-      </p>
+    <div class="service-page__header">
+      <ServicePageHeading role="admin" title="功能維護開關" description="關閉後，該身分的選單會隱藏此功能，直接輸入網址也會導向「功能維修中」頁。設定即時生效，不需重新部署。" />
     </div>
 
     <div v-if="disabledCount" class="flex items-center gap-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-4 py-3 text-sm">
@@ -56,6 +53,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, onMounted } from 'vue';
 import { useFeatureFlagStore } from '../../stores/featureFlags';
 import { useToastStore } from '../../stores/toast';

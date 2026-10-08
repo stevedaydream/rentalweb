@@ -1,7 +1,7 @@
 <template>
   <div class="service-page max-w-6xl mx-auto space-y-6">
     
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="service-page__header flex flex-col md:flex-row md:items-center justify-between gap-4">
       <ServicePageHeading title="聯繫房東" description="查找聯絡方式、綁定 LINE，或傳送站內訊息。" role="tenant" :links="[{ label: '我的帳單', to: '/tenant/bills' }]" />
     </div>
 

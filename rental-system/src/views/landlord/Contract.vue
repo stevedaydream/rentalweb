@@ -2,7 +2,7 @@
   <div class="service-page max-w-5xl mx-auto space-y-6">
 
     <!-- Header -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="service-page__header flex flex-col md:flex-row md:items-center justify-between gap-4">
       <ServicePageHeading title="電子合約" description="查閱簽署狀態，核對租客簽名並完成合約。" role="landlord" :links="[{ label: '租客與租約', to: '/landlord/tenants' }]" />
     </div>
 

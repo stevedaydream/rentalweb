@@ -1,15 +1,14 @@
 <template>
-  <div class="max-w-7xl mx-auto space-y-8">
+  <div class="service-page max-w-7xl mx-auto space-y-8">
     
-    <div>
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">資料庫與測試數據管理</h1>
-      <p class="text-gray-500">快速生成測試資料、模擬各種情境與系統維護</p>
+    <div class="service-page__header">
+      <ServicePageHeading role="admin" title="資料庫與測試數據管理" description="快速生成測試資料、模擬各種情境與系統維護" />
     </div>
 
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
       <div class="p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
         <h3 class="font-bold text-lg flex items-center gap-2">
-          <span class="material-symbols-outlined text-purple-500">science</span>
+          <span class="material-symbols-outlined text-gold-500">science</span>
           全域測試資料 (Global Test Data)
         </h3>
       </div>
@@ -21,7 +20,7 @@
             <button 
               @click="generateGlobalUser('landlord')"
               :disabled="loading"
-              class="flex-1 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-sm font-bold transition-colors"
+              class="flex-1 py-2 bg-gold-50 text-gold-600 hover:bg-gold-100 rounded-lg text-sm font-bold transition-colors"
             >
               + 測試房東
             </button>
@@ -38,8 +37,8 @@
     </div>
 
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <div class="p-6 border-b border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/10 flex flex-col md:flex-row justify-between items-center gap-4">
-        <h3 class="font-bold text-lg flex items-center gap-2 text-blue-800 dark:text-blue-200">
+      <div class="p-6 border-b border-gray-200 dark:border-gray-700 bg-gold-50 dark:bg-gold-900/10 flex flex-col md:flex-row justify-between items-center gap-4">
+        <h3 class="font-bold text-lg flex items-center gap-2 text-gold-800 dark:text-gold-200">
           <span class="material-symbols-outlined">person_pin</span>
           指定房東情境模擬
         </h3>
@@ -62,7 +61,7 @@
 
           <div class="space-y-3">
             <h4 class="font-bold text-sm text-gray-500 uppercase flex items-center gap-2">
-              <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-600 text-[11px] flex items-center justify-center font-black">1</span>
+              <span class="w-5 h-5 rounded-full bg-gold-100 text-gold-600 text-[11px] flex items-center justify-center font-black">1</span>
               基礎資料
             </h4>
             <button @click="genRooms" :disabled="loading"
@@ -94,13 +93,13 @@
         </div>
 
         <!-- Row 2: 財務數據模擬 (full width with room selector) -->
-        <div class="border border-blue-100 dark:border-blue-800 rounded-xl overflow-hidden">
-          <div class="px-5 py-3 bg-blue-50 dark:bg-blue-900/10 flex items-center justify-between">
-            <h4 class="font-bold text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
-              <span class="w-5 h-5 rounded-full bg-blue-200 text-blue-700 text-[11px] flex items-center justify-center font-black">2</span>
+        <div class="border border-gold-100 dark:border-gold-800 rounded-xl overflow-hidden">
+          <div class="px-5 py-3 bg-gold-50 dark:bg-gold-900/10 flex items-center justify-between">
+            <h4 class="font-bold text-sm text-gold-800 dark:text-gold-200 flex items-center gap-2">
+              <span class="w-5 h-5 rounded-full bg-gold-200 text-gold-700 text-[11px] flex items-center justify-center font-black">2</span>
               財務數據模擬
             </h4>
-            <span class="text-xs text-blue-600 dark:text-blue-400">
+            <span class="text-xs text-gold-600 dark:text-gold-400">
               已選 {{ selectedRoomIds.length }} / {{ existingRooms.length }} 間
             </span>
           </div>
@@ -111,7 +110,7 @@
               <div class="flex items-center justify-between mb-3">
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-300">選擇要模擬的房間</span>
                 <button @click="toggleAllRooms"
-                  class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                  class="text-xs text-gold-600 hover:text-gold-800 font-medium">
                   {{ allSelected ? '取消全選' : '全選' }}
                 </button>
               </div>
@@ -127,10 +126,10 @@
                 <label v-for="room in existingRooms" :key="room.id"
                   class="flex items-start gap-2 p-3 rounded-lg border cursor-pointer transition-all select-none"
                   :class="selectedRoomIds.includes(room.id)
-                    ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-600'
+                    ? 'border-gold-400 bg-gold-50 dark:bg-gold-900/20 dark:border-gold-600'
                     : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-500'">
                   <input type="checkbox" :checked="selectedRoomIds.includes(room.id)"
-                    @change="toggleRoom(room.id)" class="mt-0.5 accent-blue-600 shrink-0" />
+                    @change="toggleRoom(room.id)" class="mt-0.5 accent-gold-600 shrink-0" />
                   <div class="min-w-0 flex-1">
                     <p class="font-bold text-sm text-gray-800 dark:text-gray-100 truncate">{{ room.name }}</p>
                     <p v-if="room.tenantName" class="text-xs text-green-600 dark:text-green-400 truncate">
@@ -150,7 +149,7 @@
                 <span class="material-symbols-outlined text-[18px]">electric_meter</span>
                 生成電表紀錄 (近 4 個月)
                 <span v-if="selectedRoomIds.length"
-                  class="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded-full">
+                  class="text-xs bg-gold-100 dark:bg-gold-900/30 text-gold-700 dark:text-gold-300 px-1.5 py-0.5 rounded-full">
                   {{ selectedRoomIds.length }} 間
                 </span>
               </button>
@@ -219,6 +218,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, watch, onMounted } from 'vue';
 import { db } from '../../firebase/config';
 import { useToastStore } from '../../stores/toast';

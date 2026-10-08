@@ -1,5 +1,6 @@
 <template>
-  <div class="min-h-screen flex flex-col items-center justify-center gap-6 p-4 bg-background-light dark:bg-background-dark">
+  <div class="entry-page min-h-screen flex flex-col items-center justify-center gap-6 p-4 bg-background-light dark:bg-background-dark">
+    <ServiceBrand label="帳戶登入" />
     <div class="w-full max-w-md bg-white dark:bg-card-dark p-8 rounded-2xl shadow-sm border border-ink-100 dark:border-ink-800">
 
       <div class="mb-8 relative">
@@ -147,6 +148,7 @@
 </template>
 
 <script setup lang="ts">
+import ServiceBrand from '../../components/ServiceBrand.vue';
 import AppCopyright from '../../components/AppCopyright.vue';
 import { ref, computed } from 'vue';
 import { useAuthStore } from '../../stores/auth';

@@ -11,11 +11,7 @@
     </header>
 
     <main class="max-w-6xl mx-auto px-4 py-6 md:py-10 space-y-8">
-      <div class="space-y-2">
-        <p class="text-xs font-bold tracking-widest text-gold-600 dark:text-gold-400">使用指南</p>
-        <h1 class="text-2xl md:text-3xl font-bold text-text-primary-light dark:text-text-primary-dark">操作說明</h1>
-        <p class="text-text-secondary-light max-w-2xl">請先選擇您的身分，每個分頁都依實際操作順序排列，示意圖上的編號對應左側步驟。</p>
-      </div>
+      <ServicePageHeading role="public" title="操作說明" description="請先選擇您的身分，每個分頁都依實際操作順序排列，示意圖上的編號對應左側步驟。" />
 
       <div role="tablist" aria-label="選擇身分" class="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <button
@@ -112,6 +108,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../components/ServicePageHeading.vue';
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';

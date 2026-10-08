@@ -1,10 +1,9 @@
 <template>
-  <div class="max-w-7xl mx-auto space-y-6">
+  <div class="service-page max-w-7xl mx-auto space-y-6">
     
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="service-page__header flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">房東管理</h1>
-        <p class="text-gray-500 text-sm">檢視與管理系統內所有註冊房東</p>
+        <ServicePageHeading role="admin" title="房東管理" description="檢視與管理系統內所有註冊房東" />
       </div>
       
       <div class="relative w-full md:w-72">
@@ -13,7 +12,7 @@
           v-model="searchQuery"
           type="text" 
           placeholder="搜尋姓名、Email 或代碼..." 
-          class="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:border-transparent transition-all shadow-sm"
+          class="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:border-transparent transition-all shadow-sm"
         >
       </div>
     </div>
@@ -21,7 +20,7 @@
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
       
       <div v-if="loading" class="p-12 text-center text-gray-500">
-        <div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+        <div class="w-8 h-8 border-4 border-gold-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
         <p>載入房東資料中...</p>
       </div>
 
@@ -46,7 +45,7 @@
             <tr v-for="landlord in paginatedLandlords" :key="landlord.id" class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
               <td class="px-6 py-4">
                 <div class="flex items-center">
-                  <div class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 flex items-center justify-center font-bold mr-3 text-lg">
+                  <div class="w-10 h-10 rounded-full bg-gold-100 dark:bg-gold-900/30 text-gold-600 dark:text-gold-300 flex items-center justify-center font-bold mr-3 text-lg">
                     {{ landlord.name?.[0] || '?' }}
                   </div>
                   <div>
@@ -74,7 +73,7 @@
                 <div class="flex items-center justify-end gap-1">
                   <button
                     @click="authStore.startImpersonation({ uid: landlord.id, name: landlord.name, landlordCode: landlord.landlordCode })"
-                    class="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 p-2 rounded-lg transition-colors"
+                    class="text-gold-500 hover:text-gold-700 hover:bg-gold-50 dark:hover:bg-gold-900/20 p-2 rounded-lg transition-colors"
                     title="以此房東身份模擬操作"
                   >
                     <span class="material-symbols-outlined">manage_accounts</span>
@@ -108,7 +107,7 @@
               @click="currentPage = p"
               class="px-3 py-1.5 text-sm rounded-lg border transition-colors"
               :class="p === currentPage
-                ? 'bg-blue-600 text-white border-blue-600'
+                ? 'bg-gold-500 text-white border-gold-600'
                 : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'"
             >{{ p }}</button>
             <button
@@ -124,6 +123,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, onMounted, watch } from 'vue';
 import { db } from '../../firebase/config';
 import { useToastStore } from '../../stores/toast';

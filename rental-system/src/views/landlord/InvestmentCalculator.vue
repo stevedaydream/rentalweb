@@ -1,10 +1,9 @@
 <template>
-  <div class="max-w-5xl mx-auto space-y-6">
+  <div class="service-page max-w-5xl mx-auto space-y-6">
 
     <!-- Header -->
-    <div>
-      <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">投資試算</h1>
-      <p class="text-text-secondary-light">預期收益、投資報酬率與稅務試算</p>
+    <div class="service-page__header">
+      <ServicePageHeading role="landlord" title="投資試算" description="預期收益、投資報酬率與稅務試算" />
     </div>
 
     <!-- Room Selector + Inputs -->
@@ -246,6 +245,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, watch, onMounted } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { db } from '../../firebase/config'

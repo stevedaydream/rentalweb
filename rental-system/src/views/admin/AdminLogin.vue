@@ -1,14 +1,15 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center p-4 bg-gray-950">
-    <div class="w-full max-w-sm bg-gray-900 p-8 rounded-2xl shadow-2xl border border-gray-700">
+  <div class="entry-page min-h-screen flex flex-col items-center justify-center p-4 bg-background-light dark:bg-background-dark">
+    <ServiceBrand label="系統管理" />
+    <div class="w-full max-w-sm bg-white dark:bg-card-dark p-8 rounded-2xl shadow-sm border border-ink-100 dark:border-ink-800">
 
       <!-- Header -->
       <div class="text-center mb-8">
-        <div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-red-900/40 border border-red-700/50 text-red-400 mb-4">
+        <div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-gold-50 dark:bg-gold-900/30 border border-gold-200 dark:border-gold-800 text-gold-600 dark:text-gold-300 mb-4">
           <span class="material-symbols-outlined text-3xl">shield_person</span>
         </div>
-        <h1 class="text-xl font-bold text-white">系統管理員</h1>
-        <p class="mt-1 text-sm text-gray-500">限授權人員使用</p>
+        <h1 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">系統管理員</h1>
+        <p class="mt-1 text-sm text-text-secondary-light dark:text-text-secondary-dark">限授權人員使用</p>
       </div>
 
       <!-- Tab -->
@@ -16,14 +17,14 @@
         <button
           @click="tab = 'login'"
           :class="tab === 'login'
-            ? 'bg-red-800 text-white'
-            : 'bg-transparent text-gray-400 hover:text-gray-200'"
+            ? 'bg-ink-800 text-white'
+            : 'bg-transparent text-text-secondary-light hover:text-gold-600'"
           class="flex-1 py-2 text-sm font-medium transition-colors"
         >登入</button>
         <button
           @click="tab = 'register'"
           :class="tab === 'register'
-            ? 'bg-red-800 text-white'
+            ? 'bg-ink-800 text-white'
             : 'bg-transparent text-gray-400 hover:text-gray-200'"
           class="flex-1 py-2 text-sm font-medium transition-colors"
         >建立帳號</button>
@@ -32,26 +33,26 @@
       <!-- Login Form -->
       <form v-if="tab === 'login'" @submit.prevent="handleLogin" class="space-y-4">
         <div>
-          <label class="block text-xs font-medium text-gray-400 mb-1">Email</label>
+          <label class="block text-xs font-medium text-text-secondary-light mb-1">Email</label>
           <input
             v-model="email"
             type="email"
             name="email"
             autocomplete="email"
             required
-            class="w-full px-3 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 text-sm focus:outline-none focus:border-red-500 transition-colors"
+            class="w-full px-3 py-2.5 bg-white dark:bg-ink-800 border border-ink-200 dark:border-ink-700 rounded-lg text-text-primary-light dark:text-text-primary-dark placeholder-gray-500 dark:placeholder-gray-400 text-sm focus:outline-none focus:border-gold-500 transition-colors"
             placeholder="admin@example.com"
           >
         </div>
         <div>
-          <label class="block text-xs font-medium text-gray-400 mb-1">密碼</label>
+          <label class="block text-xs font-medium text-text-secondary-light mb-1">密碼</label>
           <input
             v-model="password"
             type="password"
             name="password"
             autocomplete="current-password"
             required
-            class="w-full px-3 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 text-sm focus:outline-none focus:border-red-500 transition-colors"
+            class="w-full px-3 py-2.5 bg-white dark:bg-ink-800 border border-ink-200 dark:border-ink-700 rounded-lg text-text-primary-light dark:text-text-primary-dark placeholder-gray-500 dark:placeholder-gray-400 text-sm focus:outline-none focus:border-gold-500 transition-colors"
             placeholder="••••••••"
           >
         </div>
@@ -59,7 +60,7 @@
         <button
           type="submit"
           :disabled="loading"
-          class="w-full py-2.5 bg-red-700 hover:bg-red-600 text-white font-bold rounded-lg transition-colors disabled:opacity-50 text-sm mt-2"
+          class="w-full py-2.5 bg-gold-500 hover:bg-gold-600 text-white font-bold rounded-lg transition-colors disabled:opacity-50 text-sm mt-2"
         >
           {{ loading ? '登入中...' : '登入' }}
         </button>
@@ -68,19 +69,19 @@
       <!-- Register Form -->
       <form v-else @submit.prevent="handleRegister" class="space-y-4">
         <div>
-          <label class="block text-xs font-medium text-gray-400 mb-1">Email</label>
+          <label class="block text-xs font-medium text-text-secondary-light mb-1">Email</label>
           <input
             v-model="email"
             type="email"
             name="email"
             autocomplete="email"
             required
-            class="w-full px-3 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 text-sm focus:outline-none focus:border-red-500 transition-colors"
+            class="w-full px-3 py-2.5 bg-white dark:bg-ink-800 border border-ink-200 dark:border-ink-700 rounded-lg text-text-primary-light dark:text-text-primary-dark placeholder-gray-500 dark:placeholder-gray-400 text-sm focus:outline-none focus:border-gold-500 transition-colors"
             placeholder="admin@example.com"
           >
         </div>
         <div>
-          <label class="block text-xs font-medium text-gray-400 mb-1">密碼</label>
+          <label class="block text-xs font-medium text-text-secondary-light mb-1">密碼</label>
           <input
             v-model="password"
             type="password"
@@ -88,19 +89,19 @@
             autocomplete="new-password"
             required
             minlength="8"
-            class="w-full px-3 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 text-sm focus:outline-none focus:border-red-500 transition-colors"
+            class="w-full px-3 py-2.5 bg-white dark:bg-ink-800 border border-ink-200 dark:border-ink-700 rounded-lg text-text-primary-light dark:text-text-primary-dark placeholder-gray-500 dark:placeholder-gray-400 text-sm focus:outline-none focus:border-gold-500 transition-colors"
             placeholder="至少 8 個字元"
           >
         </div>
         <div>
-          <label class="block text-xs font-medium text-gray-400 mb-1">授權碼</label>
+          <label class="block text-xs font-medium text-text-secondary-light mb-1">授權碼</label>
           <input
             v-model="adminKey"
             type="password"
             name="admin-key"
             autocomplete="off"
             required
-            class="w-full px-3 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 text-sm focus:outline-none focus:border-red-500 transition-colors"
+            class="w-full px-3 py-2.5 bg-white dark:bg-ink-800 border border-ink-200 dark:border-ink-700 rounded-lg text-text-primary-light dark:text-text-primary-dark placeholder-gray-500 dark:placeholder-gray-400 text-sm focus:outline-none focus:border-gold-500 transition-colors"
             placeholder="請輸入管理員授權碼"
           >
         </div>
@@ -108,7 +109,7 @@
         <button
           type="submit"
           :disabled="loading"
-          class="w-full py-2.5 bg-red-700 hover:bg-red-600 text-white font-bold rounded-lg transition-colors disabled:opacity-50 text-sm mt-2"
+          class="w-full py-2.5 bg-gold-500 hover:bg-gold-600 text-white font-bold rounded-lg transition-colors disabled:opacity-50 text-sm mt-2"
         >
           {{ loading ? '建立中...' : '建立管理員帳號' }}
         </button>
@@ -117,7 +118,7 @@
       <!-- Back -->
       <RouterLink
         :to="{ name: 'Identity' }"
-        class="mt-6 block w-full text-center text-xs text-gray-600 hover:text-gray-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded"
+        class="mt-6 block w-full text-center text-xs text-text-secondary-light hover:text-gold-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 rounded"
       >
         ← 返回
       </RouterLink>
@@ -127,6 +128,7 @@
 </template>
 
 <script setup lang="ts">
+import ServiceBrand from '../../components/ServiceBrand.vue';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../../stores/auth';

@@ -1,9 +1,8 @@
 <template>
-  <div class="max-w-5xl mx-auto space-y-6">
-    <div class="flex flex-wrap justify-between gap-4">
+  <div class="service-page max-w-5xl mx-auto space-y-6">
+    <div class="service-page__header flex flex-wrap justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">資料匯入中心</h1>
-        <p class="text-text-secondary-light">接管舊資料：先完整驗證，再一次建立現況資料。</p>
+        <ServicePageHeading role="landlord" title="資料匯入中心" description="接管舊資料：先完整驗證，再一次建立現況資料。" />
       </div>
       <button type="button" @click="downloadCurrentTemplate"
         class="px-4 py-2 rounded-xl bg-gold-500 text-white font-medium flex gap-2 items-center hover:bg-gold-600 transition-colors">
@@ -71,6 +70,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useToastStore } from '../../stores/toast'

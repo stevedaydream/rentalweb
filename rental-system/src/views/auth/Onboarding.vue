@@ -325,7 +325,7 @@ const handleSubmit = async () => {
 .ob-root {
   min-height: 100svh;
   min-height: 100vh;
-  background: #F7F4EE;
+  background: var(--service-background);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -358,7 +358,7 @@ const handleSubmit = async () => {
 }
 
 .ob-card {
-  background: #FFFFFF;
+  background: var(--service-paper);
   border-radius: 18px;
   box-shadow: 0 4px 6px rgba(0,0,0,0.04), 0 20px 48px rgba(0,0,0,0.07);
   padding: 2.75rem 2.5rem;
@@ -386,7 +386,7 @@ const handleSubmit = async () => {
   left: 0;
   width: 4px;
   height: 100%;
-  background: linear-gradient(180deg, #C9A84C 0%, #E8C96A 50%, #C9A84C 100%);
+  background: linear-gradient(180deg, #9A6F29 0%, #E8C96A 50%, #9A6F29 100%);
   border-radius: 18px 0 0 18px;
 }
 
@@ -400,7 +400,7 @@ const handleSubmit = async () => {
   font-size: 0.65rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: #C9A84C;
+  color: #9A6F29;
   font-weight: 600;
   margin-bottom: 0.6rem;
   font-family: "PingFang TC", "Noto Sans TC", sans-serif;
@@ -410,16 +410,16 @@ const handleSubmit = async () => {
   margin: 0 0 0.35rem;
   font-size: 1.7rem;
   font-weight: 700;
-  color: #1A1510;
+  color: var(--service-text);
   letter-spacing: 0.02em;
-  font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  font-family: var(--font-heading);
   line-height: 1.2;
 }
 
 .ob-subtitle {
   margin: 0;
   font-size: 0.82rem;
-  color: #9A9088;
+  color: var(--service-muted);
   letter-spacing: 0.02em;
   font-family: "PingFang TC", "Noto Sans TC", sans-serif;
 }
@@ -457,7 +457,7 @@ const handleSubmit = async () => {
   font-size: 0.65rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #A09890;
+  color: var(--service-muted);
   font-weight: 600;
   margin-bottom: 0.5rem;
   font-family: "PingFang TC", "Noto Sans TC", sans-serif;
@@ -466,10 +466,10 @@ const handleSubmit = async () => {
 .ob-input {
   background: transparent;
   border: none;
-  border-bottom: 1.5px solid #E2DBD2;
+  border-bottom: 1.5px solid var(--service-border);
   padding: 0.45rem 2rem 0.45rem 0;
   font-size: 1rem;
-  color: #1A1510;
+  color: var(--service-text);
   font-family: "PingFang TC", "Noto Sans TC", sans-serif;
   transition: border-color 0.2s ease;
   outline: none;
@@ -482,7 +482,7 @@ const handleSubmit = async () => {
 }
 
 .ob-input:focus {
-  border-bottom-color: #C9A84C;
+  border-bottom-color: #9A6F29;
 }
 
 .ob-input:focus-visible {
@@ -498,7 +498,7 @@ const handleSubmit = async () => {
 /* Animated underline on focus */
 .ob-underline {
   height: 1.5px;
-  background: #C9A84C;
+  background: #9A6F29;
   position: absolute;
   bottom: 0;
   left: 0;
@@ -542,7 +542,7 @@ const handleSubmit = async () => {
 
 .ob-hint {
   font-size: 0.7rem;
-  color: #B0A898;
+  color: var(--service-muted);
   margin-top: 0.4rem;
   letter-spacing: 0.02em;
   font-family: "PingFang TC", "Noto Sans TC", sans-serif;
@@ -572,7 +572,7 @@ const handleSubmit = async () => {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(201, 168, 76, 0.25);
-  border-top-color: #C9A84C;
+  border-top-color: #9A6F29;
   border-radius: 50%;
   animation: ob-spin 0.7s linear infinite;
 }
@@ -610,7 +610,7 @@ const handleSubmit = async () => {
   flex-direction: column;
   gap: 1.25rem;
   padding-top: 0.25rem;
-  border-top: 1px solid #EDE8DF;
+  border-top: 1px solid var(--service-border);
 }
 
 .ob-section-header {
@@ -623,14 +623,14 @@ const handleSubmit = async () => {
   margin: 0;
   font-size: 1rem;
   font-weight: 700;
-  color: #1A1510;
+  color: var(--service-text);
   font-family: "PingFang TC", "Noto Sans TC", sans-serif;
 }
 
 .ob-section-sub {
   margin: 0;
   font-size: 0.78rem;
-  color: #9A9088;
+  color: var(--service-muted);
   font-family: "PingFang TC", "Noto Sans TC", sans-serif;
 }
 
@@ -640,10 +640,10 @@ const handleSubmit = async () => {
   align-items: flex-start;
   gap: 0.6rem;
   padding: 0.875rem 1rem;
-  background: #F0EDE4;
+  background: var(--service-surface);
   border-radius: 10px;
   font-size: 0.78rem;
-  color: #6A6058;
+  color: var(--service-muted);
   font-family: "PingFang TC", "Noto Sans TC", sans-serif;
   line-height: 1.6;
 }
@@ -652,12 +652,12 @@ const handleSubmit = async () => {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  color: #C9A84C;
+  color: #9A6F29;
   margin-top: 0.1rem;
 }
 
 .ob-tip-link {
-  color: #C9A84C;
+  color: #9A6F29;
   font-weight: 600;
   text-decoration: none;
 }
@@ -667,7 +667,7 @@ const handleSubmit = async () => {
 }
 
 .ob-tip-link:focus-visible {
-  outline: 2px solid #C9A84C;
+  outline: 2px solid #9A6F29;
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -678,11 +678,11 @@ const handleSubmit = async () => {
   align-items: flex-start;
   gap: 0.6rem;
   padding: 0.875rem 1rem;
-  background: #FDF8EC;
+  background: var(--service-surface);
   border: 1px solid rgba(201, 168, 76, 0.25);
   border-radius: 10px;
   font-size: 0.82rem;
-  color: #7A6830;
+  color: var(--service-gold-text);
   font-family: "PingFang TC", "Noto Sans TC", sans-serif;
   line-height: 1.6;
 }
@@ -691,7 +691,7 @@ const handleSubmit = async () => {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  color: #C9A84C;
+  color: #9A6F29;
   margin-top: 0.15rem;
 }
 
@@ -707,7 +707,7 @@ const handleSubmit = async () => {
 .ob-submit {
   width: 100%;
   padding: 0.9rem 1.5rem;
-  background: #C9A84C;
+  background: #9A6F29;
   color: #fff;
   font-size: 0.95rem;
   font-weight: 700;
@@ -725,7 +725,7 @@ const handleSubmit = async () => {
 }
 
 .ob-submit:hover:not(:disabled) {
-  background: #B8962E;
+  background: #8E6325;
   box-shadow: 0 6px 24px rgba(201, 168, 76, 0.45);
   transform: translateY(-1px);
 }
@@ -741,7 +741,7 @@ const handleSubmit = async () => {
 }
 
 .ob-submit:focus-visible {
-  outline: 2px solid #C9A84C;
+  outline: 2px solid #9A6F29;
   outline-offset: 3px;
 }
 
@@ -757,7 +757,7 @@ const handleSubmit = async () => {
 
 .ob-submit-note {
   font-size: 0.72rem;
-  color: #B0A898;
+  color: var(--service-muted);
   margin: 0;
   font-family: "PingFang TC", "Noto Sans TC", sans-serif;
   letter-spacing: 0.02em;

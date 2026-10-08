@@ -1,13 +1,13 @@
 <template>
   <div class="min-h-screen flex flex-col h-screen overflow-hidden bg-gray-100 dark:bg-gray-900">
     
-    <div class="bg-gray-900 text-white px-4 py-2 flex items-center justify-between shrink-0 z-50 shadow-md">
-      <div class="flex items-center gap-4">
-        <h1 class="font-bold text-lg flex items-center gap-2">
+    <div class="bg-ink-800 text-white px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0 z-50 shadow-md">
+      <div class="flex flex-wrap items-center gap-3 min-w-0">
+        <h1 class="font-bold text-base md:text-lg flex items-center gap-2">
           <span class="material-symbols-outlined text-yellow-400">preview</span>
           全系統模擬實驗室 (System Simulator)
         </h1>
-        <div class="text-xs text-gray-400 flex items-center gap-2 bg-gray-800 px-3 py-1 rounded-full">
+        <div class="text-xs text-gray-300 flex items-center gap-2 bg-gray-800 px-3 py-1 rounded-xl">
           <span class="material-symbols-outlined text-[14px]">info</span>
           <span>利用來源隔離 (localhost vs 127.0.0.1) 實現雙帳號同時登入</span>
         </div>
@@ -18,7 +18,7 @@
           <span class="material-symbols-outlined text-[14px] mr-1">refresh</span>
           重新整理視窗
         </button>
-        <button @click="$router.push({ name: 'AdminDashboard' })" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs">
+        <button @click="$router.push({ name: 'AdminDashboard' })" class="px-3 py-1 bg-gold-500 hover:bg-gold-600 rounded text-xs">
           返回後台
         </button>
       </div>
@@ -34,10 +34,10 @@
       </span>
     </div>
 
-    <div class="flex-1 flex overflow-hidden border-b-4 border-gray-300 dark:border-gray-700 h-[60%]">
+    <div class="flex-1 flex flex-col md:flex-row overflow-hidden border-b-4 border-gray-300 dark:border-gray-700 h-[60%]">
 
-      <div class="flex-1 flex flex-col border-r-4 border-gray-300 dark:border-gray-700 relative group">
-        <div class="bg-blue-600 text-white text-xs px-3 py-1 font-bold flex justify-between items-center">
+      <div class="flex-1 min-h-0 min-w-0 flex flex-col md:border-r-4 border-gray-300 dark:border-gray-700 relative group">
+        <div class="bg-gold-500 text-white text-xs px-3 py-1 font-bold flex justify-between items-center">
           <span>房東視角 (Landlord View) - {{ leftOrigin }}</span>
           <span class="opacity-50 text-[10px]">Primary Origin</span>
         </div>
@@ -54,7 +54,7 @@
         </div>
       </div>
 
-      <div class="flex-1 flex flex-col relative group">
+      <div class="flex-1 min-h-0 min-w-0 flex flex-col relative group">
         <div class="bg-green-600 text-white text-xs px-3 py-1 font-bold flex justify-between items-center">
           <span>租客視角 (Tenant View) - {{ rightOrigin }}</span>
           <span class="opacity-50 text-[10px]">{{ isLocalhost ? 'Secondary Origin' : '與左側相同 Origin (正式環境限制)' }}</span>
@@ -76,7 +76,7 @@
 
     <div class="h-[40%] bg-gray-50 dark:bg-gray-800 overflow-y-auto shadow-inner relative">
       <div class="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center gap-2 z-10">
-         <span class="material-symbols-outlined text-purple-600">settings_remote</span>
+         <span class="material-symbols-outlined text-gold-600">settings_remote</span>
          <h3 class="font-bold text-gray-700 dark:text-gray-200">上帝模式控制台 (God Mode Control)</h3>
       </div>
       

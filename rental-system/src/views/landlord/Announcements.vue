@@ -1,7 +1,7 @@
 <template>
   <div class="service-page max-w-7xl mx-auto space-y-6">
     
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="service-page__header flex flex-col md:flex-row md:items-center justify-between gap-4">
       <ServicePageHeading title="社區公告管理" description="發布居住通知，讓租客掌握重要消息。" role="landlord" :links="[{ label: '報修管理', to: '/landlord/repairs' }]" />
       <button 
         @click="openModal()"

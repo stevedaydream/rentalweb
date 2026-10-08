@@ -1,5 +1,6 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center p-4 bg-background-light dark:bg-background-dark">
+  <div class="entry-page min-h-screen flex flex-col items-center justify-center p-4 bg-background-light dark:bg-background-dark">
+    <ServiceBrand label="建立帳戶" />
     <div class="w-full max-w-md bg-white dark:bg-card-dark p-8 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-800">
       
       <div class="text-center mb-8">
@@ -80,6 +81,7 @@
 </template>
 
 <script setup lang="ts">
+import ServiceBrand from '../../components/ServiceBrand.vue';
 import { ref, computed } from 'vue';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';

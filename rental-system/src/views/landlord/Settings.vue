@@ -1,9 +1,8 @@
 <template>
-  <div class="max-w-4xl mx-auto space-y-6">
+  <div class="service-page max-w-4xl mx-auto space-y-6">
     
-    <div>
-      <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">系統設定</h1>
-      <p class="text-text-secondary-light">管理您的帳戶資訊與系統偏好</p>
+    <div class="service-page__header">
+      <ServicePageHeading role="landlord" title="系統設定" description="管理您的帳戶資訊與系統偏好" />
     </div>
 
     <div role="tablist" aria-label="設定分類" class="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-x-auto">
@@ -717,6 +716,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, watchEffect, onMounted, onUnmounted } from 'vue';
 import lineMenuItems from '../../../functions/line/menu-items.json';
 import { useRoute, useRouter } from 'vue-router';

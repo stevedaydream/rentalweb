@@ -1,6 +1,6 @@
 <template>
   <div class="service-page pb-24 max-w-2xl mx-auto space-y-6">
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div class="service-page__header flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <ServicePageHeading title="報修服務" description="提出維修需求，隨時追蹤房東的處理進度。" />
       <button 
         @click="showNewRequest = true"

@@ -1,7 +1,7 @@
 <template>
   <div class="service-page max-w-4xl mx-auto space-y-6">
     
-    <div class="flex items-center justify-between">
+    <div class="service-page__header flex items-center justify-between">
       <ServicePageHeading title="社區公告" description="掌握居住資訊，查看最新通知與重要消息。" role="tenant" :links="[{ label: '報修服務', to: '/tenant/repairs' }]" />
     </div>
 

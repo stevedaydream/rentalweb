@@ -1,10 +1,7 @@
 <template>
-  <div class="p-4 sm:p-6 max-w-3xl mx-auto space-y-4">
-    <header>
-      <h1 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">點交紀錄</h1>
-      <p class="text-sm text-text-secondary-light mt-1">
-        與房東共同確認並雙方簽名的房間現況。退租時以入住那份為比對基準，建議留著。
-      </p>
+  <div class="service-page max-w-3xl mx-auto space-y-6">
+    <header class="service-page__header">
+      <ServicePageHeading role="tenant" title="點交紀錄" description="與房東共同確認並雙方簽名的房間現況。退租時以入住那份為比對基準，建議留著。" />
     </header>
 
     <div v-if="loading" class="py-16 text-center text-sm text-text-secondary-light">
@@ -97,6 +94,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, onMounted } from 'vue'
 import { db } from '../../firebase/config'
 import { collection, getDocs, query, where } from 'firebase/firestore'

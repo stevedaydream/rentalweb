@@ -1,15 +1,13 @@
 <template>
   <div class="service-page max-w-7xl mx-auto space-y-4 md:space-y-6">
 
-    <div class="flex items-center justify-between gap-3">
+    <div class="service-page__header flex items-center justify-between gap-3">
       <div>
-        <h1 class="text-xl md:text-2xl font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark">
-          {{ greeting }}，{{ authStore.userProfile?.name || '房東' }}
-        </h1>
-        <p class="text-sm text-text-secondary-light dark:text-text-secondary-dark">
-          <span class="md:hidden">{{ attentionCount > 0 ? `${attentionCount} 項待處理` : '查看本月工作進度' }}</span>
-          <span class="hidden md:inline">這裡是您的物業概況</span>
-        </p>
+        <ServicePageHeading role="landlord">
+        <template #title>{{ greeting }}，{{ authStore.userProfile?.name || '房東' }}</template>
+        <template #description><span class="md:hidden">{{ attentionCount > 0 ? `${attentionCount} 項待處理` : '查看本月工作進度' }}</span>
+          <span class="hidden md:inline">這裡是您的物業概況</span></template>
+      </ServicePageHeading>
       </div>
       <div class="flex shrink-0 gap-3">
         <RouterLink
@@ -103,6 +101,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useAuthStore } from '../../stores/auth';
 import { db } from '../../firebase/config';

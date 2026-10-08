@@ -1,10 +1,9 @@
 <template>
-  <div class="max-w-7xl mx-auto space-y-6">
+  <div class="service-page max-w-7xl mx-auto space-y-6">
     
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="service-page__header flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">租客配對管理</h1>
-        <p class="text-gray-500 text-sm">管理註冊租客帳號，並協助綁定房東 (配對)</p>
+        <ServicePageHeading role="admin" title="租客配對管理" description="管理註冊租客帳號，並協助綁定房東 (配對)" />
       </div>
       
       <div class="relative w-full md:w-72">
@@ -13,7 +12,7 @@
           v-model="searchQuery"
           type="text" 
           placeholder="搜尋姓名、電話或 Email..." 
-          class="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:border-transparent transition-all shadow-sm"
+          class="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 focus-visible:border-transparent transition-all shadow-sm"
         >
       </div>
     </div>
@@ -112,7 +111,7 @@
                 <div class="flex items-center justify-end gap-2">
                   <button
                     @click="openAssignModal(tenant)"
-                    class="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors border border-blue-200"
+                    class="px-3 py-1.5 bg-gold-50 text-gold-600 hover:bg-gold-100 rounded-lg text-xs font-bold transition-colors border border-gold-200"
                   >
                     {{ tenant.boundLandlordCode ? '重新指派' : '配對房東' }}
                   </button>
@@ -155,7 +154,7 @@
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">選擇房東</label>
             <select 
               v-model="targetLandlordCode"
-              class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500"
+              class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500"
             >
               <option value="" disabled>請選擇一位房東</option>
               <option v-for="ll in landlords" :key="ll.id" :value="ll.landlordCode">
@@ -225,6 +224,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, onMounted } from 'vue';
 import { db, functions } from '../../firebase/config';
 import { httpsCallable } from 'firebase/functions';

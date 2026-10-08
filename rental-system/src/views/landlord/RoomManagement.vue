@@ -1,12 +1,9 @@
 <template>
-  <div class="max-w-7xl mx-auto space-y-6">
+  <div class="service-page max-w-7xl mx-auto space-y-6">
     
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="service-page__header flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
-          房源管理
-        </h1>
-        <p class="text-text-secondary-light">管理您的所有出租物業與房間狀態</p>
+        <ServicePageHeading role="landlord" title="房源管理" description="管理您的所有出租物業與房間狀態" />
       </div>
       <div v-if="activeTab === 'rooms'" class="flex gap-3">
         <button
@@ -776,6 +773,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { storage } from '../../firebase/config';
 import { useAuthStore } from '../../stores/auth';

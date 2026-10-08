@@ -17,7 +17,7 @@
           </svg>
         </button>
         <div class="id-brand">
-          <h1 class="id-name">租屋管家</h1>
+          <h1 class="id-name">租賃管家</h1>
           <p class="id-tagline">Rental Management</p>
         </div>
       </header>
@@ -100,7 +100,7 @@ const handleIconClick = () => {
 .id-root {
   min-height: 100svh;
   min-height: 100vh;
-  background: #08080E;
+  background: #211E19;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -189,7 +189,7 @@ const handleIconClick = () => {
   font-weight: 700;
   color: #F0EBE0;
   letter-spacing: 0.1em;
-  font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  font-family: var(--font-heading);
 }
 
 .id-tagline {

@@ -1,9 +1,8 @@
 <template>
-  <div class="max-w-3xl mx-auto space-y-6">
+  <div class="service-page max-w-3xl mx-auto space-y-6">
 
-    <div>
-      <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">我的資料</h1>
-      <p class="text-text-secondary-light">維護聯絡方式、房東綁定與登入密碼</p>
+    <div class="service-page__header">
+      <ServicePageHeading role="tenant" title="我的資料" description="維護聯絡方式、房東綁定與登入密碼" />
     </div>
 
     <!-- ── 租約資訊（房東維護，唯讀） ── -->
@@ -184,6 +183,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth'

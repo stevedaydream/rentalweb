@@ -1,5 +1,5 @@
 <template>
-  <div v-if="!authStore.loading">
+  <div v-if="!authStore.loading" class="app-shell">
     <router-view></router-view>
   </div>
 

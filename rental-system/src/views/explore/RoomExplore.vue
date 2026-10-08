@@ -1,44 +1,44 @@
 <template>
-  <div class="min-h-screen bg-gray-50 dark:bg-background-dark">
+  <div class="min-h-screen bg-background-light dark:bg-background-dark">
 
     <!-- Header -->
-    <header class="sticky top-0 z-40 bg-white dark:bg-card-dark border-b border-gray-100 dark:border-gray-800 shadow-sm">
-      <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-        <div class="flex items-center gap-2">
-          <span class="material-symbols-outlined text-blue-600 text-2xl">apartment</span>
-          <span class="font-bold text-lg text-text-primary-light dark:text-text-primary-dark">找房</span>
-          <span class="text-xs text-text-secondary-light hidden sm:block">— 瀏覽待租房間</span>
+    <header class="public-masthead sticky top-0 z-40 bg-white dark:bg-card-dark border-b border-gray-100 dark:border-gray-800 shadow-sm">
+      <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-2 sm:gap-4">
+        <div class="flex shrink-0 items-center gap-2">
+          <span class="material-symbols-outlined text-gold-600 dark:text-gold-300 text-2xl">apartment</span>
+          <span class="font-bold text-lg text-white">找房</span>
+          <span class="text-xs text-gold-200 hidden sm:block">— 瀏覽待租房間</span>
         </div>
         <div class="flex items-center gap-2">
           <router-link
             :to="{ name: 'Guide', query: { role: 'visitor' } }"
             aria-label="操作說明"
-            class="p-1.5 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-1 text-sm font-medium"
+            class="p-1.5 text-gray-600 dark:text-gray-300 hover:text-gold-600 dark:hover:text-gold-400 transition-colors flex items-center gap-1 text-sm font-medium"
           >
             <span class="material-symbols-outlined text-[20px]" aria-hidden="true">help</span>
             <span class="hidden sm:inline">操作說明</span>
           </router-link>
           <router-link
             to="/login"
-            class="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors font-medium"
+            class="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gold-600 dark:hover:text-gold-400 transition-colors font-medium"
           >
             登入
           </router-link>
           <router-link
             to="/register"
-            class="px-4 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition-colors shadow-sm"
+            class="px-4 py-1.5 text-sm bg-gold-600 hover:bg-gold-700 text-white rounded-lg font-bold transition-colors shadow-sm"
           >
-            已有代碼？立即註冊
+            <span class="sm:hidden">註冊</span><span class="hidden sm:inline">已有代碼？立即註冊</span>
           </router-link>
         </div>
       </div>
     </header>
 
     <!-- 說明 Banner -->
-    <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+    <div class="bg-ink-800 text-white">
       <div class="max-w-7xl mx-auto px-4 py-8">
         <h1 class="text-2xl font-bold mb-1">找到理想的租屋</h1>
-        <p class="text-blue-100 text-sm">瀏覽房東公開刊登的空置房間，找到喜歡的就聯繫房東洽談。</p>
+        <p class="text-gold-100 text-sm">瀏覽房東公開刊登的空置房間，找到喜歡的就聯繫房東洽談。</p>
         <div class="mt-4 flex items-center gap-2 text-sm bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2.5 w-fit">
           <span class="material-symbols-outlined text-[16px]">lightbulb</span>
           談好之後，請房東提供綁定代碼，再來
@@ -57,13 +57,13 @@
             v-model="rawSearch"
             type="text"
             placeholder="搜尋地區、縣市..."
-            class="w-full pl-9 pr-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none"
+            class="w-full pl-9 pr-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-gold-400 outline-none"
           >
         </div>
         <select
           v-model="filterLayout"
           aria-label="篩選格局"
-          class="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none"
+          class="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-gold-400 outline-none"
         >
           <option value="">全部格局</option>
           <option>獨立套房</option>
@@ -74,7 +74,7 @@
         <select
           v-model="filterPrice"
           aria-label="篩選價格"
-          class="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none"
+          class="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-gold-400 outline-none"
         >
           <option value="">全部價格</option>
           <option value="0-5000">5,000 以下</option>
@@ -149,7 +149,7 @@
               <h3 class="font-bold text-base text-text-primary-light dark:text-text-primary-dark line-clamp-1">
                 {{ room.name }}
               </h3>
-              <span class="text-blue-600 font-extrabold text-base whitespace-nowrap ml-2">
+              <span class="text-gold-600 dark:text-gold-300 font-extrabold text-base whitespace-nowrap ml-2">
                 NT$ {{ room.price.toLocaleString() }}<span class="text-xs font-normal text-text-secondary-light">/月</span>
               </span>
             </div>
@@ -159,7 +159,7 @@
               :href="`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(room.address)}`"
               target="_blank"
               rel="noopener noreferrer"
-              class="text-sm text-text-secondary-light mb-3 flex items-center gap-1 hover:text-blue-600 transition-colors w-fit"
+              class="text-sm text-text-secondary-light mb-3 flex items-center gap-1 hover:text-gold-600 transition-colors w-fit"
               :title="room.address"
             >
               <span class="material-symbols-outlined text-[15px]">location_on</span>
@@ -185,9 +185,9 @@
                   <router-link
                     v-if="room.landlordId"
                     :to="{ name: 'LandlordProfile', params: { landlordId: room.landlordId } }"
-                    class="flex items-center gap-2 hover:text-blue-600 transition-colors"
+                    class="flex items-center gap-2 hover:text-gold-600 transition-colors"
                   >
-                    <div class="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-600 font-bold text-xs">
+                    <div class="w-7 h-7 rounded-full bg-gold-100 dark:bg-gold-900/40 flex items-center justify-center text-gold-600 dark:text-gold-300 font-bold text-xs">
                       {{ room.landlordName?.[0] || '房' }}
                     </div>
                     <div>
@@ -201,7 +201,7 @@
                     </div>
                   </router-link>
                   <div v-else class="flex items-center gap-2">
-                    <div class="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-600 font-bold text-xs">
+                    <div class="w-7 h-7 rounded-full bg-gold-100 dark:bg-gold-900/40 flex items-center justify-center text-gold-600 dark:text-gold-300 font-bold text-xs">
                       {{ room.landlordName?.[0] || '房' }}
                     </div>
                     <span>{{ room.landlordName || '房東' }}</span>
@@ -226,7 +226,7 @@
                   <button
                     v-if="revealedContact !== room.id"
                     @click="revealedContact = room.id"
-                    class="text-xs px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 font-medium transition-colors flex items-center gap-1"
+                    class="text-xs px-2.5 py-1.5 rounded-lg bg-gold-50 dark:bg-gold-900/30 text-gold-600 dark:text-gold-300 dark:text-gold-400 hover:bg-gold-100 dark:hover:bg-gold-900/50 font-medium transition-colors flex items-center gap-1"
                   >
                     <span class="material-symbols-outlined text-[14px]">phone</span>
                     電話
@@ -253,7 +253,7 @@
         <p class="text-text-secondary-light text-sm mb-3">已和房東談好了嗎？</p>
         <router-link
           to="/register"
-          class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors shadow-lg shadow-blue-500/30"
+          class="inline-flex items-center gap-2 px-6 py-3 bg-gold-600 hover:bg-gold-700 text-white rounded-xl font-bold transition-colors shadow-lg shadow-gold-500/30"
         >
           <span class="material-symbols-outlined text-[20px]">login</span>
           輸入房東代碼，完成租客註冊

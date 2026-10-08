@@ -1,5 +1,6 @@
 <template>
-  <div class="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
+  <div class="min-h-screen flex flex-col items-center justify-center bg-background-light dark:bg-background-dark px-4">
+    <ServiceBrand label="線上服務" class="mb-10 max-w-sm" />
     <span class="material-symbols-outlined text-8xl text-gray-300 dark:text-gray-700 mb-4">search_off</span>
     <h1 class="text-6xl font-bold text-gray-800 dark:text-white mb-2">404</h1>
     <p class="text-gray-500 dark:text-gray-400 text-lg mb-8">找不到這個頁面</p>
@@ -12,10 +13,14 @@
       </button>
       <router-link
         to="/"
-        class="px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors text-sm font-medium"
+        class="px-5 py-2.5 bg-gold-600 text-white rounded-xl hover:bg-gold-700 transition-colors text-sm font-medium"
       >
         回到首頁
       </router-link>
     </div>
   </div>
 </template>
+
+<script setup lang="ts">
+import ServiceBrand from '../components/ServiceBrand.vue';
+</script>

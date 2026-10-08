@@ -1,9 +1,8 @@
 <template>
-  <div class="max-w-5xl mx-auto space-y-6">
+  <div class="service-page max-w-5xl mx-auto space-y-6">
 
-    <div class="flex items-center gap-3">
-      <span class="material-symbols-outlined text-gold-500">apartment</span>
-      <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">大樓資訊</h1>
+    <div class="service-page__header flex flex-wrap items-center justify-between gap-3">
+      <ServicePageHeading role="tenant" title="大樓資訊" description="查看公共設施、逃生路線與居住須知。" />
       <span v-if="propertyName" class="text-sm text-text-secondary-light">{{ propertyName }}</span>
     </div>
 
@@ -181,6 +180,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { db } from '../../firebase/config'

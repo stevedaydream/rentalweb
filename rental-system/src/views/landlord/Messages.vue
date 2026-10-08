@@ -1,12 +1,9 @@
 <template>
-  <div class="max-w-7xl mx-auto space-y-6">
+  <div class="service-page max-w-7xl mx-auto space-y-6">
 
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="service-page__header flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
-          訊息中心
-        </h1>
-        <p class="text-text-secondary-light">查看租客詢問並進行回覆</p>
+        <ServicePageHeading role="landlord" title="訊息中心" description="查看租客詢問並進行回覆" />
       </div>
       <div class="flex gap-2 flex-wrap">
          <button
@@ -205,6 +202,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';

@@ -2,7 +2,7 @@
   <div class="service-page max-w-7xl mx-auto space-y-6" @click="closeDropdown">
 
     <!-- Header -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="service-page__header flex flex-col md:flex-row md:items-center justify-between gap-4">
       <ServicePageHeading title="租客與租約" description="查看房間與租客資料，安排到期租約及續約事項。" role="landlord" :links="[{ label: '電子合約', to: '/landlord/contract' }, { label: '帳務管理', to: '/landlord/financials' }]" />
       <div class="flex gap-3 flex-wrap">
         <TenantImportModal

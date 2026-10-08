@@ -8,20 +8,53 @@
   }
 }
 
-/* LINE 服務入口的共用版面 */
-.service-page { --service-border: #e8dfcf; }
-.service-page > div:first-child {
+/* 全站共用的品牌與版面 */
+:root {
+  --font-heading: 'Noto Serif TC', serif;
+  --service-border: #e8dfcf;
+  --service-paper: #fffcf5;
+  --service-gold-text: #78551f;
+  --service-muted: #766d60;
+  --service-background: #f7f4ee;
+  --service-text: #211e19;
+  --service-surface: #eee9df;
+}
+.dark {
+  --service-border: #453c2e;
+  --service-paper: #1c1a16;
+  --service-gold-text: #d3b780;
+  --service-muted: #b6ac9d;
+  --service-background: #0f0e0b;
+  --service-text: #f5f4f2;
+  --service-surface: #252218;
+}
+.app-shell { min-height: 100dvh; }
+.app-theme :where(h1) { font-family: var(--font-heading); letter-spacing: .025em; }
+.app-theme :where(div, section, article, form).bg-white:where(.rounded-xl, .rounded-2xl),
+.app-theme .card {
+  background-color: var(--service-paper);
+  border-radius: 18px;
+  box-shadow: 0 3px 14px #362b170a;
+}
+.app-theme :where(div, section, article, form).bg-white:where(.rounded-xl, .rounded-2xl):where(.border-gray-100, .border-gray-200, .border-ink-100),
+.app-theme .card { border-color: var(--service-border); }
+.app-theme :where(input, select, textarea):not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']) {
+  border-radius: 10px;
+  min-height: 42px;
+}
+.app-theme :where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid #a8792e;
+  outline-offset: 3px;
+}
+.app-theme :where(button) { touch-action: manipulation; }
+.app-theme :where(button):disabled { cursor: not-allowed; }
+.app-theme :where(table) { font-variant-numeric: tabular-nums; }
+.app-theme :where(th) { font-size: 12px; font-weight: 600; letter-spacing: .025em; }
+.app-theme .text-text-secondary-light { color: var(--service-muted); }
+.service-page { min-width: 0; }
+.service-page__header, .service-page > .service-heading {
   padding: 6px 0 24px;
   border-bottom: 1px solid var(--service-border);
-}
-.service-page > div:first-child > div > h1 {
-  font-family: 'Noto Serif TC', serif;
-  letter-spacing: .025em;
-}
-.service-page > .bg-white,
-.service-page > div > .bg-white {
-  border-color: var(--service-border);
-  box-shadow: 0 3px 14px #362b1710;
 }
 .service-page button:focus-visible,
 .service-page a:focus-visible {
@@ -34,18 +67,26 @@
   box-shadow: 0 8px 24px #211e1920;
 }
 .service-balance__amount { color: #e8c98f; font-variant-numeric: tabular-nums; letter-spacing: -.025em; }
-.dark .service-page { --service-border: #453c2e; }
-.dark .service-page .service-heading__description,
-.dark .service-page .text-text-secondary-light { color: #b6ac9d; }
-.dark .service-page .service-heading__eyebrow,
-.dark .service-page .service-heading__links a { color: #d3b780; }
 .service-signing { background-image: radial-gradient(ellipse at top, #a8792e12, transparent 60%); }
+.entry-page { gap: 24px; --service-brand-width: 28rem; }
+.public-masthead { background: #211e19; color: #fffcf5; border-bottom: 1px solid #453c2e; }
+.public-masthead :where(a, button) { color: #d3b780; }
+.public-masthead :where(a, button):hover { color: #fffcf5; }
+.public-masthead a.bg-gold-600 { color: #fff; }
+.service-page__header > div:has(> .service-heading) { min-width: 0; }
 @media (max-width: 640px) {
   .service-page { min-width: 0; }
-  .service-page > div:first-child { padding-bottom: 18px; }
+  .service-page__header { padding-bottom: 18px; }
+  .service-page__header:where(.flex) { flex-wrap: wrap; }
+  .service-page__header > .service-heading { flex: 1 1 100%; }
+  .service-page__header > div:has(> .service-heading) { flex: 1 1 100%; }
+  .app-theme :where(input, select, textarea):not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']) { font-size: 16px; max-width: 100%; }
   .service-page > .grid > .p-6 { padding: 20px; }
   .service-page button { touch-action: manipulation; }
   .service-page > .grid > .service-balance { padding: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-theme *, .app-theme *::before, .app-theme *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
 
 @layer components {
