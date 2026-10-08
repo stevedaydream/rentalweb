@@ -41,6 +41,7 @@ export function buildPlan(input: {
   bills: Record<string, unknown>[]
   settings?: Record<string, unknown>
   properties?: Record<string, unknown>[]
+  contracts?: Record<string, unknown>[]
   templateFeeWater?: string
 }): BillingPlan
 export function publicPlan(plan: BillingPlan): unknown

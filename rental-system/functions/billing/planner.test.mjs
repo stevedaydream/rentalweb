@@ -3,6 +3,74 @@ import assert from 'node:assert/strict'
 import { buildPlan, tenantRoom, paidThroughCoverage } from './planner.mjs'
 import { shouldGenerateBill, shouldGenerateRent, publicMeterShare, rentCoverage, rentPeriodDates, proratedRent } from './rules.mjs'
 
+const renewalFixture = () => {
+  const input = fixture()
+  input.month = '2026-10'
+  input.readings = []
+  Object.assign(input.tenants[0], { landlordId: 'owner', contractId: 'contract-a', room: '502',
+    leaseStart: '2025-10-24', leaseEnd: '2026-10-23', rent: 5500, credit: 0 })
+  input.contracts = [{ id: 'contract-a', landlordId: 'owner', tenantDocId: 'lease-a', roomId: 'room-a',
+    status: 'active', startDate: '2025-10-24', endDate: '2026-10-23', rent: 5500,
+    pendingRenewal: { startDate: '2026-10-24', endDate: '2027-10-23', rent: 5500 } }]
+  return input
+}
+
+test('502 同租金無縫續約在接續前後皆收完整月租，已有帳單不重複收費', () => {
+  const input = renewalFixture()
+  const before = buildPlan(input).plans[0].bills[0]
+  assert.equal(before.amount, 5500)
+  assert.equal(before.prorated, undefined)
+  Object.assign(input.tenants[0], { leaseStart: '2026-10-24', leaseEnd: '2027-10-23' })
+  Object.assign(input.contracts[0], { startDate: '2026-10-24', endDate: '2027-10-23',
+    rentContinuityStart: '2025-10-24', pendingRenewal: undefined })
+  const after = buildPlan(input).plans[0].bills[0]
+  assert.equal(after.amount, 5500)
+  assert.equal(after.prorated, undefined)
+  assert.equal(after.id, before.id)
+  input.bills = [before]
+  assert.equal(buildPlan(input).plans.length, 0)
+})
+
+test('漲租、租期間斷、關聯錯誤或無效待續約不延伸舊約計費', () => {
+  const cases = [
+    c => { c.pendingRenewal.rent = 6000 },
+    c => { c.pendingRenewal.startDate = '2026-10-25' },
+    c => { c.pendingRenewal.endDate = '2027-02-30' },
+    c => { c.tenantDocId = 'another-tenant' },
+    c => { c.landlordId = 'another-owner' },
+    c => { c.roomId = 'another-room' },
+    c => { c.status = 'cancelled' },
+    c => { c.startDate = '2025-10-25' },
+  ]
+  for (const change of cases) {
+    const input = renewalFixture()
+    change(input.contracts[0])
+    const bill = buildPlan(input).plans[0].bills[0]
+    assert.equal(bill.amount, 2129)
+    assert.equal(bill.prorated.to, '2026-10-23')
+  }
+})
+
+test('沒有連續租期證據的新約仍按日計租，無效連續起日不採用', () => {
+  for (const rentContinuityStart of [undefined, '2025-02-30', '2026-11-01']) {
+    const input = renewalFixture()
+    Object.assign(input.tenants[0], { leaseStart: '2026-10-24', leaseEnd: '2027-10-23' })
+    Object.assign(input.contracts[0], { startDate: '2026-10-24', endDate: '2027-10-23',
+      pendingRenewal: undefined, rentContinuityStart })
+    const bill = buildPlan(input).plans[0].bills[0]
+    assert.equal(bill.amount, 3436)
+    assert.equal(bill.prorated.from, '2026-10-24')
+    assert.equal(bill.prorated.to, '2026-11-11')
+  }
+})
+
+test('無縫續約不改變非月繳的跨租期限制', () => {
+  const input = renewalFixture()
+  input.tenants[0].paymentFrequency = 'quarterly'
+  assert.equal(buildPlan(input).plans.length, 0)
+  assert.match(buildPlan(input).warnings.join(), /超出租約終月/)
+})
+
 export const fixture = () => ({
   landlordId: 'owner', month: '2026-09', settings: { paymentDay: 12 },
   tenants: [{ id: 'lease-a', name: '甲', roomId: 'room-a', room: '101', uid: 'user-a',

@@ -496,3 +496,11 @@ storage.googleapis.com/<bucket>/…                 →  （無 ACAO，此端點
 - `src/components/Signature.vue`
 
 > **避坑**：簽名板尺寸與文件顯示尺寸不同時，應先裁除空白再存檔，否則手機直向滿版畫布會使筆跡明顯縮小。
+
+---
+
+## BF-019 Windows 模擬器測試結束後 Java 仍佔用連接埠
+
+- **問題描述**：`firebase emulators:exec` 測試通過並顯示關閉 Firestore 後，再次執行出現 `port taken`。
+- **觀察**：Windows 上原 Java 子程序仍監聽測試埠 18085；命令列可確認其專案為 `demo-billing-review`。
+- **解法**：以 `Get-NetTCPConnection` 查詢監聽程序，再以 `Get-CimInstance Win32_Process` 核對 Java 命令列的專案與埠，確認為本次測試殘留後才使用 `Stop-Process`；重新執行測試通過。避免直接停止所有 Java 程序。

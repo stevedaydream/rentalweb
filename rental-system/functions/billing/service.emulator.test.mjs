@@ -126,4 +126,41 @@ test('453 bills resume across a failed later batch without losing credit atomici
   assert.equal((await owned('tenants', owner)).docs.every(t => t.data().credit === 0), true)
 })
 
+test('502 續約接續前後預覽與實際出帳均為 5500，接續後不重複收費', async () => {
+  const { promoteRenewal } = createRequire(import.meta.url)('../renewal/service.cjs')
+  for (const billBeforePromotion of [true, false]) {
+    const owner = await seed()
+    const id = `${owner}-000`
+    await db.doc(`tenants/${id}`).update({ contractId: id, room: '502', credit: 0, rent: 5500,
+      leaseStart: '2025-10-24', leaseEnd: '2026-10-23' })
+    await db.doc(`rooms/${id}`).update({ name: '502', status: 'occupied' })
+    await db.doc(`contracts/${id}`).set({ landlordId: owner, tenantDocId: id, roomId: id,
+      status: 'active', startDate: '2025-10-24', endDate: '2026-10-23', rent: 5500,
+      pendingRenewal: { startDate: '2026-10-24', endDate: '2027-10-23', rent: 5500 } })
+    const october = data => invoke(owner, { ...data, month: '2026-10' })
+    const before = await october({ mode: 'preview' })
+    assert.equal(before.plans[0].items[0].amount, 5500)
+    if (billBeforePromotion) {
+      await db.doc(`contracts/${id}`).update({ 'pendingRenewal.rent': 6000 })
+      await assert.rejects(october(command(before.plans)), { code: 'failed-precondition' })
+      assert.equal((await owned('bills', owner)).size, 0)
+      await db.doc(`contracts/${id}`).update({ 'pendingRenewal.rent': 5500 })
+      await october(command(before.plans))
+    }
+    await promoteRenewal(db, FieldValue, id, { auth: { uid: owner }, today: '2026-10-24' })
+    assert.equal((await db.doc(`contracts/${id}`).get()).data().rentContinuityStart, '2025-10-24')
+    const after = await october({ mode: 'preview' })
+    if (billBeforePromotion) assert.equal(after.plans.length, 0)
+    else {
+      assert.equal(after.plans[0].items[0].amount, 5500)
+      await assert.rejects(october(command(before.plans)), { code: 'failed-precondition' })
+      await october(command(after.plans))
+    }
+    const bills = await owned('bills', owner)
+    assert.equal(bills.size, 1)
+    assert.equal(bills.docs[0].data().amount, 5500)
+    assert.equal(bills.docs[0].data().prorated, undefined)
+  }
+})
+
 test.after(async () => { await db.terminate() })

@@ -85,6 +85,28 @@ test('另一份有效合約或跨房東租客關聯不得同步', async () => {
   await assert.rejects(invoke(g), { code: 'failed-precondition' });
 });
 
+test('連續同租金保留原始起租日；再次續約延續，漲租或中斷則清除', async () => {
+  const f = await seed();
+  await db.doc(`contracts/${f.id}`).update({ 'pendingRenewal.rent': 9000 });
+  await invoke(f);
+  assert.equal((await read(f.id)).contracts.rentContinuityStart, '2025-08-22');
+  await db.doc(`contracts/${f.id}`).update({ pendingRenewal: {
+    startDate: '2027-08-22', endDate: '2028-08-21', rent: 9000,
+  } });
+  await invoke(f, '2027-08-22');
+  assert.equal((await read(f.id)).contracts.rentContinuityStart, '2025-08-22');
+  for (const next of [
+    { startDate: '2028-08-22', endDate: '2029-08-21', rent: 10000 },
+    { startDate: '2028-08-23', endDate: '2029-08-21', rent: 9000 },
+  ]) {
+    const g = await seed();
+    await db.doc(`contracts/${g.id}`).update({ startDate: '2027-08-22', endDate: '2028-08-21',
+      rentContinuityStart: '2025-08-22', pendingRenewal: next });
+    await invoke(g, '2028-08-23');
+    assert.equal((await read(g.id)).contracts.rentContinuityStart, undefined);
+  }
+});
+
 test('無效日期或下一期未延長租期時不接續', async () => {
   const f = await seed();
   await db.doc(`contracts/${f.id}`).update({ 'pendingRenewal.endDate': '2026-08-21' });

@@ -10,6 +10,7 @@ const invalid = message => { throw new HttpsError('failed-precondition', message
 
 async function promoteRenewal(db, FieldValue, contractId, { auth, today = todayInTaipei() } = {}) {
   if (!validId(contractId)) throw new HttpsError('invalid-argument', '合約識別碼格式錯誤');
+  const { continuesMonthlyRent, continuityStart } = await import('../billing/continuity.mjs');
   return db.runTransaction(async tx => {
     const ref = db.collection('contracts').doc(contractId);
     const snap = await tx.get(ref);
@@ -56,6 +57,7 @@ async function promoteRenewal(db, FieldValue, contractId, { auth, today = todayI
       || (!c.roomId && sameNameCount !== 1)) invalid('房源出租狀態或有效合約不一致');
     const updatedAt = FieldValue.serverTimestamp();
     tx.update(ref, { startDate: pr.startDate, endDate: pr.endDate, rent: pr.rent,
+      rentContinuityStart: continuesMonthlyRent(c, tenant) ? continuityStart(c) : FieldValue.delete(),
       roomId: room.id, previousEndDate: c.endDate, pendingRenewal: FieldValue.delete(), updatedAt });
     tx.update(tenantRef, { leaseStart: pr.startDate, leaseEnd: pr.endDate, rent: pr.rent, roomId: room.id, updatedAt });
     tx.update(room.ref, { leaseEnd: pr.endDate, tenantName: tenant.name || c.tenantName || '', updatedAt });

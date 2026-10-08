@@ -5,6 +5,7 @@ import {
   overlapsCoverage, publicMeterShare, rentPeriodDates, proratedRent,
 } from './rules.mjs'
 import { normalizeWaterSettings, effectiveWaterMode, fixedWaterCharge, fixedWaterDescription } from './water.mjs'
+import { effectiveRentLease } from './continuity.mjs'
 
 export const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 const money = value => Number.isSafeInteger(Math.round(Number(value))) && Number(value) >= 0 ? Math.round(Number(value)) : null
@@ -30,7 +31,7 @@ export function paidThroughCoverage(tenant) {
 
 export function buildPlan(input) {
   const { landlordId, month, tenants: sourceTenants, rooms, readings, publicMeters, groups, bills, settings = {},
-    properties = [], templateFeeWater } = input
+    properties = [], contracts = [], templateFeeWater } = input
   // MoveOutWizard clears live lease fields and retains the actual dates in this snapshot.
   const tenants = sourceTenants.map(t => t.isHistorical && t.moveOutSummary ? {
     ...t, room: t.moveOutSummary.room || t.room,
@@ -75,12 +76,13 @@ export function buildPlan(input) {
 
   for (const tenant of [...tenants].sort((a, b) => a.id.localeCompare(b.id))) {
     if (tenant.isHistorical) continue
+    const rentLease = effectiveRentLease(tenant, contracts, landlordId)
     const label = labelOf(tenant)
     if (!roomByTenant.get(tenant.id)) {
       warnings.push(`${label}：未綁定可唯一識別的房間，未出租金`)
       continue
     }
-    if (!leaseIncludesMonth(tenant, month)) {
+    if (!leaseIncludesMonth(rentLease, month)) {
       skipped.push(`${label}：本月不在租期內或租期格式無效，未出租金`)
       continue
     }
@@ -107,11 +109,11 @@ export function buildPlan(input) {
       skipped.push(`${label}：${cover.from}～${cover.to} 與既有租金單重疊，未出租金`)
       continue
     }
-    if (tenant.leaseEnd && cover.to > tenant.leaseEnd.slice(0, 7)) {
+    if (rentLease.leaseEnd && cover.to > rentLease.leaseEnd.slice(0, 7)) {
       warnings.push(`${label}：本期 ${cover.from}～${cover.to} 超出租約終月，請確認續約或改開末期租金`)
       continue
     }
-    if (!shouldGenerateRent(tenant, month, mine)) {
+    if (!shouldGenerateRent(rentLease, month, mine)) {
       const reason = freq !== 'monthly' && !tenant.leaseStart ? '非月繳但缺少起租日' : '尚未到租金出帳週期'
       skipped.push(`${label}：${reason}，未出租金`)
       continue
@@ -125,8 +127,8 @@ export function buildPlan(input) {
     let prorated = null
     if (freq === 'monthly') {
       const period = rentPeriodDates(month, day)
-      const from = validDate(tenant.leaseStart) && tenant.leaseStart.slice(0, 7) === month ? tenant.leaseStart : period.from
-      const to = validDate(tenant.leaseEnd) && tenant.leaseEnd < period.to ? tenant.leaseEnd : period.to
+      const from = validDate(rentLease.leaseStart) && rentLease.leaseStart.slice(0, 7) === month ? rentLease.leaseStart : period.from
+      const to = validDate(rentLease.leaseEnd) && rentLease.leaseEnd < period.to ? rentLease.leaseEnd : period.to
       if (to < from) {
         skipped.push(`${label}：租約於 ${tenant.leaseEnd} 結束，早於本期計費起日 ${from}，未出租金`)
         continue
