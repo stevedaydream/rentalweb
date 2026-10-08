@@ -341,6 +341,7 @@
           </div>
         </div>
         <div class="p-6 overflow-y-auto max-h-[75vh]">
+          <TenantSigningDetails v-if="previewContract.tenantDetailsSubmittedAt" :model-value="previewContract" readonly class="mb-4" />
           <Preview :form="previewContract" />
         </div>
       </div>
@@ -367,6 +368,7 @@
           <p class="text-sm text-text-secondary-light">
             租客已於 {{ formatDate(reviewing.tenantSignedAt) }} 簽名。請核對內容與簽名，確認無誤後簽名，合約即正式生效。
           </p>
+          <TenantSigningDetails v-if="reviewing.tenantDetailsSubmittedAt" :model-value="reviewing" readonly />
           <div class="max-h-[55vh] overflow-y-auto bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
             <Preview :form="reviewing" />
           </div>
@@ -431,6 +433,7 @@ import { signedContractState, SIGNED_CONTRACT_LABELS, isPendingSignature } from 
 import { useNotificationStore } from '../../stores/notification'
 import LandlordSignatureField from '../../components/LandlordSignatureField.vue'
 import ContractSignLinkModal from '../../components/ContractSignLinkModal.vue'
+import TenantSigningDetails from '../../components/TenantSigningDetails.vue'
 import { taipeiToday } from '../../utils/roomLease'
 import { buildContractPayload } from '../../utils/contractPayload'
 

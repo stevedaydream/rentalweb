@@ -1,6 +1,6 @@
 <template>
   <div class="min-h-screen bg-surface-light dark:bg-surface-dark px-4 py-8">
-    <div class="mx-auto" :class="phase === 'review' ? 'max-w-3xl' : 'max-w-sm'">
+    <div class="mx-auto" :class="phase === 'review' || phase === 'details' ? 'max-w-3xl' : 'max-w-sm'">
 
       <div v-if="phase === 'checking'" class="py-16 text-center text-text-secondary-light">
         <span class="material-symbols-outlined text-3xl animate-spin motion-reduce:animate-none text-ink-300" aria-hidden="true">progress_activity</span>
@@ -41,12 +41,26 @@
         </button>
       </form>
 
+      <form v-else-if="phase === 'details'" class="space-y-4" @submit.prevent="reviewDetails">
+        <div>
+          <h1 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">補齊簽約資料</h1>
+          <p class="mt-1 text-sm text-text-secondary-light">{{ contract.tenant }} · {{ contract.roomNo }}，請確認聯絡資料，再查看完整合約並簽名。</p>
+        </div>
+        <TenantSigningDetails v-model="details" />
+        <p v-if="errorDetail" role="alert" class="text-sm text-red-600">{{ errorDetail }}</p>
+        <button type="submit" class="w-full py-3 rounded-xl bg-gold-500 text-white font-bold hover:bg-gold-600">確認資料並查看合約</button>
+      </form>
+
       <!-- 審閱並簽名 -->
       <div v-else-if="phase === 'review'" class="space-y-4">
         <div>
           <h1 class="text-xl font-bold text-text-primary-light dark:text-text-primary-dark">租賃合約</h1>
           <p class="text-sm text-text-secondary-light">請詳閱合約內容，確認無誤後在下方簽名。送出後由房東核對並簽名，合約才正式生效。</p>
         </div>
+
+        <TenantSigningDetails :model-value="details" readonly />
+        <button type="button" :disabled="submitting" @click="editDetails"
+          class="px-4 py-2 rounded-xl border border-ink-200 dark:border-ink-700 text-sm text-text-primary-light dark:text-text-primary-dark disabled:opacity-50">返回修改資料</button>
 
         <div class="bg-white dark:bg-card-dark rounded-2xl border border-ink-100 dark:border-ink-800 shadow-sm p-4 max-h-[60vh] overflow-y-auto">
           <Preview :form="contract" />
@@ -100,14 +114,17 @@ import { httpsCallable } from 'firebase/functions'
 import { functions } from '../firebase/config'
 import Preview from '../components/Preview.vue'
 import Signature from '../components/Signature.vue'
+import TenantSigningDetails from '../components/TenantSigningDetails.vue'
+import { pickSigningDetails, normalizeSigningDetails } from '../../functions/signing/details.mjs'
 
 const route = useRoute()
 const code = String(route.params.code || '')
 
-const phase = ref<'checking' | 'verify' | 'review' | 'done' | 'invalid'>('checking')
+const phase = ref<'checking' | 'verify' | 'details' | 'review' | 'done' | 'invalid'>('checking')
 const tenantName = ref('')
 const idNumber = ref('')
 const contract = ref<Record<string, any>>({})
+const details = ref(pickSigningDetails())
 const agreed = ref(false)
 const showSignModal = ref(false)
 const submitting = ref(false)
@@ -162,8 +179,13 @@ const verify = async () => {
   errorDetail.value = ''
   try {
     const res: any = await httpsCallable(functions, 'getContractForSigning')({ code, idNumber: idNumber.value.trim() })
+    if (res.data.tenantDetailsVersion !== 1) {
+      errorDetail.value = '簽約服務尚未更新，請稍後重新開啟連結，或聯繫房東。'
+      return
+    }
     contract.value = { ...res.data.contract, signature: '', landlordSignature: '' }
-    phase.value = 'review'
+    details.value = pickSigningDetails(contract.value)
+    phase.value = 'details'
   } catch (e) {
     handleError(e)
   } finally {
@@ -171,17 +193,43 @@ const verify = async () => {
   }
 }
 
+const reviewDetails = () => {
+  try {
+    details.value = normalizeSigningDetails(details.value)
+    contract.value = { ...contract.value, ...details.value, signature: '' }
+    agreed.value = false
+    errorDetail.value = ''
+    phase.value = 'review'
+    window.scrollTo({ top: 0 })
+  } catch (e: any) {
+    errorDetail.value = e.message
+  }
+}
+
+const editDetails = () => {
+  contract.value.signature = ''
+  agreed.value = false
+  errorDetail.value = ''
+  phase.value = 'details'
+  window.scrollTo({ top: 0 })
+}
+
 const submit = async () => {
   if (!contract.value.signature || !agreed.value) return
   submitting.value = true
   errorDetail.value = ''
   try {
+    const tenantDetails = normalizeSigningDetails(details.value)
     await httpsCallable(functions, 'submitContractSignature')({
       code, idNumber: idNumber.value.trim(), signature: contract.value.signature,
+      tenantDetails,
     })
     phase.value = 'done'
   } catch (e) {
-    handleError(e)
+    const code = String((e as any)?.code || '')
+    if (code.includes('invalid-argument') || code.includes('unavailable') || code.includes('internal') || !code) {
+      errorDetail.value = (e as any)?.message || '送出失敗，請稍後再試'
+    } else handleError(e)
   } finally {
     submitting.value = false
   }

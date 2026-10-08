@@ -10,7 +10,7 @@
           </div>
           <div>
             <h3 id="sign-link-title" class="font-bold text-text-primary-light dark:text-text-primary-dark">簽署連結</h3>
-            <p class="text-xs text-text-secondary-light">把連結傳給{{ tenantName || '租客' }}，簽完後會通知您核對</p>
+            <p class="text-xs text-text-secondary-light">把連結傳給{{ tenantName || '租客' }}補齊資料並簽名，完成後會通知您核對</p>
           </div>
         </div>
 
@@ -56,7 +56,7 @@
           </div>
 
           <p class="text-[11px] text-gold-700/80 dark:text-gold-300/80">
-            租客點開後需輸入合約上的證件號碼，確認內容並簽名。之後可在「合約記錄」重發連結。
+            租客點開後需輸入合約上的證件號碼、補齊聯絡資料，再確認內容並簽名。之後可在「合約記錄」重發連結。
           </p>
         </div>
 

@@ -2287,6 +2287,7 @@ const SIGNING_FIELDS = [
   'feeWater', 'feeElectricity', 'feeElectricityNote', 'feeGas', 'feeInternet', 'feeManagement', 'customArticle21',
   'templateHtml', 'contractTerms', 'waterFeeText', 'landlordAddress', 'tenantAddress', 'tenantMailAddress',
   'guarantor', 'guarantorId', 'guarantorAddress', 'guarantorMailAddress', 'guarantorPhone',
+  'tenantEmail', 'emergencyContact',
   'bankCode', 'bankAccount', 'bankAccountName',
 ];
 const normId = v => String(v || '').trim().toUpperCase();
@@ -2376,13 +2377,13 @@ exports.getContractForSigning = onCall({ region: 'asia-east1' }, async (request)
 
   const contract = {};
   for (const k of SIGNING_FIELDS) if (c[k] !== undefined) contract[k] = c[k];
-  return { ok: true, name: c.tenant || '', contract };
+  return { ok: true, name: c.tenant || '', contract, tenantDetailsVersion: 1 };
 });
 
 exports.submitContractSignature = onCall({ region: 'asia-east1' }, async (request) => {
   const { HttpsError } = require('firebase-functions/v2/https');
   const db = getFirestore();
-  const { code, idNumber, signature } = request.data || {};
+  const { code, idNumber, signature, tenantDetails } = request.data || {};
   if (typeof signature !== 'string' || !signature.startsWith('data:image/png;base64,')) {
     throw new HttpsError('invalid-argument', '簽名格式錯誤');
   }
@@ -2390,21 +2391,8 @@ exports.submitContractSignature = onCall({ region: 'asia-east1' }, async (reques
 
   const { linkRef, contractRef, c } = await verifySignLink(db, code, idNumber ?? '');
 
-  // 交易內再確認一次，避免同一連結被兩個分頁同時送出
-  await db.runTransaction(async (tx) => {
-    const [linkNow, contractNow] = await Promise.all([tx.get(linkRef), tx.get(contractRef)]);
-    if (!linkNow.exists || linkNow.data().usedAt) throw new HttpsError('failed-precondition', '此連結已使用過');
-    if (contractNow.data()?.status !== 'awaiting_tenant') throw new HttpsError('failed-precondition', '此合約已完成簽名');
-    tx.update(contractRef, {
-      signature,
-      status: 'awaiting_landlord',
-      tenantSignedAt: FieldValue.serverTimestamp(),
-      // 租客親自簽名即等同已確認合約內容
-      tenantAcknowledgedAt: FieldValue.serverTimestamp(),
-      tenantAcknowledgedUid: c.tenantUid || null,
-    });
-    tx.update(linkRef, { usedAt: FieldValue.serverTimestamp() });
-  });
+  const { saveTenantSignature } = await import('./signing/submission.mjs');
+  await saveTenantSignature(db, FieldValue, { linkRef, contractRef }, { signature, tenantDetails });
 
   try {
     const config = await getLineConfig(c.landlordUid);

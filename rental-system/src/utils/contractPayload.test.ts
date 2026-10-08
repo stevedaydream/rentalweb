@@ -11,7 +11,7 @@ describe('合約範本填值', () => {
     const keys = [...template.matchAll(/{{(.*?)}}/g)].map(m => m[1]!.trim())
     const missing = [...new Set(keys)].filter(k => payload[k] === undefined)
     // 以下為簽約資料本身的欄位，此測試資料沒有填
-    expect(missing.sort()).toEqual(['address', 'deposit', 'endDate', 'landlordId', 'landlordPhone', 'roomNo', 'startDate', 'tenantId', 'tenantPhone', 'today'].sort())
+    expect(missing.sort()).toEqual(['address', 'deposit', 'endDate', 'landlordId', 'landlordPhone', 'roomNo', 'startDate', 'tenantId', 'today'].sort())
   })
 
   it('費用負擔轉成條文文字，電費附帶備註', () => {
@@ -71,5 +71,13 @@ describe('合約範本填值', () => {
 
   it('跳脫 HTML 特殊字元', () => {
     expect(escapeHtml(`<a href="x">'&'</a>`)).toBe('&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;')
+  })
+
+  it('租客補填內容僅作文字顯示，通訊地址留空時沿用戶籍地址', () => {
+    const p = buildContractPayload({ ...base, tenantAddress: '<img src=x onerror=alert(1)>', guarantor: '<測試保證人>', emergencyContact: '測試 & 聯絡人' })
+    expect(p.tenantAddress).toBe('&lt;img src=x onerror=alert(1)&gt;')
+    expect(p.tenantMailAddress).toBe(p.tenantAddress)
+    expect(p.guarantor).toBe('&lt;測試保證人&gt;')
+    expect(p.emergencyContact).toBe('測試 &amp; 聯絡人')
   })
 })

@@ -10,6 +10,13 @@ Firebase 專案 ID：`rental-system-7675e`
 
 ## 技術架構
 
+### 2026-10-08 簽署連結補填租客資料
+
+- 遠端簽約流程改為證件驗證 → 補填資料 → 預覽完整合約 → 簽名。電話與戶籍地址必填，通訊地址留空同戶籍，Email、緊急聯絡人、保證人選填；修改資料會清除簽名與同意勾選。房東核對與查閱視窗顯示補填摘要。
+- `functions/signing/details.mjs` 為前後端共用白名單、格式與長度驗證；`submission.mjs` 同交易保存資料、簽名、`tenantDetailsSubmittedAt` 與連結使用狀態，重查過期／鎖定／簽署狀態，不更新租客主檔。舊版頁面未送資料時保留原欄位。新頁面以 `tenantDetailsVersion: 1` 確認後端支援，避免補填資料被舊後端忽略。
+- 補填地址與保證人資料套用 HTML 跳脫；Email、緊急聯絡人供本次合約核對，不新增合約條文。`npm run build` 納入簽署交易與驗證測試。部署需先更新 `getContractForSigning`、`submitContractSignature`，再部署 Hosting；Rules 不需變更。
+- 驗證：731 項前端測試與 35 項 Node 測試、型別檢查、正式建置通過；以本機模擬 API 實際檢查手機簽署頁的驗證、補填、預覽、修改後重簽與送出。未對正式資料執行簽署。
+
 ### 2026-10-08 部署確認預設繼續
 
 - `dev.bat` 部署選項 5～8 的確認提示改為 `Y/n`，直接按 Enter 即繼續，輸入 `n` 取消；每次詢問前重設 `confirm=y`，避免沿用前次答案。
