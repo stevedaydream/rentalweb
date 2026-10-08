@@ -1,5 +1,5 @@
 <template>
-  <div class="max-w-7xl mx-auto space-y-6">
+  <div class="service-page max-w-7xl mx-auto space-y-6">
 
     <!-- 頁面標題列 -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">

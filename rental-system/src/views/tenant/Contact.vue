@@ -1,13 +1,8 @@
 <template>
-  <div class="max-w-6xl mx-auto space-y-6">
+  <div class="service-page max-w-6xl mx-auto space-y-6">
     
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
-          聯繫房東
-        </h1>
-        <p class="text-text-secondary-light">查看房東聯絡資訊或發送站內訊息</p>
-      </div>
+      <ServicePageHeading title="聯繫房東" description="查找聯絡方式、綁定 LINE，或傳送站內訊息。" role="tenant" :links="[{ label: '我的帳單', to: '/tenant/bills' }]" />
     </div>
 
     <!-- 我的帳號設定 -->
@@ -326,6 +321,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';

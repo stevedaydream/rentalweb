@@ -1,12 +1,9 @@
 <template>
-  <div class="max-w-7xl mx-auto space-y-6" @click="closeDropdown">
+  <div class="service-page max-w-7xl mx-auto space-y-6" @click="closeDropdown">
 
     <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">租客列表</h1>
-        <p class="text-text-secondary-light">管理所有租客資料、租約期限與聯繫方式</p>
-      </div>
+      <ServicePageHeading title="租客與租約" description="查看房間與租客資料，安排到期租約及續約事項。" role="landlord" :links="[{ label: '電子合約', to: '/landlord/contract' }, { label: '帳務管理', to: '/landlord/financials' }]" />
       <div class="flex gap-3 flex-wrap">
         <TenantImportModal
           :landlordId="authStore.effectiveUid"
@@ -1198,6 +1195,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { promotePendingRenewal } from '../../services/leaseService';

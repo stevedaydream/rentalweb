@@ -504,3 +504,10 @@ storage.googleapis.com/<bucket>/…                 →  （無 ACAO，此端點
 - **問題描述**：`firebase emulators:exec` 測試通過並顯示關閉 Firestore 後，再次執行出現 `port taken`。
 - **觀察**：Windows 上原 Java 子程序仍監聽測試埠 18085；命令列可確認其專案為 `demo-billing-review`。
 - **解法**：以 `Get-NetTCPConnection` 查詢監聽程序，再以 `Get-CimInstance Win32_Process` 核對 Java 命令列的專案與埠，確認為本次測試殘留後才使用 `Stop-Process`；重新執行測試通過。避免直接停止所有 Java 程序。
+
+## BF-020 圖文選單產圖的 Windows 路徑與中文字型
+
+- **問題描述**：模擬器的 Chrome 執行路徑使用未跳脫反斜線；雲端產圖不能依賴 Windows 中文字型。改以線上中文子集字型測試時，又出現字型判斷失敗及外部請求逾時。
+- **原因**：JavaScript 字串中的反斜線會被當作跳脫字元；中文子集不一定包含空白，因此 `document.fonts.load` 預設以空白查驗時可能回傳空陣列。外部字型服務亦可能延遲，不能只等待 DOM 完成就截圖。
+- **解法**：Chrome 路徑正確跳脫；400／700 字重的選單中文子集與 OFL 授權一併打包，透過 data URL 內嵌，明確以子集中存在的「服務」載入並等待 `document.fonts.ready`。三種底圖均以瀏覽器離線模式產生成功，檔案小於 LINE 的圖片大小上限。
+- **牽扯檔案**：`functions/index.js`、`functions/line/presentation.cjs`、`functions/line/fonts/`。

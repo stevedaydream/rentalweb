@@ -17,6 +17,9 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 const { getStorage } = require('firebase-admin/storage');
 const { promoteRenewal, handlePromoteRenewal } = require('./renewal/service.cjs');
+const { SITE_URL, contextFor, menuMessage, cardMessage, decorateMessages, billMessage, richMenuAreas, richMenuHtml, RICH_MENU_W, RICH_MENU_H } = require('./line/presentation.cjs');
+const { syncRoleMenu, installMenus } = require('./line/menus.cjs');
+const { resolveIdentity, bindingMatches } = require('./line/identity.cjs');
 
 // 模擬器模式：讓 Admin SDK verifyIdToken() 驗本地 Auth emulator 的 token
 // 必須在 initializeApp() 之前設定
@@ -347,42 +350,8 @@ const COMMAND_KEYWORDS = new Set([
   '合約', '租約',
   '公告',
   '報修', '維修',
-  '選單', '功能', '說明', 'help', 'menu',
+  '選單', '主選單', '功能', '說明', 'help', 'menu', '綁定帳號', '聯繫房東',
 ]);
-
-const SITE_URL = "https://rental-system-7675e.web.app";
-
-/**
- * 快捷選項（Quick Reply）：掛在 bot 回覆下方的一排按鈕。
- * 租客不必記指令、也不必打字，點一下就能查下一項——這是「查帳單更直覺」的主力。
- * LINE 限制：最多 13 顆、label 最長 20 字，且只能掛在該批訊息的最後一則。
- */
-const TENANT_QUICK_REPLY = {
-  items: [
-    { type: "action", action: { type: "message", label: "💰 帳單", text: "帳單" } },
-    { type: "action", action: { type: "message", label: "⚡ 電費", text: "電費" } },
-    { type: "action", action: { type: "message", label: "📋 合約", text: "合約" } },
-    { type: "action", action: { type: "message", label: "📢 公告", text: "公告" } },
-    { type: "action", action: { type: "message", label: "🔧 報修", text: "報修" } },
-    { type: "action", action: { type: "message", label: "📖 選單", text: "選單" } },
-  ],
-};
-
-const LANDLORD_QUICK_REPLY = {
-  items: [
-    { type: "action", action: { type: "message", label: "💸 欠費", text: "欠費" } },
-    { type: "action", action: { type: "message", label: "📅 到期", text: "到期" } },
-    { type: "action", action: { type: "message", label: "🔧 報修", text: "報修" } },
-    { type: "action", action: { type: "message", label: "📖 選單", text: "選單" } },
-  ],
-};
-
-const withQuickReply = (messages, quickReply) => {
-  const list = Array.isArray(messages) ? messages : [messages];
-  const last = list[list.length - 1];
-  if (last && !last.quickReply) last.quickReply = quickReply;
-  return list;
-};
 
 /** 帳單尚欠金額：扣掉部分付款的已收（paidAmount）；已結清為 0 */
 const billOutstanding = (b) => {
@@ -391,59 +360,12 @@ const billOutstanding = (b) => {
   return Math.max(0, amount - (Number(b.paidAmount) || 0));
 };
 
-/** 包一層 client：既有的每個 replyMessage 都自動帶上快捷選項，不必逐處改 */
-const quickReplyClient = (client, quickReply) => ({
+const quickReplyClient = (client, role, context) => ({
   replyMessage: ({ replyToken, messages }) =>
-    client.replyMessage({ replyToken, messages: withQuickReply(messages, quickReply) }),
+    client.replyMessage({ replyToken, messages: decorateMessages(messages, role, context) }),
 });
 
-/**
- * 帳單改用 Flex 卡片：金額與到期日一眼可見，底部直接給「上傳繳費截圖」的按鈕，
- * 不必先看懂一整段文字再自己找路進系統。
- */
-const buildBillFlex = (bills, total, nearestDue) => {
-  const rows = bills.slice(0, 5).map((b) => ({
-    type: "box", layout: "vertical", margin: "md", spacing: "xs",
-    contents: [
-      {
-        type: "box", layout: "baseline", contents: [
-          { type: "text", text: String(b.description || b.date || "帳單"), size: "sm", color: "#333333", flex: 5, wrap: true },
-          { type: "text", text: "NT$" + billOutstanding(b).toLocaleString(), size: "sm", weight: "bold", align: "end", flex: 3, color: b.status === "overdue" ? "#C0392B" : "#333333" },
-        ],
-      },
-      {
-        type: "text",
-        text: (b.status === "overdue" ? "⚠️ 已逾期 ・ " : "待繳 ・ ") + "到期 " + (b.dueDate || "-"),
-        size: "xxs", color: b.status === "overdue" ? "#C0392B" : "#999999",
-      },
-    ],
-  }));
-  return {
-    type: "flex",
-    altText: "未繳帳單 " + bills.length + " 筆，合計 NT$" + total.toLocaleString(),
-    contents: {
-      type: "bubble",
-      header: {
-        type: "box", layout: "vertical", backgroundColor: "#A8792E", paddingAll: "16px", spacing: "xs",
-        contents: [
-          { type: "text", text: "未繳帳單", size: "sm", color: "#FFFFFFCC" },
-          { type: "text", text: "NT$" + total.toLocaleString(), size: "xxl", weight: "bold", color: "#FFFFFF" },
-          { type: "text", text: "最近到期 " + (nearestDue || "-"), size: "xs", color: "#FFFFFFCC" },
-        ],
-      },
-      body: { type: "box", layout: "vertical", paddingAll: "16px", contents: rows },
-      footer: {
-        type: "box", layout: "vertical", spacing: "sm", paddingAll: "12px",
-        contents: [
-          {
-            type: "button", style: "primary", color: "#A8792E", height: "sm",
-            action: { type: "uri", label: "前往繳費／上傳截圖", uri: SITE_URL + "/tenant/bills" },
-          },
-        ],
-      },
-    },
-  };
-};
+const buildBillFlex = (bills, total, nearestDue) => billMessage(bills, total, nearestDue, billOutstanding);
 
 /**
  * Handle a command from a tenant via LINE.
@@ -452,23 +374,23 @@ const buildBillFlex = (bills, total, nearestDue) => {
 async function handleCommand(cmd, tenantUid, config, client, replyToken, db) {
   const t = cmd.trim();
   if (!COMMAND_KEYWORDS.has(t)) return false;
-  client = quickReplyClient(client, TENANT_QUICK_REPLY);
+  const role = tenantUid ? 'tenant' : 'unbound';
+  client = quickReplyClient(client, role, contextFor(t, role));
+  if (t === '綁定帳號') {
+    await client.replyMessage({ replyToken, messages: [menuMessage('unbound')] });
+    return true;
+  }
+  if (t === '聯繫房東') {
+    await client.replyMessage({ replyToken, messages: [{ type: 'text', text: '聯繫房東\n請直接在這個聊天室輸入您的問題，訊息會送達房東。' }] });
+    return true;
+  }
 
   const unbound = [{ type: 'text', text: '⚠️ 您尚未綁定帳號，請先至系統取得綁定碼完成綁定。\n\n傳送「選單」查看可用指令。' }];
 
   try {
     // ── 選單 ──────────────────────────────────────────────
-    if (['選單', '功能', '說明', 'help', 'menu'].includes(t)) {
-      await client.replyMessage({ replyToken, messages: [{ type: 'text', text:
-        '📋 可用指令\n━━━━━━━━━━\n' +
-        '💰 帳單 → 查詢未繳帳單\n' +
-        '⚡ 電費 → 查詢電表度數\n' +
-        '📋 合約 → 查看合約資訊\n' +
-        '📢 公告 → 最新社區公告\n' +
-        '🔧 報修 → 查看報修狀態\n' +
-        '━━━━━━━━━━\n' +
-        '直接傳訊文字可聯繫房東',
-      }] });
+    if (['選單', '主選單', '功能', '說明', 'help', 'menu'].includes(t)) {
+      await client.replyMessage({ replyToken, messages: [menuMessage(role)] });
       return true;
     }
 
@@ -645,17 +567,9 @@ async function handleLandlordCommand(cmd, config, client, replyToken, db) {
   const arg = rest.join(' ').trim();
   const lid = config.landlordId;
   const today = new Date().toISOString().split('T')[0];
-  client = quickReplyClient(client, LANDLORD_QUICK_REPLY);
+  client = quickReplyClient(client, 'landlord', contextFor(head, 'landlord'));
 
-  const menu = () => client.replyMessage({ replyToken, messages: [{ type: 'text', text:
-    '🏠 房東查詢指令\n━━━━━━━━━━\n' +
-    '🔍 租客 <房號> → 該租客完整狀態\n' +
-    '💰 欠費 → 名下逾期租客\n' +
-    '📅 到期 → 90 天內到期租約\n' +
-    '⚡ 電費 <房號> → 該房電表度數\n' +
-    '🔧 報修 → 待處理報修\n' +
-    '━━━━━━━━━━\n例：租客 402',
-  }] });
+  const menu = () => client.replyMessage({ replyToken, messages: [menuMessage('landlord')] });
 
   // 取得某房號最新電表（回傳格式化字串或 null）
   const meterTextByRoom = async (roomName) => {
@@ -679,7 +593,7 @@ async function handleLandlordCommand(cmd, config, client, replyToken, db) {
 
   try {
     // ── 選單 ──────────────────────────────────────────────
-    if (['選單', '功能', '說明', 'help', 'menu'].includes(head)) {
+    if (['選單', '主選單', '功能', '說明', 'help', 'menu'].includes(head)) {
       await menu();
       return true;
     }
@@ -895,13 +809,20 @@ exports.lineWebhook = onRequest(
     const BINDING_CODE_RE = /^[0-9]{6}$/;
 
     for (const event of events) {
-      // Only handle text messages
-      if (event.type !== 'message' || event.message?.type !== 'text') continue;
+      if (event.type !== 'follow' && (event.type !== 'message' || event.message?.type !== 'text')) continue;
 
       const lineUserId = event.source?.userId;
       if (!lineUserId) continue;
 
-      const messageText = event.message.text.trim();
+      const messageText = event.message?.text?.trim() || '';
+      const usersSnap = await db.collection('users').where('lineUserId', '==', lineUserId).get();
+      const identity = resolveIdentity(config, lineUserId, usersSnap.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+      await syncRoleMenu(client, config, lineUserId, identity.role)
+        .catch(error => logger.warn('角色選單切換失敗', { error: error.message }));
+      if (event.type === 'follow') {
+        await client.replyMessage({ replyToken: event.replyToken, messages: [menuMessage(identity.role)] });
+        continue;
+      }
 
       // Get LINE user's display name
       let displayName = 'LINE 用戶';
@@ -919,17 +840,22 @@ exports.lineWebhook = onRequest(
         if (!bindingSnap.exists) {
           await client.replyMessage({
             replyToken: event.replyToken,
-            messages: [{ type: 'text', text: '❌ 綁定碼無效或已過期，請重新至租屋系統取得新的綁定碼。' }],
+            messages: [cardMessage('綁定碼無效\n請重新至租屋系統取得新的綁定碼。', 'unbound')],
           });
           continue;
         }
 
         const bindingData = bindingSnap.data();
+        const bindingUser = bindingData.type === 'landlord' ? null : (await db.collection('users').doc(bindingData.uid).get()).data();
+        if (!bindingMatches(config, bindingData, bindingUser)) {
+          await client.replyMessage({ replyToken: event.replyToken, messages: [cardMessage('無法綁定\n此綁定碼不屬於這位房東，請確認您加入的是正確的 LINE 帳號。', 'unbound')] });
+          continue;
+        }
         if (bindingData.expiresAt.toMillis() < Date.now()) {
           await bindingSnap.ref.delete();
           await client.replyMessage({
             replyToken: event.replyToken,
-            messages: [{ type: 'text', text: '❌ 綁定碼已過期（有效期 10 分鐘），請重新至租屋系統取得新的綁定碼。' }],
+            messages: [cardMessage('綁定碼已過期\n有效期為 10 分鐘，請重新取得新的綁定碼。', 'unbound')],
           });
           continue;
         }
@@ -945,9 +871,10 @@ exports.lineWebhook = onRequest(
           await bindingSnap.ref.delete();
           await client.replyMessage({
             replyToken: event.replyToken,
-            messages: [{ type: 'text', text:
-              `✅ 房東通知綁定成功！\n您好，${displayName}，您的 LINE 帳號已與租屋管理系統綁定。\n往後租客繳費截圖上傳等系統通知將直接傳送到這裡。` }],
+            messages: [cardMessage(`房東綁定成功\n您好，${displayName}，系統通知會傳送到這裡。請使用下方選單查詢物業狀態。`, 'landlord')],
           });
+          config.ownerLineUserId = lineUserId;
+          await syncRoleMenu(client, config, lineUserId, 'landlord').catch(error => logger.warn('角色選單切換失敗', { error: error.message }));
           logger.info('Landlord LINE binding successful', { uid: bindingData.uid, lineUserId, displayName });
         } else {
           // 租客：更新 users 帳號
@@ -959,30 +886,16 @@ exports.lineWebhook = onRequest(
           await bindingSnap.ref.delete();
           await client.replyMessage({
             replyToken: event.replyToken,
-            messages: [{ type: 'text', text:
-              `✅ 綁定成功！\n您好，${displayName}，您的帳號已與此 LINE 綁定。\n往後房東的回覆將直接傳送到這裡。\n\n💡 可用查詢指令：\n帳單 ｜ 電費 ｜ 合約 ｜ 公告 ｜ 報修\n\n傳送「選單」查看完整說明` }],
+            messages: [cardMessage(`租客綁定成功\n您好，${displayName}，您可以查詢帳單、用電、合約與報修進度，也能直接傳訊聯繫房東。`, 'tenant')],
           });
+          await syncRoleMenu(client, config, lineUserId, 'tenant').catch(error => logger.warn('角色選單切換失敗', { error: error.message }));
           logger.info('LINE binding successful', { uid: bindingData.uid, lineUserId, displayName });
         }
         continue;
       }
 
-      // --- 一般訊息處理 ---
-      // Check if LINE user is linked to a tenant account
-      let tenantId = '';
-      try {
-        const usersSnap = await db.collection('users')
-          .where('lineUserId', '==', lineUserId)
-          .limit(1)
-          .get();
-        if (!usersSnap.empty) {
-          const userData = usersSnap.docs[0].data();
-          displayName = userData.name || displayName;
-          tenantId = usersSnap.docs[0].id;
-        }
-      } catch (e) {
-        logger.warn('Error looking up tenant by lineUserId', e);
-      }
+      const tenantId = identity.tenantId;
+      displayName = identity.name || displayName;
 
       // --- 房東本人發話：走房東查詢指令（永遠處理，不存為租客訊息）---
       if (config.ownerLineUserId && lineUserId === config.ownerLineUserId) {
@@ -1011,8 +924,7 @@ exports.lineWebhook = onRequest(
       // Auto-reply: message received + keyword hints
       await client.replyMessage({
         replyToken: event.replyToken,
-        messages: [{ type: 'text', text:
-          '📨 訊息已送達，等候房東回覆。\n\n💡 也可輸入指令快速查詢：\n帳單 ｜ 電費 ｜ 合約 ｜ 公告 ｜ 報修\n\n傳送「選單」查看完整說明' }],
+        messages: [cardMessage('訊息已送達\n請等候房東回覆，您也可以使用下方主選單查詢其他資訊。', identity.role)],
       }).catch(e => logger.warn('Auto-reply failed', { error: e.message }));
 
       logger.info('LINE message saved', { lineUserId, displayName, text: messageText.substring(0, 50) });
@@ -1027,71 +939,13 @@ exports.lineWebhook = onRequest(
 // ============================================================
 
 /**
- * 圖文選單的六格按鈕。動作一律用 message action 送出既有指令關鍵字，
- * 沿用 handleCommand 那套邏輯——不必再多一條 postback 分支，也就不會兩邊走鐘。
+ * 圖文選單依角色提供查詢指令與網頁操作入口。
  */
-const RICH_MENU_BUTTONS = [
-  { icon: '💰', title: '查帳單',  sub: '未繳金額・到期日', text: '帳單' },
-  { icon: '⚡', title: '看電費',  sub: '本期度數・金額',   text: '電費' },
-  { icon: '🔧', title: '報修進度', sub: '處理到哪了',      text: '報修' },
-  { icon: '📋', title: '我的合約', sub: '租期・租金',      text: '合約' },
-  { icon: '📢', title: '社區公告', sub: '最新消息',        text: '公告' },
-  { icon: '🏠', title: '線上系統', sub: '上傳繳費截圖',    uri: SITE_URL + '/tenant/bills' },
-];
-
-const RICH_MENU_W = 2500;
-const RICH_MENU_H = 1686;
-
-/** 3 欄 × 2 列；最後一欄補足餘數，讓六格加起來剛好等於 2500 */
-const richMenuAreas = () => {
-  const colW = Math.floor(RICH_MENU_W / 3);
-  const rowH = Math.floor(RICH_MENU_H / 2);
-  return RICH_MENU_BUTTONS.map((btn, i) => {
-    const col = i % 3;
-    const row = Math.floor(i / 3);
-    return {
-      bounds: {
-        x: col * colW,
-        y: row * rowH,
-        width: col === 2 ? RICH_MENU_W - colW * 2 : colW,
-        height: row === 1 ? RICH_MENU_H - rowH : rowH,
-      },
-      action: btn.uri
-        ? { type: 'uri', label: btn.title, uri: btn.uri }
-        : { type: 'message', label: btn.title, text: btn.text },
-    };
-  });
-};
-
-const richMenuHtml = (title) => `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-  * { box-sizing: border-box; margin: 0; }
-  body { width: ${RICH_MENU_W}px; height: ${RICH_MENU_H}px; background: #FBF6EA;
-         font-family: "Noto Sans TC","Microsoft JhengHei",sans-serif; }
-  .grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr);
-          width: 100%; height: 100%; }
-  .cell { display: flex; flex-direction: column; align-items: center; justify-content: center;
-          gap: 28px; border: 4px solid #E4D6B4; background: #FFFDF7; }
-  .cell:nth-child(even) { background: #FBF6EA; }
-  .icon { font-size: 190px; line-height: 1; }
-  .title { font-size: 96px; font-weight: 700; color: #2A2218; letter-spacing: 4px; }
-  .sub { font-size: 54px; color: #8A7A5C; }
-  .brand { position: absolute; bottom: 24px; right: 40px; font-size: 40px; color: #C9B48A; }
-</style></head><body>
-  <div class="grid">
-    ${RICH_MENU_BUTTONS.map(b => `<div class="cell">
-      <div class="icon">${b.icon}</div>
-      <div class="title">${b.title}</div>
-      <div class="sub">${b.sub}</div>
-    </div>`).join('')}
-  </div>
-  <div class="brand">${title}</div>
-</body></html>`;
-
 /** 產生圖文選單底圖（沿用既有的 puppeteer/chromium，不必再加相依） */
-async function renderRichMenuImage(title) {
+async function renderRichMenuImage(_title, role = 'tenant') {
   const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true';
   const executablePath = isEmulator
-    ? 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+    ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
     : await chromium.executablePath();
   const launchArgs = isEmulator ? [] : chromium.args;
 
@@ -1104,7 +958,13 @@ async function renderRichMenuImage(title) {
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: RICH_MENU_W, height: RICH_MENU_H, deviceScaleFactor: 1 });
-    await page.setContent(richMenuHtml(title), { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.setContent(richMenuHtml('租賃管家', role), { waitUntil: 'load', timeout: 30000 });
+    const hasFont = await page.evaluate(async () => {
+      const fonts = await document.fonts.load('700 86px "Noto Sans TC"', '服務');
+      await document.fonts.ready;
+      return fonts.length > 0;
+    });
+    if (!hasFont) throw new Error('中文字型載入失敗，請稍後重試建立選單');
     return await page.screenshot({ type: 'png' });
   } finally {
     await browser.close().catch(() => {});
@@ -1128,36 +988,19 @@ exports.setupLineRichMenu = onCall(
     const db = getFirestore();
     const menuName = String(request.data?.name || '租屋小幫手選單').slice(0, 300);
 
-    const png = await renderRichMenuImage(menuName);
-
-    const { richMenuId } = await client.createRichMenu({
-      size: { width: RICH_MENU_W, height: RICH_MENU_H },
-      selected: true,
-      name: menuName,
-      chatBarText: String(request.data?.chatBarText || '開啟選單').slice(0, 14),
-      areas: richMenuAreas(),
+    const previous = (await db.collection('line_configs').doc(landlordId).get()).data() || {};
+    const tenants = await db.collection('users').where('landlordId', '==', landlordId).get();
+    const users = tenants.docs.filter(doc => doc.data().role === 'tenant' && doc.data().lineUserId)
+      .map(doc => ({ id: doc.data().lineUserId, role: 'tenant' }));
+    if (config.ownerLineUserId) users.push({ id: config.ownerLineUserId, role: 'landlord' });
+    const result = await installMenus({ client, blobClient, render: renderRichMenuImage, name: menuName,
+      chatBarText: String(request.data?.chatBarText || '租賃管家服務').slice(0, 14), previous, users,
+      save: ids => db.collection('line_configs').doc(landlordId).set({
+        richMenuId: ids.unbound, richMenuIds: ids, richMenuUpdatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true }),
     });
+    return { success: true, richMenuId: result.ids.unbound, pending: result.pending, cleanupPending: result.cleanupPending };
 
-    try {
-      await blobClient.setRichMenuImage(richMenuId, new Blob([png], { type: 'image/png' }));
-      await client.setDefaultRichMenu(richMenuId);
-    } catch (e) {
-      // 圖片或設定預設失敗時，別留下一個沒有底圖的空選單
-      await client.deleteRichMenu(richMenuId).catch(() => {});
-      throw new Error('圖文選單建立失敗：' + (e.message || e));
-    }
-
-    const prevId = (await db.collection('line_configs').doc(landlordId).get()).data()?.richMenuId;
-    if (prevId && prevId !== richMenuId) {
-      await client.deleteRichMenu(prevId).catch(() => {});
-    }
-    await db.collection('line_configs').doc(landlordId).set({
-      richMenuId,
-      richMenuUpdatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-
-    logger.info('LINE rich menu ready', { landlordId, richMenuId });
-    return { success: true, richMenuId };
   }
 );
 
@@ -1172,15 +1015,23 @@ exports.removeLineRichMenu = onCall(
     const client = new line.messagingApi.MessagingApiClient({ channelAccessToken: config.channelAccessToken });
     const db = getFirestore();
 
-    const richMenuId = (await db.collection('line_configs').doc(landlordId).get()).data()?.richMenuId;
-    await client.cancelDefaultRichMenu().catch(() => {});
-    if (richMenuId) await client.deleteRichMenu(richMenuId).catch(() => {});
+    const saved = (await db.collection('line_configs').doc(landlordId).get()).data() || {};
+    const tenants = await db.collection('users').where('landlordId', '==', landlordId).get();
+    const users = tenants.docs.filter(doc => doc.data().role === 'tenant' && doc.data().lineUserId)
+      .map(doc => doc.data().lineUserId);
+    if (config.ownerLineUserId) users.push(config.ownerLineUserId);
+    for (const id of new Set(users)) await client.unlinkRichMenuIdFromUser(id);
+    await client.cancelDefaultRichMenu();
+    const ids = [...new Set([saved.richMenuId, ...Object.values(saved.richMenuIds || {})].filter(Boolean))];
+    for (const id of ids) {
+      try { await client.deleteRichMenu(id); }
+      catch (error) { if (error.status !== 404 && error.statusCode !== 404) throw error; }
+    }
     await db.collection('line_configs').doc(landlordId).set({
-      richMenuId: FieldValue.delete(),
+      richMenuId: FieldValue.delete(), richMenuIds: FieldValue.delete(),
       richMenuUpdatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
 
-    logger.info('LINE rich menu removed', { landlordId, richMenuId });
     return { success: true };
   }
 );
@@ -1314,7 +1165,7 @@ exports.sendLineBillNotifications = onCall(
       }
 
       try {
-        await client.pushMessage({ to: userData.lineUserId, messages: [{ type: 'text', text }] });
+        await client.pushMessage({ to: userData.lineUserId, messages: [cardMessage(text, 'tenant')] });
         sent++;
         logger.info('LINE bill notification sent', { uid, lineUserId: userData.lineUserId });
       } catch (e) {
@@ -1377,7 +1228,7 @@ exports.notifyBillCreated = onDocumentCreated(
       `━━━━━━━━━━\n請至系統完成繳費，或傳送「帳單」查詢詳情。`;
 
     try {
-      await client.pushMessage({ to: userData.lineUserId, messages: [{ type: 'text', text }] });
+      await client.pushMessage({ to: userData.lineUserId, messages: [cardMessage(text, 'tenant')] });
       logger.info('notifyBillCreated: sent', { billId: event.params.billId, tenantId: bill.tenantId });
     } catch (e) {
       logger.error('notifyBillCreated: push failed', { error: e.message });
@@ -1428,7 +1279,7 @@ exports.notifyAnnouncementCreated = onDocumentCreated(
       const ud = doc.data();
       if (!ud.lineUserId) continue;
       try {
-        await client.pushMessage({ to: ud.lineUserId, messages: [{ type: 'text', text }] });
+        await client.pushMessage({ to: ud.lineUserId, messages: [cardMessage(text, 'tenant')] });
         sent++;
       } catch (e) {
         logger.warn('notifyAnnouncementCreated: push failed', { uid: doc.id, error: e.message });
@@ -1515,7 +1366,7 @@ exports.scheduledReminderDaily = onSchedule(
       if (!userSnap.exists) return;
       const ud = userSnap.data();
       if (!ud.lineUserId) return;
-      await client.pushMessage({ to: ud.lineUserId, messages: [{ type: 'text', text }] });
+      await client.pushMessage({ to: ud.lineUserId, messages: [cardMessage(text, 'tenant')] });
     };
 
     for (const configDoc of configsSnap.docs) {
@@ -1553,7 +1404,7 @@ exports.scheduledReminderDaily = onSchedule(
           `━━━━━━━━━━\n請記得按時完成繳費，傳送「帳單」查詢詳情。`;
 
         try {
-          await client.pushMessage({ to: ud.lineUserId, messages: [{ type: 'text', text }] });
+          await client.pushMessage({ to: ud.lineUserId, messages: [cardMessage(text, 'tenant')] });
           totalBills++;
         } catch (e) {
           logger.warn('scheduledReminderDaily: bill push failed', { landlordId, billId: doc.id, error: e.message });
@@ -1592,7 +1443,7 @@ exports.scheduledReminderDaily = onSchedule(
             `━━━━━━━━━━\n請盡早透過 App 回覆是否續租，或聯繫房東確認。`;
 
           try {
-            await client.pushMessage({ to: ud.lineUserId, messages: [{ type: 'text', text }] });
+            await client.pushMessage({ to: ud.lineUserId, messages: [cardMessage(text, 'tenant')] });
             totalContracts++;
 
             // 首次（90天）提醒時，設定 renewalStatus: 'pending'
@@ -1616,7 +1467,7 @@ exports.scheduledReminderDaily = onSchedule(
       if (ownerLineUserId) {
         const pushToOwner = async (text, label) => {
           try {
-            await client.pushMessage({ to: ownerLineUserId, messages: [{ type: 'text', text }] });
+            await client.pushMessage({ to: ownerLineUserId, messages: [cardMessage(text, 'landlord')] });
             totalOwnerNotices++;
           } catch (e) {
             logger.warn('scheduledReminderDaily: owner push failed', { landlordId, label, error: e.message });
@@ -1777,7 +1628,7 @@ exports.submitRenewalResponse = onCall(
               `回覆：${responseLabel}\n` +
               (note ? `備註：${note}\n` : '') +
               `━━━━━━━━━━\n租期：${c.startDate || ''} ~ ${c.endDate || ''}`;
-            await client.pushMessage({ to: lu.lineUserId, messages: [{ type: 'text', text }] });
+            await client.pushMessage({ to: lu.lineUserId, messages: [cardMessage(text, 'landlord')] });
           }
         }
       }
@@ -1830,7 +1681,7 @@ exports.notifyTenantRenewal = onCall(
         `新租期：${c.startDate || ''} ~ ${c.endDate || ''}\n` +
         (c.rent ? `月租金：NT$${Number(c.rent).toLocaleString()}\n` : '') +
         `━━━━━━━━━━\n如有疑問請與房東聯繫。`;
-      await client.pushMessage({ to: tenantUserSnap.data().lineUserId, messages: [{ type: 'text', text }] });
+      await client.pushMessage({ to: tenantUserSnap.data().lineUserId, messages: [cardMessage(text, 'tenant')] });
       return { success: true, notified: true };
     } catch (e) {
       logger.warn('notifyTenantRenewal: LINE notify failed', { contractId, error: e.message });
@@ -1925,7 +1776,7 @@ async function _updateStorageStats(deltaBytes) {
       if (!cfg.channelAccessToken || !cfg.landlordId) continue;
       try {
         const client = new line.messagingApi.MessagingApiClient({ channelAccessToken: cfg.channelAccessToken });
-        await client.pushMessage({ to: cfg.landlordId, messages: [{ type: 'text', text: msg }] });
+        await client.pushMessage({ to: cfg.landlordId, messages: [cardMessage(msg, 'landlord')] });
       } catch (e) {
         logger.warn('Cost alert LINE push failed', { landlordId: doc.id, error: e.message });
       }
@@ -1993,7 +1844,7 @@ exports.budgetAlert = onMessagePublished(
         if (!cfg.channelAccessToken || !cfg.landlordId) continue;
         try {
           const client = new line.messagingApi.MessagingApiClient({ channelAccessToken: cfg.channelAccessToken });
-          await client.pushMessage({ to: cfg.landlordId, messages: [{ type: 'text', text: msg }] });
+          await client.pushMessage({ to: cfg.landlordId, messages: [cardMessage(msg, 'landlord')] });
         } catch (e) {
           logger.warn('Budget alert LINE push failed', { landlordId: doc.id, error: e.message });
         }
@@ -2052,7 +1903,7 @@ exports.dailyUsageCheck = onSchedule(
         if (!cfg.channelAccessToken || !cfg.landlordId) continue;
         try {
           const client = new line.messagingApi.MessagingApiClient({ channelAccessToken: cfg.channelAccessToken });
-          await client.pushMessage({ to: cfg.landlordId, messages: [{ type: 'text', text: msg }] });
+          await client.pushMessage({ to: cfg.landlordId, messages: [cardMessage(msg, 'landlord')] });
         } catch (e) {
           logger.warn('Daily report LINE push failed', { landlordId: doc.id, error: e.message });
         }
@@ -2403,7 +2254,7 @@ exports.submitContractSignature = onCall({ region: 'asia-east1' }, async (reques
         `${c.tenant || '租客'}${c.roomNo ? `（${c.roomNo}）` : ''}\n` +
         `租期：${c.startDate || ''} ~ ${c.endDate || ''}\n` +
         `━━━━━━━━━━\n請至「電子合約 → 合約記錄」核對並簽名，合約才會正式生效。`;
-      await client.pushMessage({ to: config.ownerLineUserId, messages: [{ type: 'text', text }] });
+      await client.pushMessage({ to: config.ownerLineUserId, messages: [cardMessage(text, 'landlord')] });
     }
   } catch (e) {
     logger.warn('submitContractSignature: LINE notify failed', { contractId: contractRef.id, error: e.message });

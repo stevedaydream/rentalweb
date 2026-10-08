@@ -8,6 +8,46 @@
   }
 }
 
+/* LINE 服務入口的共用版面 */
+.service-page { --service-border: #e8dfcf; }
+.service-page > div:first-child {
+  padding: 6px 0 24px;
+  border-bottom: 1px solid var(--service-border);
+}
+.service-page > div:first-child > div > h1 {
+  font-family: 'Noto Serif TC', serif;
+  letter-spacing: .025em;
+}
+.service-page > .bg-white,
+.service-page > div > .bg-white {
+  border-color: var(--service-border);
+  box-shadow: 0 3px 14px #362b1710;
+}
+.service-page button:focus-visible,
+.service-page a:focus-visible {
+  outline: 2px solid #a8792e;
+  outline-offset: 3px;
+}
+.service-balance {
+  background: #211e19;
+  border: 1px solid #443a29;
+  box-shadow: 0 8px 24px #211e1920;
+}
+.service-balance__amount { color: #e8c98f; font-variant-numeric: tabular-nums; letter-spacing: -.025em; }
+.dark .service-page { --service-border: #453c2e; }
+.dark .service-page .service-heading__description,
+.dark .service-page .text-text-secondary-light { color: #b6ac9d; }
+.dark .service-page .service-heading__eyebrow,
+.dark .service-page .service-heading__links a { color: #d3b780; }
+.service-signing { background-image: radial-gradient(ellipse at top, #a8792e12, transparent 60%); }
+@media (max-width: 640px) {
+  .service-page { min-width: 0; }
+  .service-page > div:first-child { padding-bottom: 18px; }
+  .service-page > .grid > .p-6 { padding: 20px; }
+  .service-page button { touch-action: manipulation; }
+  .service-page > .grid > .service-balance { padding: 24px; }
+}
+
 @layer components {
   /* 表單輸入 */
   .form-input {

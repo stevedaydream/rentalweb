@@ -1,5 +1,9 @@
 <template>
-  <div class="min-h-screen bg-surface-light dark:bg-surface-dark px-4 py-8">
+  <div class="service-signing min-h-screen bg-surface-light dark:bg-surface-dark px-4 py-8">
+    <div class="mx-auto max-w-3xl mb-6 flex items-center justify-between border-b border-gold-500/25 pb-4">
+      <span class="font-serif font-bold tracking-widest">租賃管家</span>
+      <span class="text-xs text-gold-600">合約簽署服務</span>
+    </div>
     <div class="mx-auto" :class="phase === 'review' || phase === 'details' ? 'max-w-3xl' : 'max-w-sm'">
 
       <div v-if="phase === 'checking'" class="py-16 text-center text-text-secondary-light">

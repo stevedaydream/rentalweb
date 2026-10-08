@@ -1,7 +1,7 @@
 <template>
-  <div class="p-4 pb-24 max-w-2xl mx-auto space-y-6">
-    <div class="flex items-center justify-between">
-      <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">報修申請</h1>
+  <div class="service-page pb-24 max-w-2xl mx-auto space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <ServicePageHeading title="報修服務" description="提出維修需求，隨時追蹤房東的處理進度。" />
       <button 
         @click="showNewRequest = true"
         class="bg-gold-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-gold-500/20"
@@ -158,6 +158,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, onMounted } from 'vue';
 import { db } from '../../firebase/config';
 import { useAuthStore } from '../../stores/auth';

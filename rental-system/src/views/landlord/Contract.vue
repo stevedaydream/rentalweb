@@ -1,12 +1,9 @@
 <template>
-  <div class="max-w-5xl mx-auto space-y-6">
+  <div class="service-page max-w-5xl mx-auto space-y-6">
 
     <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">電子合約</h1>
-        <p class="text-text-secondary-light">填寫租賃資料、設定條款並進行線上簽署，自動生成 PDF 合約</p>
-      </div>
+      <ServicePageHeading title="電子合約" description="查閱簽署狀態，核對租客簽名並完成合約。" role="landlord" :links="[{ label: '租客與租約', to: '/landlord/tenants' }]" />
     </div>
 
     <section v-if="route.query.contract" class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-card-dark p-5 space-y-3" aria-label="目前租約">
@@ -412,6 +409,7 @@
 </template>
 
 <script setup>
+import ServicePageHeading from '../../components/ServicePageHeading.vue'
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import axios from 'axios'

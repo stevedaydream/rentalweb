@@ -219,7 +219,7 @@ router.beforeEach(async (to, _from, next) => {
 
   if (to.meta.requiresAuth && !isAuthenticated) {
     console.warn('[Guard] 未登入，導向 Login');
-    return next({ name: 'Login' });
+    return next({ name: 'Login', query: { redirect: to.fullPath } });
   }
 
   if (isAuthenticated && to.meta.role) {

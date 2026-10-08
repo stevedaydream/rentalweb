@@ -15,6 +15,7 @@ import {
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useRouter } from 'vue-router';
 import { useUserStore } from './user';
+import { loginDestination } from '../utils/loginDestination';
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
@@ -44,9 +45,7 @@ export const useAuthStore = defineStore('auth', () => {
         const profile = docSnap.data();
         userProfile.value = profile;
         userStore.setProfile(firebaseUser.uid, profile); // 填入快取
-        let targetPath = '/tenant/dashboard';
-        if (profile.role === 'landlord') targetPath = '/landlord/dashboard';
-        else if (profile.role === 'admin') targetPath = '/admin/dashboard';
+        const targetPath = loginDestination(profile.role, router.currentRoute.value.query.redirect);
         router.replace(targetPath).catch(() => {
           window.location.replace(targetPath);
         });

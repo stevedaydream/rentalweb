@@ -1,11 +1,8 @@
 <template>
-  <div class="max-w-3xl mx-auto space-y-6">
+  <div class="service-page max-w-3xl mx-auto space-y-6">
 
     <!-- Header -->
-    <div>
-      <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">我的合約</h1>
-      <p class="text-sm text-text-secondary-light mt-0.5">查閱租賃合約並完成電子確認</p>
-    </div>
+    <ServicePageHeading title="我的合約" description="查閱租期與完整文件，完成需要您確認的事項。" role="tenant" :links="[{ label: '聯繫房東', to: '/tenant/contact' }]" />
 
     <!-- Loading -->
     <div v-if="loading" class="flex justify-center py-16">
@@ -169,6 +166,7 @@
 </template>
 
 <script setup>
+import ServicePageHeading from '../../components/ServicePageHeading.vue'
 import { ref, onMounted } from 'vue'
 import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp, orderBy, limit } from 'firebase/firestore'
 import { db } from '../../firebase/config'

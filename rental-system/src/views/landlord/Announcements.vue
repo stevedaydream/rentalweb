@@ -1,13 +1,8 @@
 <template>
-  <div class="max-w-7xl mx-auto space-y-6">
+  <div class="service-page max-w-7xl mx-auto space-y-6">
     
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
-          社區公告管理
-        </h1>
-        <p class="text-text-secondary-light">發布大樓維護通知、重要訊息與住戶規約</p>
-      </div>
+      <ServicePageHeading title="社區公告管理" description="發布居住通知，讓租客掌握重要消息。" role="landlord" :links="[{ label: '報修管理', to: '/landlord/repairs' }]" />
       <button 
         @click="openModal()"
         class="px-4 py-2 bg-gold-500 text-white rounded-lg shadow-sm hover:bg-gold-600 transition-colors text-sm font-medium flex items-center"
@@ -216,6 +211,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useToastStore } from '../../stores/toast'

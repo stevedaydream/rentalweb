@@ -1,12 +1,9 @@
 <template>
-  <div class="max-w-7xl mx-auto space-y-6" @click="closeDropdown">
+  <div class="service-page max-w-7xl mx-auto space-y-6" @click="closeDropdown">
 
     <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">帳務管理</h1>
-        <p class="text-text-secondary-light">收支紀錄、帳單生成與電費盈虧</p>
-      </div>
+      <ServicePageHeading title="帳務管理" description="掌握待收款項，查看明細並完成收款作業。" role="landlord" :links="[{ label: '租客資料', to: '/landlord/tenants' }]" />
       <div v-if="activeTab !== 'annual'" class="flex gap-2 flex-wrap items-center">
         <MonthPicker v-model="currentMonth" />
         <div v-if="activeTab === 'collect'" class="flex items-center gap-1">
@@ -779,6 +776,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { db } from '../../firebase/config'
 import { getFunctions, httpsCallable } from 'firebase/functions'

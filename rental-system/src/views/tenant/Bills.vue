@@ -1,20 +1,15 @@
 <template>
-  <div class="max-w-7xl mx-auto space-y-6">
+  <div class="service-page max-w-7xl mx-auto space-y-6">
     
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
-          我的帳單
-        </h1>
-        <p class="text-text-secondary-light">查看本期應繳費用與歷史繳費紀錄</p>
-      </div>
+      <ServicePageHeading title="我的帳單" description="先確認應繳金額，再選擇帳單上傳繳費截圖。" role="tenant" :links="[{ label: '查看用電明細', to: '/tenant/bills?tab=meter' }, { label: '聯繫房東', to: '/tenant/contact' }]" />
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div class="bg-gradient-to-br from-gold-500 to-gold-600 rounded-2xl p-6 text-white shadow-lg shadow-gold-500/30 relative overflow-hidden">
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
+      <div class="service-balance col-span-2 md:col-span-1 rounded-2xl p-6 text-white relative overflow-hidden">
         <div class="relative z-10">
-          <p class="text-gold-100 font-medium mb-1">本期應繳總額</p>
-          <p class="text-3xl font-extrabold">NT$ {{ summary.unpaidTotal.toLocaleString() }}</p>
+          <p class="text-gold-100 font-medium mb-1">尚需繳納總額</p>
+          <p class="service-balance__amount text-3xl font-extrabold">NT$ {{ summary.unpaidTotal.toLocaleString() }}</p>
           <div class="mt-4 flex items-center gap-2 text-sm text-gold-100">
              <span class="bg-white/20 px-2 py-0.5 rounded text-xs">截止日</span>
              {{ summary.nextDueDate || '無待繳帳單' }}
@@ -40,12 +35,12 @@
     </div>
 
     <div class="bg-white dark:bg-card-dark rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
-      <div class="flex items-center border-b border-gray-100 dark:border-gray-800 px-6 pt-2">
+      <div class="flex items-center overflow-x-auto border-b border-gray-100 dark:border-gray-800 px-3 sm:px-6 pt-2">
         <button 
           v-for="tab in tabs" 
           :key="tab.value"
           @click="currentTab = tab.value"
-          class="px-4 py-3 text-sm font-medium border-b-2 transition-colors relative top-[1px]"
+          class="shrink-0 whitespace-nowrap px-3 sm:px-4 py-3 text-sm font-medium border-b-2 transition-colors relative top-[1px]"
           :class="currentTab === tab.value ? 'border-gold-500 text-gold-600' : 'border-transparent text-text-secondary-light hover:text-gray-600 dark:hover:text-gray-300'"
         >
           {{ tab.label }}
@@ -376,8 +371,9 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
 import { db, storage } from '../../firebase/config';
@@ -425,6 +421,7 @@ interface Bill {
 const authStore = useAuthStore();
 const toast = useToastStore();
 const route = useRoute();
+const router = useRouter();
 const bills = ref<Bill[]>([]);
 const loading = ref(true);
 let unsubscribe: any = null;
@@ -554,7 +551,12 @@ const fetchMeterReadings = async () => {
   }
 };
 
+watch(() => route.query.tab, tab => {
+  currentTab.value = validTabs.includes(tab as string) ? tab as string : 'unpaid';
+});
+
 watch(currentTab, (tab) => {
+  if (route.query.tab !== tab) router.replace({ query: { ...route.query, tab } });
   if (tab === 'meter' && meterReadings.value.length === 0) {
     fetchMeterReadings();
   }

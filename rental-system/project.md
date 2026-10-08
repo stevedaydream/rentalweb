@@ -10,6 +10,15 @@ Firebase 專案 ID：`rental-system-7675e`
 
 ## 技術架構
 
+### 2026-10-08 LINE Bot 與服務入口改造
+
+- 房東／租客的查詢回覆與系統推播統一為暖白、墨黑、霧金 Flex 卡片；帳單突出剩餘應繳金額，保留部分付款與逾期資訊。Quick Reply 固定主選單，搭配目前情境的網頁操作與相關查詢；一般房東人工回覆保留文字。
+- `functions/line/` 集中訊息呈現、身分判斷與選單建立。`menu-items.json` 同時供底圖、點擊區域與設定頁三種預覽使用。`line_configs.richMenuIds` 保存未綁定／租客／房東選單，未綁定引導為預設；建立時更新已綁定者，加入好友、綁定或傳訊時依角色切換。租客身分與綁定碼須屬於目前房東；建立失敗清除新選單，保存失敗還原舊預設；個別切換失敗會提示下次傳訊重試。
+- Bot 連結的帳單／用電、合約、公告、報修、租客資料及相關入口統一頁首與手機樣式；帳單手機摘要採墨黑底與霧金金額。未登入時保留原入口，登入後只回到同角色頁面；電費直接開啟帳單的 `tab=meter`，同頁切換同步網址。儲存 LINE 設定使用 merge，保留通知綁定與角色選單資料。
+- 圖文選單使用內嵌 OFL 中文字型子集與 SVG 圖示，三種底圖均可離線產生。更新選單文案時須同步字型子集，見 `functions/line/fonts/README.md`。
+- 驗證：733 項前端與 53 項 Node 測試、型別檢查及正式建置通過，Cloud Functions 模組可載入。以本機模擬器與示範資料檢查房東／租客入口的手機及桌機畫面、360px 帳單與深色文字、同頁用電切換、登入返回原入口、LINE 設定欄位保留；簽署入口使用模擬 API 檢視，未執行正式簽署或 LINE 發送。
+- 本次尚未部署。上線需更新 Hosting 與 `lineWebhook`、`setupLineRichMenu`、`removeLineRichMenu`、`sendLineBillNotifications`、`notifyBillCreated`、`notifyAnnouncementCreated`、`scheduledReminderDaily`、`submitRenewalResponse`、`notifyTenantRenewal`、`onReviewCreated`、`budgetAlert`、`dailyUsageCheck`、`submitContractSignature`；再至「系統設定 → LINE」重新產生三種選單。Rules／Indexes 不需變更。LINE 實機呈現與正式頻道切換仍須上線後確認。
+
 ### 2026-10-08 無縫續約沿用完整月租週期
 
 - 月繳、同一租客與合約、租金不變且新約緊接舊約翌日時，出帳規劃使用連續租期，避免續約交界被拆成末期與首期按日計租。例如舊約 2026/10/23 到期、新約 10/24 開始、每月 12 日繳費，10/12～11/11 仍收完整月租 5,500 元。

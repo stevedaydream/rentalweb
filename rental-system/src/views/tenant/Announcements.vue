@@ -1,13 +1,8 @@
 <template>
-  <div class="max-w-4xl mx-auto space-y-6">
+  <div class="service-page max-w-4xl mx-auto space-y-6">
     
     <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
-          社區公告
-        </h1>
-        <p class="text-text-secondary-light">查看最新的大樓通知與消息</p>
-      </div>
+      <ServicePageHeading title="社區公告" description="掌握居住資訊，查看最新通知與重要消息。" role="tenant" :links="[{ label: '報修服務', to: '/tenant/repairs' }]" />
     </div>
 
     <div class="flex flex-col sm:flex-row gap-4 bg-white dark:bg-card-dark p-4 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm">
@@ -122,6 +117,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { db } from '../../firebase/config';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, increment, Timestamp } from 'firebase/firestore';

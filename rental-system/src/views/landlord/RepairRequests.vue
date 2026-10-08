@@ -1,13 +1,8 @@
 <template>
-  <div class="max-w-7xl mx-auto space-y-6">
+  <div class="service-page max-w-7xl mx-auto space-y-6">
     
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
-          報修管理
-        </h1>
-        <p class="text-text-secondary-light">追蹤租客報修案件與維護修繕進度</p>
-      </div>
+      <ServicePageHeading title="報修管理" description="優先處理待辦案件，更新進度並回覆租客。" role="landlord" :links="[{ label: '租客資料', to: '/landlord/tenants' }]" />
       <div class="flex gap-3">
         <button 
           @click="openModal()"
@@ -243,6 +238,7 @@
 </template>
 
 <script setup lang="ts">
+import ServicePageHeading from '../../components/ServicePageHeading.vue';
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
 import { db } from '../../firebase/config';
 import { useAuthStore } from '../../stores/auth';

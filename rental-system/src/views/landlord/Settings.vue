@@ -493,7 +493,7 @@
               圖文選單（Rich Menu）
             </h3>
             <p class="text-sm text-text-secondary-light mt-0.5">
-              在租客的聊天室下方長駐六格按鈕：查帳單、看電費、報修進度、我的合約、社區公告、線上系統。點一下就查，不必記指令。
+              依身分顯示房東、租客或未綁定選單。建立後會更新已綁定帳號，新綁定者自動切換；查詢看摘要，完整操作進網頁。
             </p>
           </div>
           <span class="text-xs px-2 py-1 rounded-full font-medium shrink-0"
@@ -502,12 +502,20 @@
           </span>
         </div>
 
-        <div class="grid grid-cols-3 gap-1.5 max-w-md mb-4">
+        <div class="flex flex-wrap gap-2 mb-3" aria-label="圖文選單預覽身分">
+          <button v-for="option in richMenuRoles" :key="option.value" type="button"
+            :aria-pressed="richMenuRole === option.value" @click="richMenuRole = option.value"
+            class="px-3 py-2 rounded-lg text-xs font-bold border transition-colors"
+            :class="richMenuRole === option.value ? 'bg-ink-800 text-white border-ink-800' : 'border-ink-100 dark:border-ink-700 text-ink-500 dark:text-ink-300'">
+            {{ option.label }}
+          </button>
+        </div>
+        <div class="grid grid-cols-3 max-w-md mb-4 border border-gold-500/25 rounded-2xl overflow-hidden">
           <div v-for="b in richMenuPreview" :key="b.title"
-            class="flex flex-col items-center justify-center gap-0.5 py-3 rounded-lg bg-[#FBF6EA] dark:bg-gray-800 border border-[#E4D6B4] dark:border-gray-700">
-            <span class="text-xl leading-none">{{ b.icon }}</span>
-            <span class="text-[11px] font-bold text-text-primary-light dark:text-text-primary-dark">{{ b.title }}</span>
-            <span class="text-[9px] text-text-secondary-light">{{ b.sub }}</span>
+            class="flex flex-col items-center justify-center gap-2 py-5 bg-[#FFFCF5] dark:bg-ink-800 border border-gold-500/10 first:bg-ink-800 first:text-white">
+            <span class="material-symbols-outlined text-2xl text-gold-500" aria-hidden="true">{{ b.icon }}</span>
+            <span class="text-[11px] font-bold">{{ b.title }}</span>
+            <span class="text-[9px] text-gold-600 dark:text-gold-400">{{ b.sub }}</span>
           </div>
         </div>
 
@@ -710,6 +718,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watchEffect, onMounted, onUnmounted } from 'vue';
+import lineMenuItems from '../../../functions/line/menu-items.json';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../../stores/auth';
 import { useToastStore } from '../../stores/toast';
@@ -1055,23 +1064,24 @@ const lineConfig = ref({
 const isSavingLine = ref(false);
 
 // 圖文選單（實際版面由 Cloud Function 產圖，這裡只是同一份內容的預覽）
-const richMenuPreview = [
-  { icon: '💰', title: '查帳單',  sub: '未繳・到期' },
-  { icon: '⚡', title: '看電費',  sub: '度數・金額' },
-  { icon: '🔧', title: '報修進度', sub: '處理到哪了' },
-  { icon: '📋', title: '我的合約', sub: '租期・租金' },
-  { icon: '📢', title: '社區公告', sub: '最新消息' },
-  { icon: '🏠', title: '線上系統', sub: '上傳截圖' },
-];
+const richMenuRoles = [
+  { value: 'tenant', label: '租客選單' },
+  { value: 'landlord', label: '房東選單' },
+  { value: 'unbound', label: '未綁定引導' },
+] as const;
+const richMenuRole = ref<'tenant' | 'landlord' | 'unbound'>('tenant');
+const richMenuPreview = computed(() => lineMenuItems[richMenuRole.value]);
 const richMenuReady = ref(false);
 const richMenuBusy = ref(false);
 
 const setupRichMenu = async () => {
   richMenuBusy.value = true;
   try {
-    await httpsCallable(functions, 'setupLineRichMenu')({});
+    const result = await httpsCallable<unknown, { pending: number; cleanupPending: number }>(functions, 'setupLineRichMenu')({});
     richMenuReady.value = true;
-    toast.success('圖文選單已建立，租客重開聊天室即可看到');
+    if (result.data.pending) toast.warning(`選單已建立，${result.data.pending} 個帳號會在下次傳訊時重試切換`);
+    else toast.success('三種角色選單已建立，已綁定帳號已更新');
+    if (result.data.cleanupPending) toast.warning('部分舊選單未清除，請至 LINE 後台移除');
   } catch (e: any) {
     console.error('建立圖文選單失敗:', e);
     toast.error(e?.message || '建立失敗，請確認 LINE 設定是否正確');
@@ -1148,7 +1158,7 @@ const saveLineConfig = async () => {
         channelSecret: lineConfig.value.channelSecret.trim(),
         channelAccessToken: lineConfig.value.channelAccessToken.trim(),
         updatedAt: new Date().toISOString(),
-      }),
+      }, { merge: true }),
     ];
     // lineBotId 存到 users/{uid}（租客可讀）及 public_profiles/{uid}（未登入訪客可讀）
     if (lineConfig.value.lineBotId.trim()) {

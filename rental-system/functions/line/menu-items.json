@@ -1,0 +1,188 @@
+{
+  "tenant": [
+    {
+      "icon": "receipt_long",
+      "title": "我的帳單",
+      "sub": "應繳金額・繳費紀錄",
+      "action": {
+        "type": "message",
+        "label": "帳單",
+        "text": "帳單"
+      }
+    },
+    {
+      "icon": "bolt",
+      "title": "用電明細",
+      "sub": "度數・本期電費",
+      "action": {
+        "type": "message",
+        "label": "電費",
+        "text": "電費"
+      }
+    },
+    {
+      "icon": "build",
+      "title": "報修服務",
+      "sub": "申請維修・追蹤進度",
+      "action": {
+        "type": "message",
+        "label": "報修",
+        "text": "報修"
+      }
+    },
+    {
+      "icon": "description",
+      "title": "租賃合約",
+      "sub": "租期・查閱文件",
+      "action": {
+        "type": "message",
+        "label": "合約",
+        "text": "合約"
+      }
+    },
+    {
+      "icon": "campaign",
+      "title": "最新公告",
+      "sub": "居住資訊・重要通知",
+      "action": {
+        "type": "message",
+        "label": "公告",
+        "text": "公告"
+      }
+    },
+    {
+      "icon": "home",
+      "title": "租客首頁",
+      "sub": "開啟我的租屋生活",
+      "action": {
+        "type": "uri",
+        "label": "租客首頁",
+        "uri": "https://rental-system-7675e.web.app/tenant/dashboard"
+      }
+    }
+  ],
+  "landlord": [
+    {
+      "icon": "payments",
+      "title": "欠費追蹤",
+      "sub": "逾期金額・待收明細",
+      "action": {
+        "type": "message",
+        "label": "欠費",
+        "text": "欠費"
+      }
+    },
+    {
+      "icon": "event",
+      "title": "租約到期",
+      "sub": "未來 90 天・續約安排",
+      "action": {
+        "type": "message",
+        "label": "到期",
+        "text": "到期"
+      }
+    },
+    {
+      "icon": "build",
+      "title": "待辦報修",
+      "sub": "案件摘要・處理進度",
+      "action": {
+        "type": "message",
+        "label": "報修",
+        "text": "報修"
+      }
+    },
+    {
+      "icon": "search",
+      "title": "房間查詢",
+      "sub": "依房號・姓名查詢",
+      "action": {
+        "type": "message",
+        "label": "房間查詢",
+        "text": "租客"
+      }
+    },
+    {
+      "icon": "account_balance_wallet",
+      "title": "帳務管理",
+      "sub": "收款・帳單管理",
+      "action": {
+        "type": "uri",
+        "label": "帳務管理",
+        "uri": "https://rental-system-7675e.web.app/landlord/financials"
+      }
+    },
+    {
+      "icon": "home",
+      "title": "房東首頁",
+      "sub": "開啟物業管理中心",
+      "action": {
+        "type": "uri",
+        "label": "房東首頁",
+        "uri": "https://rental-system-7675e.web.app/landlord/dashboard"
+      }
+    }
+  ],
+  "unbound": [
+    {
+      "icon": "link",
+      "title": "綁定帳號",
+      "sub": "取得六位數綁定碼",
+      "action": {
+        "type": "message",
+        "label": "綁定帳號",
+        "text": "綁定帳號"
+      }
+    },
+    {
+      "icon": "login",
+      "title": "登入系統",
+      "sub": "租客與房東登入",
+      "action": {
+        "type": "uri",
+        "label": "登入系統",
+        "uri": "https://rental-system-7675e.web.app/login"
+      }
+    },
+    {
+      "icon": "help",
+      "title": "使用說明",
+      "sub": "了解綁定與操作",
+      "action": {
+        "type": "uri",
+        "label": "使用說明",
+        "uri": "https://rental-system-7675e.web.app/guide"
+      }
+    },
+    {
+      "icon": "campaign",
+      "title": "最新公告",
+      "sub": "查看社區重要消息",
+      "action": {
+        "type": "message",
+        "label": "公告",
+        "text": "公告"
+      }
+    },
+    {
+      "icon": "chat",
+      "title": "聯繫房東",
+      "sub": "直接在聊天室傳訊",
+      "action": {
+        "type": "message",
+        "label": "聯繫房東",
+        "text": "聯繫房東"
+      }
+    },
+    {
+      "icon": "grid_view",
+      "title": "功能介紹",
+      "sub": "查看服務與綁定方式",
+      "action": {
+        "type": "message",
+        "label": "選單",
+        "text": "選單"
+      }
+    }
+  ]
+}
