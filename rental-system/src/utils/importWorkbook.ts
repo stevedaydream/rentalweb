@@ -20,10 +20,11 @@ export const readWorkbook = async (X: XLSX, file: File) =>
 export const downloadTemplate = (
   X: XLSX, fileName: string, instructions: string[][],
   sheets: { name: string; headers: readonly string[]; widths?: number[] }[],
+  guideWidths: readonly [number, number] = [18, 80],
 ) => {
   const wb = X.utils.book_new()
   const guide = X.utils.aoa_to_sheet(instructions)
-  guide['!cols'] = [{ wch: 18 }, { wch: 80 }]
+  guide['!cols'] = guideWidths.map(wch => ({ wch }))
   X.utils.book_append_sheet(wb, guide, '填寫說明')
   for (const sheet of sheets) {
     const ws = X.utils.aoa_to_sheet([[...sheet.headers]])

@@ -16,7 +16,7 @@ export interface HistoricalPaymentRow { legacyPaymentKey: string; legacyBillKey:
 export interface HistoricalImportInput { tenants: HistoricalTenantRow[]; bills: HistoricalBillRow[]; payments: HistoricalPaymentRow[] }
 
 export interface HistoricalExisting {
-  /** 已匯入過的舊租客鍵、舊帳單鍵、舊付款鍵 */
+  /** 已匯入過的舊租客編號、舊帳單編號、舊付款編號 */
   tenantKeys?: string[]
   billKeys?: string[]
   paymentKeys?: string[]
@@ -59,9 +59,9 @@ export const buildHistoricalImportPlan = (
   const tenants = new Map<string, PlannedHistoricalTenant>()
   ;(input.tenants ?? []).forEach((row, i) => {
     const key = legacyKey(row.legacyTenantKey); const name = cellText(row.name); const moveOutDate = cellText(row.moveOutDate)
-    if (!key) { errors.push(`${at('歷史租客', i)}：舊租客鍵為必填`); return }
-    if (tenants.has(key)) errors.push(`${at('歷史租客', i)}：舊租客鍵「${key}」重複`)
-    if (oldTenants.has(key)) errors.push(`${at('歷史租客', i)}：舊租客鍵「${key}」已匯入過`)
+    if (!key) { errors.push(`${at('歷史租客', i)}：舊租客編號為必填`); return }
+    if (tenants.has(key)) errors.push(`${at('歷史租客', i)}：舊租客編號「${key}」重複`)
+    if (oldTenants.has(key)) errors.push(`${at('歷史租客', i)}：舊租客編號「${key}」已匯入過`)
     if (!name) errors.push(`${at('歷史租客', i)}：姓名為必填`)
     if (moveOutDate && !isRealDate(moveOutDate)) errors.push(`${at('歷史租客', i)}：退租日必須是有效日期`)
     tenants.set(key, { legacyTenantKey: key, name, phone: cellText(row.phone), legacyRoomKey: cellText(row.legacyRoomKey), moveOutDate })
@@ -72,11 +72,11 @@ export const buildHistoricalImportPlan = (
   ;(input.payments ?? []).forEach((row, i) => {
     const key = legacyKey(row.legacyPaymentKey); const billKey = legacyKey(row.legacyBillKey)
     const amount = positiveWhole(row.amount); const date = cellText(row.date)
-    if (!key) errors.push(`${at('歷史付款', i)}：舊付款鍵為必填`)
-    else if (paymentKeys.has(key)) errors.push(`${at('歷史付款', i)}：舊付款鍵「${key}」重複`)
-    else if (oldPayments.has(key)) errors.push(`${at('歷史付款', i)}：舊付款鍵「${key}」已匯入過`)
+    if (!key) errors.push(`${at('歷史付款', i)}：舊付款編號為必填`)
+    else if (paymentKeys.has(key)) errors.push(`${at('歷史付款', i)}：舊付款編號「${key}」重複`)
+    else if (oldPayments.has(key)) errors.push(`${at('歷史付款', i)}：舊付款編號「${key}」已匯入過`)
     paymentKeys.add(key)
-    if (!billKey) errors.push(`${at('歷史付款', i)}：舊帳單鍵為必填`)
+    if (!billKey) errors.push(`${at('歷史付款', i)}：舊帳單編號為必填`)
     if (!amount) errors.push(`${at('歷史付款', i)}：金額必須是正整數`)
     if (!isRealDate(date)) errors.push(`${at('歷史付款', i)}：付款日必須是有效日期`)
     const note = [cellText(row.method), cellText(row.note)].filter(Boolean).join('・')
@@ -88,15 +88,15 @@ export const buildHistoricalImportPlan = (
     const key = legacyKey(row.legacyBillKey); const tenantKey = legacyKey(row.legacyTenantKey)
     const date = cellText(row.date); const dueDate = cellText(row.dueDate); const category = cellText(row.category)
     const amount = positiveWhole(row.amount)
-    if (!key) { errors.push(`${at('歷史帳單', i)}：舊帳單鍵為必填`); return }
-    if (bills.has(key)) errors.push(`${at('歷史帳單', i)}：舊帳單鍵「${key}」重複`)
-    if (oldBills.has(key)) errors.push(`${at('歷史帳單', i)}：舊帳單鍵「${key}」已匯入過`)
+    if (!key) { errors.push(`${at('歷史帳單', i)}：舊帳單編號為必填`); return }
+    if (bills.has(key)) errors.push(`${at('歷史帳單', i)}：舊帳單編號「${key}」重複`)
+    if (oldBills.has(key)) errors.push(`${at('歷史帳單', i)}：舊帳單編號「${key}」已匯入過`)
     if (!isRealDate(date) || !isRealDate(dueDate)) errors.push(`${at('歷史帳單', i)}：帳單日與到期日必須是有效日期`)
     if (!(IMPORT_BILL_CATEGORIES as readonly string[]).includes(category)) {
       errors.push(`${at('歷史帳單', i)}：類別「${category}」無法辨識，請填 ${IMPORT_BILL_CATEGORIES.join('、')}`)
     }
     if (!amount) errors.push(`${at('歷史帳單', i)}：金額必須是正整數`)
-    if (tenantKey && !tenants.has(tenantKey)) errors.push(`${at('歷史帳單', i)}：找不到舊租客鍵「${tenantKey}」`)
+    if (tenantKey && !tenants.has(tenantKey)) errors.push(`${at('歷史帳單', i)}：找不到舊租客編號「${tenantKey}」`)
     const payments = (paymentsByBill.get(key) ?? []).sort((a, b) => a.date.localeCompare(b.date))
     if (payments.reduce((s, p) => s + p.amount, 0) > amount) errors.push(`${at('歷史帳單', i)}：付款合計超過帳單金額`)
     const room = tenantKey ? roomByKey.get(importKey(tenants.get(tenantKey)?.legacyRoomKey)) : undefined
@@ -106,7 +106,7 @@ export const buildHistoricalImportPlan = (
     })
   })
   paymentsByBill.forEach((_, billKey) => {
-    if (billKey && !bills.has(billKey)) errors.push(`歷史付款：舊帳單鍵「${billKey}」不在「歷史帳單」工作表`)
+    if (billKey && !bills.has(billKey)) errors.push(`歷史付款：舊帳單編號「${billKey}」不在「歷史帳單」工作表`)
   })
 
   if (errors.length) return { errors }

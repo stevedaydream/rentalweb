@@ -26,9 +26,9 @@ describe('歷史遷移：驗證', () => {
 
   it('已匯入過的舊系統鍵擋下，避免重複匯入', () => {
     const errors = buildHistoricalImportPlan(input(), { tenantKeys: ['T-1'], billKeys: ['b-2'], paymentKeys: ['P-3'] }).errors.join('\n')
-    expect(errors).toContain('舊租客鍵「T-1」已匯入過')
-    expect(errors).toContain('舊帳單鍵「B-2」已匯入過')
-    expect(errors).toContain('舊付款鍵「P-3」已匯入過')
+    expect(errors).toContain('舊租客編號「T-1」已匯入過')
+    expect(errors).toContain('舊帳單編號「B-2」已匯入過')
+    expect(errors).toContain('舊付款編號「P-3」已匯入過')
   })
 
   it('付款鍵重複、付款超過帳單、日期不存在、類別錯誤都要報錯', () => {
@@ -36,7 +36,7 @@ describe('歷史遷移：驗證', () => {
     data.payments.push({ legacyPaymentKey: 'p-1', legacyBillKey: 'b-2', date: '2025-02-30', amount: 900 })
     data.bills.push({ legacyBillKey: 'b-3', date: '2025-12-01', dueDate: '2025-12-05', category: '租金', amount: 1 })
     const errors = buildHistoricalImportPlan(data).errors.join('\n')
-    expect(errors).toContain('舊付款鍵「P-1」重複')
+    expect(errors).toContain('舊付款編號「P-1」重複')
     expect(errors).toContain('付款日必須是有效日期')
     expect(errors).toContain('付款合計超過帳單金額')
     expect(errors).toContain('類別「租金」無法辨識')
@@ -45,7 +45,7 @@ describe('歷史遷移：驗證', () => {
   it('付款指向不存在的帳單要報錯', () => {
     const data = input()
     data.payments.push({ legacyPaymentKey: 'p-9', legacyBillKey: 'nope', date: '2025-12-01', amount: 1 })
-    expect(buildHistoricalImportPlan(data).errors.join('\n')).toContain('舊帳單鍵「NOPE」不在「歷史帳單」工作表')
+    expect(buildHistoricalImportPlan(data).errors.join('\n')).toContain('舊帳單編號「NOPE」不在「歷史帳單」工作表')
   })
 })
 
