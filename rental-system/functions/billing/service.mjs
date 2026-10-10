@@ -35,6 +35,10 @@ export async function handleBilling(db, FieldValue, request) {
     if (landlordId !== request.auth.uid && role !== 'admin') throw new HttpsError('permission-denied', '無權操作其他房東帳單')
     const profile = landlordId === request.auth.uid ? caller : await tx.get(db.collection('users').doc(landlordId))
     if (!profile.exists) throw new HttpsError('not-found', '找不到房東設定')
+    const serviceState = await tx.get(db.collection('platform_accounts').doc(landlordId))
+    if (['all', 'deleting', 'deleted'].includes(serviceState.data()?.mode) || serviceState.data()?.archived) throw new HttpsError('failed-precondition', '房東服務已暫停，無法出帳')
+    if (role === 'landlord' && serviceState.data()?.mode === 'landlord') throw new HttpsError('permission-denied', '房東帳戶已暫停')
+    if (mode === 'commit' && role === 'admin' && !request.data.adminReason?.trim()) fail('管理員出帳請填寫原因')
     if (runRef) {
       const previous = await tx.get(runRef)
       if (previous.exists) {
@@ -71,7 +75,7 @@ export async function handleBilling(db, FieldValue, request) {
       }
       return p
     })
-    const writeCount = selected.reduce((n, p) => n + p.bills.length + 1, 2)
+    const writeCount = selected.reduce((n, p) => n + p.bills.length + 1 + (role === 'admin' && !request.data.suppressNotification ? 1 : 0), role === 'admin' ? 4 : 2)
     if (writeCount > MAX_WRITES) throw new HttpsError('resource-exhausted', '本批帳單過多，請分批出帳；同一租約不可拆開扣款')
     const publicSelected = publicPlan({ ...plan, plans: selected }).plans
     const items = publicSelected.flatMap(p => p.items)
@@ -84,7 +88,7 @@ export async function handleBilling(db, FieldValue, request) {
           data.payments = [{ amount: creditApplied, date: today, source: 'credit', note: '預收餘額沖抵', at }]
           if (creditApplied >= data.amount) Object.assign(data, { status: 'completed', paidAt: today })
         }
-        tx.create(db.collection('bills').doc(id), { ...data, generationRunId: runId, createdAt: FieldValue.serverTimestamp() })
+        tx.create(db.collection('bills').doc(id), { ...data, ...(role === 'admin' ? { adminOperationId: operationId, suppressNotification: request.data.suppressNotification === true } : {}), generationRunId: runId, createdAt: FieldValue.serverTimestamp() })
       }
       // Serialize concurrent runs for this lease, including those with zero credit.
       const update = { billingRevision: FieldValue.increment(1) }
@@ -103,6 +107,15 @@ export async function handleBilling(db, FieldValue, request) {
       actorId: request.auth.uid, billingVersion: 2,
       allocations: plan.allocations.filter(a => selected.some(p => p.bills.some(b => b.calculation?.readingId === a.readingId))),
     })
+    if (role === 'admin') {
+      tx.create(db.collection('admin_audit').doc(runId), { actorId: request.auth.uid, landlordId, kind: 'bills', action: 'generate', reason: request.data.adminReason, after: result, at: FieldValue.serverTimestamp() })
+      const { notify } = createRequire(import.meta.url)('../admin/service.cjs')
+      notify(tx, db, landlordId, '平台管理員已補開帳單，請登入查看。', '/landlord/financials', runId)
+      if (!request.data.suppressNotification) for (const p of selected) {
+        const tenantUid = tenants.find(t => t.id === p.tenantKey)?.uid
+        if (tenantUid) notify(tx, db, tenantUid, '平台管理員已補開您的帳單，請登入查看。', '/tenant/bills', runId)
+      }
+    }
     return { ...result, replayed: false }
   }, mode === 'preview' ? { readOnly: true } : { maxAttempts: 5 })
 }

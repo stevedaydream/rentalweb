@@ -148,7 +148,7 @@
 
     <!-- 雙方簽名 -->
     <div class="grid grid-cols-2 gap-3">
-      <LandlordSignatureField v-model="form.landlordSignature" :landlord-id="landlordId" />
+      <LandlordSignatureField v-model="form.landlordSignature" :landlord-id="landlordId" :allow-save="adminReason === undefined" />
       <div class="p-3 rounded-xl border border-gray-100 dark:border-gray-800">
         <p class="text-[11px] text-text-secondary-light mb-1">承租人（租客）</p>
         <div class="h-14 flex items-end justify-between gap-2">
@@ -243,6 +243,7 @@ const props = defineProps({
   landlordId: { type: String, required: true },
   showSelectors: { type: Boolean, default: false }, // 獨立合約頁：顯示房源/租客下拉
   allowRemote: { type: Boolean, default: false }, // 允許傳送簽署連結（上線精靈為現場流程，不開放）
+  adminReason: { type: String, default: undefined },
 })
 const emit = defineEmits(['saved'])
 
@@ -437,7 +438,7 @@ const submitContract = async (confirmedReplace = false) => {
       templateHtml: contractTemplate,
       templateVersion: CONTRACT_TEMPLATE_VERSION,
       signedAt: serverTimestamp(),
-    }, found.map(c => c.id))
+    }, found.map(c => c.id), props.adminReason)
     overlaps.value = []
 
     toast.success(usedPrint ? '合約已生成，請在列印視窗選「另存為 PDF」' : '合約已生成並下載！')
@@ -481,10 +482,10 @@ const sendSignLink = async () => {
       templateVersion: CONTRACT_TEMPLATE_VERSION,
       status: 'awaiting_tenant',
       signedAt: serverTimestamp(),
-    })
+    }, [], props.adminReason)
     linkModal.value = { contractId: docRef.id }
     try {
-      const res = await requestContractSignLink(docRef.id)
+      const res = await requestContractSignLink(docRef.id, props.adminReason)
       linkModal.value = { contractId: docRef.id, url: res.url, expireDays: res.expireDays }
     } catch (e) {
       console.error('產生簽署連結失敗:', e)
@@ -505,7 +506,9 @@ const closeLinkModal = () => {
 }
 
 onMounted(async () => {
-  const profile = authStore.userProfile
+  const profile = props.adminReason !== undefined
+    ? (await getDoc(doc(db, 'users', props.landlordId))).data()
+    : authStore.userProfile
   form.value.landlord = profile?.name || ''
   form.value.landlordId = profile?.idNumber || ''
   form.value.landlordPhone = profile?.phone || ''

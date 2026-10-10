@@ -7,7 +7,19 @@ service cloud.firestore {
     // =========================================================
 
     function isSignedIn() {
-      return request.auth != null;
+      return request.auth != null && activeService();
+    }
+
+    function activeService() {
+      let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      let profile = exists(userPath) ? get(userPath).data : {};
+      let lid = profile.get('role', '') == 'landlord' ? request.auth.uid : profile.get('landlordId', '');
+      let stateId = lid == '' ? '_unbound' : lid;
+      let statePath = /databases/$(database)/documents/platform_accounts/$(stateId);
+      let state = lid != '' && exists(statePath) ? get(statePath).data : {};
+      return profile.get('role', '') == 'admin' ||
+        (!state.get('archived', false) && !(state.get('mode', '') in ['all', 'deleting', 'deleted'])
+          && !(profile.get('role', '') == 'landlord' && state.get('mode', '') == 'landlord'));
     }
 
     function isLandlord() {
@@ -58,14 +70,39 @@ service cloud.firestore {
     // properties／meter_readings 等資料，能自填就等於能挑房東看。綁定改由 callable
     // bindLandlordByCode／unbindLandlord 於伺服端查驗邀請碼後以 Admin SDK 代寫。
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow create: if request.auth.uid == userId || isLandlord() || isAdmin();
-      allow update: if isLandlord() || isAdmin()
-        || (request.auth.uid == userId
+      allow read: if isSignedIn() || (request.auth != null && request.auth.uid == userId);
+      allow create: if isAdmin() || (isSignedIn() && request.auth.uid == userId && request.resource.data.role in ['landlord', 'tenant'])
+        || (isLandlord() && request.resource.data.role == 'tenant' && request.resource.data.landlordId == request.auth.uid);
+      allow update: if isAdmin()
+        || (isLandlord() && resource.data.get('landlordId', '') == request.auth.uid && resource.data.role == 'tenant'
+            && request.resource.data.role == 'tenant' && request.resource.data.landlordId == request.auth.uid)
+        || (isSignedIn() && request.auth.uid == userId
             && request.resource.data.get('role', '') == resource.data.get('role', '')
             && request.resource.data.get('landlordId', '') == resource.data.get('landlordId', ''));
-      allow delete: if request.auth.uid == userId || isLandlord() || isAdmin();
+      allow delete: if isAdmin() || (isSignedIn() && request.auth.uid == userId)
+        || (isLandlord() && resource.data.get('landlordId', '') == request.auth.uid && resource.data.role == 'tenant');
     }
+
+    match /platform_accounts/{lid} {
+      allow read: if isAdmin() || (request.auth != null && (request.auth.uid == lid
+        || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('landlordId', '') == lid));
+      allow write: if false;
+    }
+    match /admin_audit/{id} { allow read: if isAdmin(); allow write: if false; }
+    match /platform_delete_jobs/{id} { allow read, write: if false; }
+    match /platform_private/{id} { allow read, write: if false; }
+    match /platform_line_codes/{id} { allow read, write: if false; }
+    match /platform_line_bindings/{id} { allow read, write: if false; }
+    match /platform_support_runs/{id} { allow read, write: if false; }
+    match /platform_tickets/{id} {
+      allow read: if request.auth != null && (request.auth.uid == resource.data.landlordId || isAdmin());
+      allow write: if false;
+      match /messages/{messageId} {
+        allow read: if request.auth != null && (request.auth.uid == get(/databases/$(database)/documents/platform_tickets/$(id)).data.landlordId || isAdmin());
+        allow write: if false;
+      }
+    }
+    match /platform_notifications/{id} { allow read: if request.auth != null && request.auth.uid == resource.data.recipientId; allow write: if false; }
 
     // 報修單 (repair_requests)
     match /repair_requests/{ticketId} {
@@ -161,7 +198,7 @@ service cloud.firestore {
 
     // LINE Bot 設定 (line_configs) — 每位房東各自的 Channel Secret / Token
     match /line_configs/{landlordId} {
-      allow read, write: if request.auth.uid == landlordId || isAdmin();
+      allow read, write: if (isSignedIn() && request.auth.uid == landlordId) || isAdmin();
     }
 
     // 租客評價 (reviews)
@@ -183,7 +220,7 @@ service cloud.firestore {
     // 公開房東 Profile (public_profiles) — 供未登入訪客讀取 lineBotId 等公開資訊
     match /public_profiles/{uid} {
       allow read: if true;
-      allow write: if request.auth.uid == uid || isAdmin();
+      allow write: if (isSignedIn() && request.auth.uid == uid) || isAdmin();
     }
 
     // 房間資料 (rooms)
@@ -213,7 +250,7 @@ service cloud.firestore {
       allow read: if isAdmin()
         || isLandlord()
         || isOwner('uid')
-        || safeField('landlordId') == request.auth.uid;
+        || (isSignedIn() && safeField('landlordId') == request.auth.uid);
       allow create: if isAdmin() || isCreatingAsLandlord();
       // 租客本人只能改自己的聯絡方式；姓名／證件號碼／房號／租金／租期是房東維護的
       // 事實，用白名單擋住，否則等於開放租客自己改租約內容。
@@ -257,28 +294,28 @@ service cloud.firestore {
 
     // 合約範本 (contract_templates) — 每位房東一份，doc ID = landlordId
     match /contract_templates/{uid} {
-      allow read, write: if isAdmin() || request.auth.uid == uid;
+      allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
     }
 
     // 已簽署合約存檔 (signed_contracts)
     match /signed_contracts/{id} {
       allow read: if isAdmin()
-        || resource.data.landlordUid == request.auth.uid
+        || (isSignedIn() && resource.data.landlordUid == request.auth.uid)
         // 租客：直接透過 tenantUid 欄位比對
         || (isSignedIn() && resource.data.get('tenantUid', '') == request.auth.uid)
         // 舊邏輯相容：租客同房東下可讀（無 tenantUid 的舊合約）
         || (isSignedIn() &&
             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('landlordId', '') == resource.data.get('landlordUid', ''));
       allow update: if isAdmin()
-        || resource.data.landlordUid == request.auth.uid
+        || (isSignedIn() && resource.data.landlordUid == request.auth.uid)
         // 租客確認：只能寫入 tenantAcknowledgedAt / tenantAcknowledgedUid
         || (isSignedIn() && resource.data.get('tenantUid', '') == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['tenantAcknowledgedAt', 'tenantAcknowledgedUid']));
       allow delete: if isAdmin()
-        || resource.data.landlordUid == request.auth.uid;
+        || (isSignedIn() && resource.data.landlordUid == request.auth.uid);
       allow create: if isAdmin()
-        || request.resource.data.landlordUid == request.auth.uid;
+        || (isSignedIn() && request.resource.data.landlordUid == request.auth.uid);
     }
 
     // 繳費憑證 (payment_proofs)

@@ -12,26 +12,8 @@
         <p class="mt-1 text-sm text-text-secondary-light dark:text-text-secondary-dark">限授權人員使用</p>
       </div>
 
-      <!-- Tab -->
-      <div class="flex rounded-lg overflow-hidden border border-gray-700 mb-6">
-        <button
-          @click="tab = 'login'"
-          :class="tab === 'login'
-            ? 'bg-ink-800 text-white'
-            : 'bg-transparent text-text-secondary-light hover:text-gold-600'"
-          class="flex-1 py-2 text-sm font-medium transition-colors"
-        >登入</button>
-        <button
-          @click="tab = 'register'"
-          :class="tab === 'register'
-            ? 'bg-ink-800 text-white'
-            : 'bg-transparent text-gray-400 hover:text-gray-200'"
-          class="flex-1 py-2 text-sm font-medium transition-colors"
-        >建立帳號</button>
-      </div>
-
       <!-- Login Form -->
-      <form v-if="tab === 'login'" @submit.prevent="handleLogin" class="space-y-4">
+      <form @submit.prevent="handleLogin" class="space-y-4">
         <div>
           <label class="block text-xs font-medium text-text-secondary-light mb-1">Email</label>
           <input
@@ -66,55 +48,6 @@
         </button>
       </form>
 
-      <!-- Register Form -->
-      <form v-else @submit.prevent="handleRegister" class="space-y-4">
-        <div>
-          <label class="block text-xs font-medium text-text-secondary-light mb-1">Email</label>
-          <input
-            v-model="email"
-            type="email"
-            name="email"
-            autocomplete="email"
-            required
-            class="w-full px-3 py-2.5 bg-white dark:bg-ink-800 border border-ink-200 dark:border-ink-700 rounded-lg text-text-primary-light dark:text-text-primary-dark placeholder-gray-500 dark:placeholder-gray-400 text-sm focus:outline-none focus:border-gold-500 transition-colors"
-            placeholder="admin@example.com"
-          >
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-text-secondary-light mb-1">密碼</label>
-          <input
-            v-model="password"
-            type="password"
-            name="new-password"
-            autocomplete="new-password"
-            required
-            minlength="8"
-            class="w-full px-3 py-2.5 bg-white dark:bg-ink-800 border border-ink-200 dark:border-ink-700 rounded-lg text-text-primary-light dark:text-text-primary-dark placeholder-gray-500 dark:placeholder-gray-400 text-sm focus:outline-none focus:border-gold-500 transition-colors"
-            placeholder="至少 8 個字元"
-          >
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-text-secondary-light mb-1">授權碼</label>
-          <input
-            v-model="adminKey"
-            type="password"
-            name="admin-key"
-            autocomplete="off"
-            required
-            class="w-full px-3 py-2.5 bg-white dark:bg-ink-800 border border-ink-200 dark:border-ink-700 rounded-lg text-text-primary-light dark:text-text-primary-dark placeholder-gray-500 dark:placeholder-gray-400 text-sm focus:outline-none focus:border-gold-500 transition-colors"
-            placeholder="請輸入管理員授權碼"
-          >
-        </div>
-        <p v-if="errorMsg" class="text-xs text-red-400">{{ errorMsg }}</p>
-        <button
-          type="submit"
-          :disabled="loading"
-          class="w-full py-2.5 bg-gold-500 hover:bg-gold-600 text-white font-bold rounded-lg transition-colors disabled:opacity-50 text-sm mt-2"
-        >
-          {{ loading ? '建立中...' : '建立管理員帳號' }}
-        </button>
-      </form>
-
       <!-- Back -->
       <RouterLink
         :to="{ name: 'Identity' }"
@@ -130,25 +63,22 @@
 <script setup lang="ts">
 import ServiceBrand from '../../components/ServiceBrand.vue';
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { useAuthStore } from '../../stores/auth';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../../firebase/config';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../../firebase/config';
 
-const router = useRouter();
+import { useAuthStore } from '../../stores/auth';
+
+
+
+
+
+
 const authStore = useAuthStore();
 
-const tab = ref<'login' | 'register'>('login');
+
 const email = ref('');
 const password = ref('');
-const adminKey = ref('');
+
 const loading = ref(false);
 const errorMsg = ref('');
-
-// 管理員授權碼（與後端 / 環境變數一致）
-const ADMIN_SECRET = import.meta.env.VITE_ADMIN_SECRET ?? 'CHANGE_ME';
 
 const handleLogin = async () => {
   errorMsg.value = '';
@@ -168,30 +98,4 @@ const handleLogin = async () => {
   }
 };
 
-const handleRegister = async () => {
-  errorMsg.value = '';
-  if (adminKey.value !== ADMIN_SECRET) {
-    errorMsg.value = '授權碼錯誤';
-    return;
-  }
-  loading.value = true;
-  try {
-    const credential = await createUserWithEmailAndPassword(auth, email.value, password.value);
-    const uid = credential.user.uid;
-    const userData = {
-      uid,
-      email: email.value,
-      role: 'admin',
-      name: '系統管理員',
-      createdAt: new Date(),
-    };
-    await setDoc(doc(db, 'users', uid), userData);
-    authStore.userProfile = userData;
-    router.push({ name: 'AdminDashboard' });
-  } catch (e: any) {
-    errorMsg.value = '建立失敗：' + (e.message ?? '請稍後再試');
-  } finally {
-    loading.value = false;
-  }
-};
 </script>

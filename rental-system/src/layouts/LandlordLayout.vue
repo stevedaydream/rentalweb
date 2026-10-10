@@ -164,7 +164,7 @@
       </div>
 
       <main class="flex-1 overflow-auto p-4 md:p-8">
-        <router-view></router-view>
+        <PlatformNotifications /><router-view></router-view>
       </main>
     </div>
 
@@ -173,6 +173,8 @@
 
 <script setup lang="ts">
 import AppCopyright from '../components/AppCopyright.vue';
+import PlatformNotifications from '../components/PlatformNotifications.vue';
+import '../assets/admin.css';
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useNotificationStore } from '../stores/notification';
@@ -187,6 +189,7 @@ const route = useRoute();
 const isSidebarOpen = ref(false);
 
 const PRIMARY_ITEMS = [
+  { id: 'support', name: '平台求助', to: { name: 'LandlordSupport' }, icon: 'support_agent' },
   { id: 'dashboard',     name: '儀表板',  to: { name: 'LandlordDashboard' },    icon: 'dashboard' },
   { id: 'rooms',         name: '房源管理', to: { name: 'RoomManagement' },        icon: 'bedroom_parent' },
   { id: 'tenants',       name: '租客列表', to: { name: 'TenantList' },            icon: 'group' },

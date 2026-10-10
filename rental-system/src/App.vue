@@ -12,6 +12,7 @@
   </div>
 
   <ToastContainer />
+  <ServiceAccessMonitor />
 </template>
 
 <script setup lang="ts">
@@ -19,6 +20,7 @@ import { onMounted } from 'vue';
 import { useAuthStore } from './stores/auth';
 import logoSrc from './assets/logo.svg'
 import ToastContainer from './components/ToastContainer.vue'
+import ServiceAccessMonitor from './components/ServiceAccessMonitor.vue';
 
 const authStore = useAuthStore();
 

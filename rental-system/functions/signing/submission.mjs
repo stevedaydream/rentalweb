@@ -1,7 +1,7 @@
 import { HttpsError } from 'firebase-functions/v2/https'
 import { normalizeSigningDetails } from './details.mjs'
 
-export async function saveTenantSignature(db, FieldValue, { linkRef, contractRef }, { signature, tenantDetails }) {
+export async function saveTenantSignature(db, FieldValue, { linkRef, contractRef, serviceStateRef }, { signature, tenantDetails }) {
   let details
   if (tenantDetails !== undefined) {
     try { details = normalizeSigningDetails(tenantDetails) }
@@ -11,6 +11,10 @@ export async function saveTenantSignature(db, FieldValue, { linkRef, contractRef
     const [linkNow, contractNow] = await Promise.all([tx.get(linkRef), tx.get(contractRef)])
     if (!linkNow.exists || !contractNow.exists) throw new HttpsError('not-found', '連結或合約已不存在')
     const link = linkNow.data(), contract = contractNow.data()
+    if (serviceStateRef) {
+      const state = await tx.get(serviceStateRef)
+      if (state.data()?.archived || ['all', 'deleting', 'deleted'].includes(state.data()?.mode)) throw new HttpsError('failed-precondition', '房東服務已暫停')
+    }
     if (link.usedAt || contract.status !== 'awaiting_tenant') throw new HttpsError('failed-precondition', '此連結已使用過或合約已完成簽名')
     if (link.expireAt && Date.now() > link.expireAt) throw new HttpsError('deadline-exceeded', '連結已過期')
     if ((link.failedAttempts || 0) >= 5) throw new HttpsError('resource-exhausted', '驗證失敗次數過多')

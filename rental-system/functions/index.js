@@ -1,5 +1,5 @@
 // functions/index.js
-const { onRequest, onCall } = require("firebase-functions/v2/https");
+const { onRequest, onCall: rawOnCall, HttpsError } = require("firebase-functions/v2/https");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onObjectFinalized, onObjectDeleted } = require("firebase-functions/v2/storage");
@@ -20,6 +20,14 @@ const { promoteRenewal, handlePromoteRenewal } = require('./renewal/service.cjs'
 const { SITE_URL, contextFor, menuMessage, cardMessage, decorateMessages, billMessage, richMenuAreas, richMenuHtml, RICH_MENU_W, RICH_MENU_H } = require('./line/presentation.cjs');
 const { syncRoleMenu, installMenus } = require('./line/menus.cjs');
 const { resolveIdentity, bindingMatches } = require('./line/identity.cjs');
+const platform = require('./admin/service.cjs');
+const platformSupport = require('./admin/support.cjs');
+function onCall(options, handler) {
+  return rawOnCall(options, async request => {
+    if (request.auth) await platform.assertAccess(getFirestore(), request.auth.uid);
+    return handler(request);
+  });
+}
 
 // 模擬器模式：讓 Admin SDK verifyIdToken() 驗本地 Auth emulator 的 token
 // 必須在 initializeApp() 之前設定
@@ -36,6 +44,13 @@ const ALLOWED_ORIGINS = process.env.FUNCTIONS_EMULATOR === 'true'
 if (!getApps().length) {
   initializeApp();
 }
+
+exports.adminOperations = rawOnCall({ region: 'asia-east1', timeoutSeconds: 300 }, request => platform.handleAdmin(getFirestore(), getAuth(), request));
+exports.platformSupport = rawOnCall({ region: 'asia-east1' }, request => platformSupport.handleSupport(getFirestore(), request));
+exports.platformLineWebhook = onRequest({ region: 'asia-east1', cors: false, invoker: 'public' }, (req, res) => platformSupport.platformWebhook(getFirestore(), line, req, res));
+exports.platformNotificationCreated = onDocumentCreated({ document: 'platform_notifications/{notificationId}', region: 'asia-east1', retry: true }, event => platformSupport.deliver(getFirestore(), line, event.params.notificationId));
+exports.adminLifecycle = rawOnCall({ region: 'asia-east1', timeoutSeconds: 540 }, request => require('./admin/lifecycle.cjs').handleLifecycle(getFirestore(), getAuth(), getStorage().bucket(), request));
+exports.adminTenantAccount = rawOnCall({ region: 'asia-east1' }, request => require('./admin/accounts.cjs').handleTenantAccount(getFirestore(), getAuth(), request));
 
 // --- 輔助函式 ---
 exports.promotePendingRenewal = onCall({ region: 'asia-east1' }, request =>
@@ -141,6 +156,7 @@ exports.onboardingInvite = onRequest({ region: "asia-east1" }, async (req, res) 
     const snap = await ref.get();
     if (!snap.exists) { res.status(404).json({ error: '邀請連結無效' }); return; }
     const inv = snap.data();
+    if (await platform.isPaused(db, inv.landlordId)) { res.status(403).json({ error: '此房東服務已暫停' }); return; }
     const expired = inv.expireAt && Date.now() > inv.expireAt;
 
     if (action === 'info') {
@@ -315,7 +331,8 @@ exports.generatePdf = onRequest({ memory: "1GiB", timeoutSeconds: 60, region: "a
  * - 本地模擬器：讀 .env（LINE_CHANNEL_SECRET / LINE_CHANNEL_ACCESS_TOKEN / LINE_LANDLORD_ID）
  * - 生產環境：從 Firestore line_configs/{landlordId} 讀取（多房東架構）
  */
-async function getLineConfig(landlordId) {
+async function getLineConfig(landlordId, { allowPaused = false } = {}) {
+  if (!allowPaused && await platform.isPaused(getFirestore(), landlordId)) throw new Error('房東服務已暫停');
   if (!landlordId) throw new Error('缺少 landlordId，無法載入 LINE 設定');
 
   // 本地開發：直接從 .env 讀取
@@ -785,7 +802,7 @@ exports.lineWebhook = onRequest(
 
     let config;
     try {
-      config = await getLineConfig(landlordId);
+      config = await getLineConfig(landlordId, { allowPaused: true });
     } catch (e) {
       logger.error('LINE config error:', e.message);
       return res.status(500).json({ error: e.message });
@@ -804,6 +821,10 @@ exports.lineWebhook = onRequest(
       channelAccessToken: config.channelAccessToken,
     });
 
+    if (await platform.isPaused(db, landlordId)) {
+      for (const event of events) if (event.replyToken) await client.replyMessage({ replyToken: event.replyToken, messages: [{ type: 'text', text: '此房東的服務目前暫停，請聯繫房東或平台客服。' }] });
+      return res.json({ status: 'paused' });
+    }
     logger.info(`LINE webhook: ${events.length} event(s) received`);
 
     const BINDING_CODE_RE = /^[0-9]{6}$/;
@@ -1189,7 +1210,7 @@ exports.notifyBillCreated = onDocumentCreated(
   { document: 'bills/{billId}', region: 'asia-east1' },
   async (event) => {
     const bill = event.data?.data();
-    if (!bill) return;
+    if (!bill || bill.suppressNotification || bill.adminOperationId || await platform.isPaused(getFirestore(), bill.landlordId)) return;
 
     // Only notify for income bills (收費單) with a tenant and landlord
     if (bill.type !== 'income' || !bill.tenantId || !bill.landlordId) return;
@@ -1248,7 +1269,7 @@ exports.notifyAnnouncementCreated = onDocumentCreated(
   { document: 'announcements/{annoId}', region: 'asia-east1' },
   async (event) => {
     const anno = event.data?.data();
-    if (!anno || !anno.landlordId) return;
+    if (!anno || !anno.landlordId || await platform.isPaused(getFirestore(), anno.landlordId)) return;
 
     let config;
     try {
@@ -1371,6 +1392,7 @@ exports.scheduledReminderDaily = onSchedule(
 
     for (const configDoc of configsSnap.docs) {
       const landlordId = configDoc.id;
+      if (await platform.isPaused(db, landlordId)) continue;
       const configData = configDoc.data();
       if (!configData.channelAccessToken) continue;
 
@@ -1773,6 +1795,7 @@ async function _updateStorageStats(deltaBytes) {
     const configsSnap = await getFirestore().collection('line_configs').get();
     for (const doc of configsSnap.docs) {
       const cfg = doc.data();
+      if (await platform.isPaused(getFirestore(), doc.id)) continue;
       if (!cfg.channelAccessToken || !cfg.landlordId) continue;
       try {
         const client = new line.messagingApi.MessagingApiClient({ channelAccessToken: cfg.channelAccessToken });
@@ -1841,6 +1864,7 @@ exports.budgetAlert = onMessagePublished(
       const configsSnap = await db.collection('line_configs').get();
       for (const doc of configsSnap.docs) {
         const cfg = doc.data();
+      if (await platform.isPaused(getFirestore(), doc.id)) continue;
         if (!cfg.channelAccessToken || !cfg.landlordId) continue;
         try {
           const client = new line.messagingApi.MessagingApiClient({ channelAccessToken: cfg.channelAccessToken });
@@ -1900,6 +1924,7 @@ exports.dailyUsageCheck = onSchedule(
       const configsSnap = await db.collection('line_configs').get();
       for (const doc of configsSnap.docs) {
         const cfg = doc.data();
+      if (await platform.isPaused(getFirestore(), doc.id)) continue;
         if (!cfg.channelAccessToken || !cfg.landlordId) continue;
         try {
           const client = new line.messagingApi.MessagingApiClient({ channelAccessToken: cfg.channelAccessToken });
@@ -2096,6 +2121,7 @@ exports.activateTenant = onCall({ region: 'asia-east1' }, async (request) => {
   if (!snap.exists) throw new HttpsError('not-found', '連結無效');
 
   const act = snap.data();
+  if (await platform.isPaused(db, act.landlordId)) throw new HttpsError('failed-precondition', '房東服務已暫停');
   if (act.usedAt) throw new HttpsError('failed-precondition', '此連結已使用過');
   if (act.expireAt && Date.now() > act.expireAt) {
     throw new HttpsError('deadline-exceeded', '連結已過期');
@@ -2161,6 +2187,7 @@ exports.createContractSignLink = onCall({ region: 'asia-east1' }, async (request
   const contractSnap = await db.collection('signed_contracts').doc(String(contractId)).get();
   if (!contractSnap.exists) throw new HttpsError('not-found', '合約不存在');
   const c = contractSnap.data();
+  if (await platform.isPaused(db, c.landlordUid)) throw new HttpsError('failed-precondition', '房東服務已暫停');
   if (c.landlordUid !== callerUid && callerRole !== 'admin') {
     throw new HttpsError('permission-denied', '無權操作此合約');
   }
@@ -2210,6 +2237,7 @@ async function verifySignLink(db, code, idNumber) {
   if (!contractSnap.exists) throw new HttpsError('not-found', '合約已不存在');
   const c = contractSnap.data();
   if (c.status !== 'awaiting_tenant') throw new HttpsError('failed-precondition', '此合約已完成簽名');
+  if (await platform.isPaused(db, c.landlordUid)) throw new HttpsError('failed-precondition', '房東服務已暫停');
 
   if (idNumber === undefined) return { linkRef, contractRef, c, verified: false };
   if (!normId(idNumber) || normId(idNumber) !== normId(c.tenantId)) {
@@ -2243,7 +2271,7 @@ exports.submitContractSignature = onCall({ region: 'asia-east1' }, async (reques
   const { linkRef, contractRef, c } = await verifySignLink(db, code, idNumber ?? '');
 
   const { saveTenantSignature } = await import('./signing/submission.mjs');
-  await saveTenantSignature(db, FieldValue, { linkRef, contractRef }, { signature, tenantDetails });
+  await saveTenantSignature(db, FieldValue, { linkRef, contractRef, serviceStateRef: db.collection('platform_accounts').doc(c.landlordUid) }, { signature, tenantDetails });
 
   try {
     const config = await getLineConfig(c.landlordUid);
@@ -2420,6 +2448,9 @@ exports.purgeData = onCall({ region: 'asia-east1' }, async (request) => {
   }
 
   const { mode, scope, tenantDocId } = request.data || {};
+  if (scope === 'test' && process.env.FUNCTIONS_EMULATOR !== 'true') {
+    throw new HttpsError('permission-denied', '測試資料清除僅限本機模擬器');
+  }
   if (mode !== 'preview' && mode !== 'execute') {
     throw new HttpsError('invalid-argument', 'mode 必須是 preview 或 execute');
   }
@@ -2561,6 +2592,7 @@ exports.bindLandlordByCode = onCall({ region: 'asia-east1' }, async (request) =>
     .get();
   const landlord = snap.docs[0];
   if (!landlord) throw new HttpsError('not-found', '找不到此邀請碼對應的房東');
+  if (await platform.isPaused(db, landlord.id)) throw new HttpsError('failed-precondition', '此房東的服務已暫停');
 
   await db.collection('users').doc(uid).update({ landlordId: landlord.id });
 

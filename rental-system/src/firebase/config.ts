@@ -8,7 +8,7 @@ import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 const firebaseConfig = {
   apiKey: "AIzaSyB9dScnoKGiImeaUjsLFdAgEICSbuWxyDQ",
   authDomain: "rental-system-7675e.firebaseapp.com",
-  projectId: "rental-system-7675e",
+  projectId: import.meta.env.DEV && import.meta.env.VITE_EMULATOR_PROJECT_ID || "rental-system-7675e",
   storageBucket: "rental-system-7675e.firebasestorage.app",
   messagingSenderId: "578769186798",
   appId: "1:578769186798:web:1b7cb582a3f573f1a4e8ff",

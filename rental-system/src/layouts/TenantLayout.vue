@@ -119,7 +119,7 @@
 
       <!-- Page content; pb-24 on mobile to clear bottom tab bar -->
       <main class="flex-1 overflow-auto p-4 md:p-8 pb-24 lg:pb-8">
-        <router-view></router-view>
+        <PlatformNotifications /><router-view></router-view>
         <AppCopyright class="mt-8 lg:hidden" />
       </main>
     </div>
@@ -163,6 +163,8 @@
 
 <script setup lang="ts">
 import AppCopyright from '../components/AppCopyright.vue';
+import PlatformNotifications from '../components/PlatformNotifications.vue';
+import '../assets/admin.css';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useToastStore } from '../stores/toast';

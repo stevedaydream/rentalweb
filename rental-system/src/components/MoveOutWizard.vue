@@ -505,7 +505,7 @@ interface DepositItem {
   status: 'paid' | 'unpaid';
 }
 
-const props = defineProps<{ tenant: Tenant; landlordId: string }>();
+const props = defineProps<{ tenant: Tenant & { version?: string }; landlordId: string; adminReason?: string }>();
 const emit = defineEmits<{ close: []; completed: [] }>();
 const toast = useToastStore();
 
@@ -845,7 +845,7 @@ const execute = async () => {
   try {
     const today = new Date().toISOString().split('T')[0] as string;
     // 退租結清起算兩年後可刪點交原檔；排程仍會自行推算，這裡先落在資料上
-    void stampPhotoCleanup(
+    if (props.adminReason === undefined) void stampPhotoCleanup(
       props.landlordId, props.tenant.id,
       new Date(moveOutDate.value || today).getTime(),
     );
@@ -879,6 +879,15 @@ const execute = async () => {
         signedAt: today,
       },
     };
+
+    if (props.adminReason !== undefined) {
+      const { adminCall } = await import('../services/adminService');
+      await adminCall({ action: 'domain', operation: 'moveout', landlordId: props.landlordId, key: props.tenant.id,
+        version: props.tenant.version, operationId: crypto.randomUUID(), reason: props.adminReason, payload: moveOutPayload });
+      toast.success(`${props.tenant.name} 退租手續已完成`);
+      emit('completed');
+      return;
+    }
 
     // 1. Terminate contract
     if (props.tenant.contractId) {

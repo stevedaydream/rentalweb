@@ -16,6 +16,10 @@ async function promoteRenewal(db, FieldValue, contractId, { auth, today = todayI
     const snap = await tx.get(ref);
     if (!snap.exists) throw new HttpsError('not-found', '找不到合約');
     const c = snap.data();
+    if (validId(c.landlordId)) {
+      const state = await tx.get(db.collection('platform_accounts').doc(c.landlordId));
+      if (state.data()?.archived || ['all', 'deleting', 'deleted'].includes(state.data()?.mode)) return { promoted: false };
+    }
     if (auth) {
       const profile = await tx.get(db.collection('users').doc(auth.uid));
       const role = profile.data()?.role;

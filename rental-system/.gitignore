@@ -26,3 +26,4 @@ dist-ssr
 DEV_GUIDE.md
 .env.development
 .env.production
+secret.md

@@ -48,15 +48,20 @@ export function buildPlan(input) {
   if (!Number.isInteger(day) || day < 1 || day > 31) throw new Error('繳費截止日須為 1～31 號')
   const dueDate = `${month}-${String(Math.min(day, Number(end.slice(-2)))).padStart(2, '0')}`
   const roomByTenant = new Map(tenants.map(t => [t.id, tenantRoom(t, rooms)]))
-  const usedUsage = new Set(bills.map(b => b.relatedUsageId).filter(Boolean))
-  const existingIds = new Set(bills.map(b => b.id))
+  const usedUsage = new Set(bills.filter(b => b.status !== 'cancelled').map(b => b.relatedUsageId).filter(Boolean))
+  const existingById = new Map(bills.map(b => [b.id, b]))
   const groupBySub = new Map()
   groups.forEach(g => (g.subGroups || []).forEach(s => {
     if (!groupBySub.has(s.id)) groupBySub.set(s.id, g.id)
   }))
   const add = (tenant, category, description, amount, identity, extra = {}) => {
-    const id = `auto_${hash([landlordId, ...identity])}`
-    if (existingIds.has(id)) return
+    const originalId = `auto_${hash([landlordId, ...identity])}`
+    let id = originalId
+    let revision = 0
+    while (existingById.has(id)) {
+      if (existingById.get(id).status !== 'cancelled') return
+      id = `${originalId}_r${++revision}`
+    }
     const credit = money(tenant.credit ?? 0)
     if (credit === null) {
       warnings.push(`${labelOf(tenant)}：預收餘額無效，請先核對，未出帳`)
@@ -91,7 +96,7 @@ export function buildPlan(input) {
       warnings.push(`${label}：繳費方式無效，未出租金`)
       continue
     }
-    const mine = bills.filter(b => b.type === 'income' && b.category === '租金收入'
+    const mine = bills.filter(b => b.status !== 'cancelled' && b.type === 'income' && b.category === '租金收入'
       && (b.relatedTenantDocId ? b.relatedTenantDocId === tenant.id : tenant.uid && b.tenantId === tenant.uid))
     // 從舊系統接管的租客：「租金已繳至」視同一張已涵蓋到該月的租金單，避免重複收取
     const paidThrough = paidThroughCoverage(tenant)
@@ -237,7 +242,7 @@ export function buildPlan(input) {
       const total = money(reading.cost)
       if (!total) continue
       const share = publicMeterShare(total, shareRooms.length)
-      const existingShares = bills.filter(b => shareRooms.some(room => b.relatedUsageId === `${reading.id}_${room.id}`))
+      const existingShares = bills.filter(b => b.status !== 'cancelled' && shareRooms.some(room => b.relatedUsageId === `${reading.id}_${room.id}`))
       if (existingShares.some(b => Number(b.amount) !== share
         || (b.calculation && (b.calculation.total !== total
           || JSON.stringify(b.calculation.roomIds) !== JSON.stringify(shareRooms.map(r => r.id).sort()))))) {

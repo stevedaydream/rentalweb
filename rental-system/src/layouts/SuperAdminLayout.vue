@@ -3,7 +3,7 @@
     
     <aside 
       class="fixed inset-y-0 left-0 z-50 w-64 bg-ink-800 text-white transition-transform duration-300 transform lg:translate-x-0 lg:static lg:block"
-      :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+      :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full invisible lg:visible'"
     >
       <div class="h-full flex flex-col">
         <div class="h-20 flex items-center px-6 border-b border-ink-700 bg-ink-900">
@@ -68,7 +68,7 @@
       </header>
 
       <main class="flex-1 overflow-auto p-4 md:p-8 relative">
-        <router-view></router-view>
+        <PlatformNotifications /><router-view></router-view>
       </main>
     </div>
 
@@ -77,6 +77,8 @@
 
 <script setup lang="ts">
 import AppCopyright from '../components/AppCopyright.vue';
+import PlatformNotifications from '../components/PlatformNotifications.vue';
+import '../assets/admin.css';
 import { ref, computed } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { useRoute } from 'vue-router';
@@ -94,19 +96,19 @@ const adminInitial = computed(() => {
 });
 
 const menuItems = [
-  { name: '系統總覽', to: { name: 'AdminDashboard' }, icon: 'dashboard' },
-  { name: '房東管理', to: { name: 'AdminLandlords' }, icon: 'supervisor_account' },
-  { name: '租客與配對', to: { name: 'AdminTenants' }, icon: 'manage_accounts' }, 
-  { name: '資料庫操作', to: { name: 'AdminDatabase' }, icon: 'database' },
-  { name: '功能開關', to: { name: 'AdminFeatureFlags' }, icon: 'toggle_on' },
-  { name: '系統模擬器', to: { name: 'SystemSimulator' }, icon: 'settings_remote' },
-  { name: '操作說明', to: { name: 'Guide', query: { role: 'admin' } }, icon: 'help' },
+  { name: '待處理事項', to: { path: '/admin/dashboard' }, icon: 'space_dashboard' },
+  { name: '房東管理', to: { path: '/admin/manage/users' }, icon: 'supervisor_account' },
+  { name: '建物與房間', to: { path: '/admin/manage/properties' }, icon: 'apartment' },
+  { name: '全平台房間', to: { path: '/admin/manage/rooms' }, icon: 'meeting_room' },
+  { name: '租客管理', to: { path: '/admin/manage/tenants' }, icon: 'manage_accounts' },
+  { name: '帳務管理', to: { path: '/admin/manage/bills' }, icon: 'account_balance_wallet' },
+  { name: '租約管理', to: { path: '/admin/manage/contracts' }, icon: 'description' },
+  { name: '簽署合約', to: { path: '/admin/manage/signed_contracts' }, icon: 'draw' },
+  { name: '平台求助', to: { path: '/admin/support' }, icon: 'support_agent' },
+  { name: '操作紀錄', to: { path: '/admin/audit' }, icon: 'history' },
+  { name: '平台維護', to: { path: '/admin/maintenance' }, icon: 'settings' },
 ];
-
-const isActive = (to: any) => {
-  return route.name === to.name;
-};
-
+const isActive = (to: { path: string }) => route.path === to.path;
 const handleLogout = () => {
   if (confirm('確定要登出管理系統嗎？')) {
     authStore.logout();

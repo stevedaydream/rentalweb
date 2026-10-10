@@ -3,6 +3,7 @@ import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../firebase/config';
 import { overlappingSignedContracts } from '../utils/signedContract';
 import type { SignedContractLike } from '../utils/signedContract';
+import { adminCall } from './adminService';
 
 export type SignedContractDoc = SignedContractLike & { id: string; [key: string]: unknown };
 
@@ -12,7 +13,11 @@ export const findOverlappingSignedContracts = async (landlordUid: string, draft:
 };
 
 // 新合約與「舊合約標記已被取代」同批寫入，避免只寫一半
-export const createSignedContract = async (data: Record<string, unknown>, supersedeIds: string[] = []) => {
+export const createSignedContract = async (data: Record<string, unknown>, supersedeIds: string[] = [], adminReason?: string) => {
+  if (adminReason !== undefined) {
+    const { signedAt: _signedAt, ...contract } = data;
+    return adminCall<{ id: string }>({ action: 'domain', operation: 'signedCreate', operationId: crypto.randomUUID(), landlordId: data.landlordUid, reason: adminReason, contract, supersedeIds });
+  }
   const ref = doc(collection(db, 'signed_contracts'));
   const batch = writeBatch(db);
   batch.set(ref, data);
@@ -26,7 +31,11 @@ export const createSignedContract = async (data: Record<string, unknown>, supers
 export interface SignLinkResult { code: string; url: string; expireAt: number; expireDays: number }
 
 // 遠端簽約：為待租客簽名的合約產生（或重發）一次性簽署連結
-export const requestContractSignLink = async (contractId: string): Promise<SignLinkResult> => {
+export const requestContractSignLink = async (contractId: string, adminReason?: string): Promise<SignLinkResult> => {
+  if (adminReason !== undefined) {
+    const current = await adminCall({ action: 'detail', kind: 'signed_contracts', key: contractId });
+    return adminCall<SignLinkResult>({ action: 'mutate', kind: 'signed_contracts', key: contractId, version: current.version, operation: 'signLink', operationId: crypto.randomUUID(), reason: adminReason, input: { origin: location.origin } });
+  }
   const fn = httpsCallable<{ contractId: string; origin: string }, SignLinkResult>(functions, 'createContractSignLink');
   const res = await fn({ contractId, origin: window.location.origin });
   return res.data;

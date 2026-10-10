@@ -46,10 +46,10 @@ const TenantBuildingInfo = () => import('../views/tenant/BuildingInfo.vue');
 const TenantMyContract = () => import('../views/tenant/MyContract.vue');
 
 const AdminLogin = () => import('../views/admin/AdminLogin.vue');
-const AdminDashboard = () => import('../views/admin/Dashboard.vue');
-const AdminLandlords = () => import('../views/admin/LandlordManagement.vue');
+const AdminDashboard = () => import('../views/admin/OperationsDashboard.vue');
+
 const AdminDatabase = () => import('../views/admin/DatabaseManagement.vue');
-const AdminTenants = () => import('../views/admin/TenantManagement.vue');
+
 const AdminFeatureFlags = () => import('../views/admin/FeatureFlags.vue');
 const Maintenance = () => import('../views/Maintenance.vue');
 
@@ -71,6 +71,7 @@ const routes = [
   { path: '/explore/landlord/:landlordId', name: 'LandlordProfile', component: LandlordProfile },
   { path: '/guide', name: 'Guide', component: Guide }, // 操作說明（免登入）
   { path: '/admin/login', name: 'AdminLogin', component: AdminLogin },
+  { path: '/service-suspended', name: 'ServiceSuspended', component: () => import('../views/ServiceSuspended.vue'), meta: { requiresAuth: true } },
   
   // 房東系統
   {
@@ -79,6 +80,7 @@ const routes = [
     meta: { requiresAuth: true, role: 'landlord' },
     children: [
       { path: 'dashboard', name: 'LandlordDashboard', component: LandlordDashboard },
+      { path: 'support', name: 'LandlordSupport', component: () => import('../views/PlatformSupport.vue') },
       { path: 'messages', name: 'LandlordMessages', component: LandlordMessages },
       { path: 'rooms', name: 'RoomManagement', component: RoomManagement },
       { path: 'tenants', name: 'TenantList', component: TenantList },
@@ -150,8 +152,15 @@ const routes = [
     meta: { requiresAuth: true, role: 'admin' },
     children: [
       { path: 'dashboard', name: 'AdminDashboard', component: AdminDashboard },
-      { path: 'landlords', name: 'AdminLandlords', component: AdminLandlords },
-      { path: 'tenants', name: 'AdminTenants', component: AdminTenants },
+      { path: '', redirect: '/admin/dashboard' },
+      { path: 'manage/:kind', name: 'AdminOperationsList', component: () => import('../views/admin/OperationsList.vue') },
+      { path: 'record/:kind/:key', name: 'AdminOperationsDetail', component: () => import('../views/admin/OperationsDetail.vue') },
+      { path: 'create/:kind', name: 'AdminOperationsCreate', component: () => import('../views/admin/OperationsCreate.vue') },
+      { path: 'support', name: 'AdminSupport', component: () => import('../views/PlatformSupport.vue') },
+      { path: 'audit', name: 'AdminAudit', component: () => import('../views/admin/OperationsAudit.vue') },
+      { path: 'maintenance', name: 'AdminMaintenance', component: () => import('../views/admin/OperationsMaintenance.vue') },
+      { path: 'landlords', name: 'AdminLandlords', redirect: '/admin/manage/users' },
+      { path: 'tenants', name: 'AdminTenants', redirect: '/admin/manage/tenants' },
       { path: 'database', name: 'AdminDatabase', component: AdminDatabase },
       { path: 'features', name: 'AdminFeatureFlags', component: AdminFeatureFlags },
       {
@@ -220,6 +229,19 @@ router.beforeEach(async (to, _from, next) => {
   if (to.meta.requiresAuth && !isAuthenticated) {
     console.warn('[Guard] 未登入，導向 Login');
     return next({ name: 'Login', query: { redirect: to.fullPath } });
+  }
+
+  if (['AdminDatabase', 'SystemSimulator'].includes(String(to.name)) && !import.meta.env.DEV) return next({ name: 'AdminMaintenance' });
+  if (isAuthenticated && to.meta.requiresAuth && authStore.userProfile?.role !== 'admin'
+      && !['ServiceSuspended', 'LandlordSupport'].includes(String(to.name))) {
+    const profile = authStore.userProfile;
+    const lid = profile?.role === 'landlord' ? firebaseUser!.uid : profile?.landlordId;
+    if (lid) {
+      try {
+        const state = (await getDoc(doc(db, 'platform_accounts', lid))).data();
+        if (state?.archived || ['all', 'deleting', 'deleted'].includes(state?.mode) || (profile?.role === 'landlord' && state?.mode === 'landlord')) return next({ name: 'ServiceSuspended' });
+      } catch { return next({ name: 'ServiceSuspended' }); }
+    }
   }
 
   if (isAuthenticated && to.meta.role) {

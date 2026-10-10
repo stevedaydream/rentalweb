@@ -2,6 +2,25 @@
 
 ## 外部 API
 
+### 平台管理與求助（2026-10-10）
+
+| 函式 | 權限 | 用途 |
+|------|------|------|
+| `adminOperations` | admin | `overview`、`search`、`list`、`detail`、`mutate`、`domain`、`account`、`signedPreview`、`feature`、`lineConfig`、`saveLineConfig`、`deletionJobs` |
+| `adminTenantAccount` | admin | 依租客文件查詢帳號、列候選帳號、配對、建立、重設密碼、停用／恢復、產生啟用連結 |
+| `adminLifecycle` | admin | `deletePreview`、`deleteExecute`、`billingPreview`、`billingCommit` |
+| `platformSupport` | landlord／admin | 案件清單、詳情、開案、留言、狀態及獨立平台 LINE 綁定；租客僅可使用通知讀取／標記已讀 |
+| `platformLineWebhook` | 驗證 LINE 簽章 | 消耗一次性綁定碼，其他訊息導回網站；正式設定見 `secret.md` |
+| `platformNotificationCreated` | Firestore 觸發 | 站內通知衍生 LINE 推播，穩定 retry key 防重送，失敗保留狀態 |
+
+- 管理修改帶 `operationId`、`version`、`reason`；`mutate` 另帶 `kind`、`key`、`operation`、`patch`／`input`。重要操作原因必填，版本來自 `detail`；同一識別碼不同內容會拒絕。
+- `mutate` 支援 `edit`、`collect`、`credit`、`reverse`、`void`、`renew`、`cancelRenewal`、`signLink`、`return`、`confirm`；`domain` 支援 `create`、`signedCreate`、`moveout`。簽署確認另驗證重疊合約預覽版本。
+- `list` 以 `after` 分頁，每頁 100 筆，回 `items`／`next`；房東清單預設排除封存，`includeArchived` 可顯示；其他業務可帶 `landlordId` 篩選。
+- 整戶刪除須回傳的 `version`、輸入指定 `confirmation` 及原因；開始後保留工作與分頁清單，可在平台維護以原操作識別碼接續。租客 Auth 不刪除，只解除房東關聯。
+- 帳號操作由持久工作協調 Auth／Firestore；`status.pending` 提供原操作識別碼、原因及版本供重試。密碼不寫稽核，重試密碼重設時仍需送出相同內容。
+- 求助附件限 JPG／PNG／WebP、每張小於 5MB、每次最多 5 張，路徑為 `platform_support/<uid>/<operationId>/<檔名>`；讀取限參與者，不能被一般 Storage 規則放行。
+- `platform_accounts`、`admin_audit`、通知、案件及私有設定皆由後端寫入。`platform_*` 工作憑據與 LINE 設定不可由瀏覽器直接讀取。
+
 ### Firebase Cloud Functions（asia-east1）
 
 **Base URL（正式）**：`https://asia-east1-rental-system-7675e.cloudfunctions.net`  

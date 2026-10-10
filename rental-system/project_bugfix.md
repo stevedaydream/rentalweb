@@ -511,3 +511,16 @@ storage.googleapis.com/<bucket>/…                 →  （無 ACAO，此端點
 - **原因**：JavaScript 字串中的反斜線會被當作跳脫字元；中文子集不一定包含空白，因此 `document.fonts.load` 預設以空白查驗時可能回傳空陣列。外部字型服務亦可能延遲，不能只等待 DOM 完成就截圖。
 - **解法**：Chrome 路徑正確跳脫；400／700 字重的選單中文子集與 OFL 授權一併打包，透過 data URL 內嵌，明確以子集中存在的「服務」載入並等待 `document.fonts.ready`。三種底圖均以瀏覽器離線模式產生成功，檔案小於 LINE 的圖片大小上限。
 - **牽扯檔案**：`functions/index.js`、`functions/line/presentation.cjs`、`functions/line/fonts/`。
+
+## BF-021：Storage 遞迴路徑不可當字串比對
+
+- **問題描述**：用遞迴 wildcard 的 `matches()` 排除平台求助目錄時，模擬器回報 Function not found；求助專用規則仍成功，卻使一般附件也被拒絕。
+- **原因**：遞迴 wildcard 是路徑值，不能套用字串 `matches()`。Storage 各 match 權限採 OR，求助專用規則無法抵銷寬鬆的泛用規則。
+- **解法**：泛用規則改以第一層 `{root}` 排除 `platform_support`；一般路徑另驗證服務狀態。測試同時涵蓋正常附件、停用後拒絕，以及求助附件參與者與格式限制。
+- **牽扯檔案**：`storage.rules`、`functions/admin/rules.emulator.test.cjs`。
+
+## BF-022：Vue 多語句事件格式化後需保留區塊
+
+- **問題描述**：專案 Prettier 設定 `semi: false`，將 Vue 事件中的多語句拆行並移除分號，型別檢查未報錯，Vite 範本編譯卻失敗。
+- **解法**：多語句事件使用明確箭頭函式區塊，讓換行有合法的語句邊界；驗證必須包含完整 Vite 建置，不能只跑 vue-tsc。
+- **牽扯檔案**：`src/views/PlatformSupport.vue`、`src/views/admin/OperationsDetail.vue`、`src/views/admin/BillingRecovery.vue`。

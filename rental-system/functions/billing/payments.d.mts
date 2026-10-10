@@ -1,0 +1,10 @@
+type Bill = { id?: string; type?: string; amount: number; status: string; paidAmount?: number; date?: string; dueDate?: string; category?: string };
+export function isCollected(b: Pick<Bill, 'status'>): boolean;
+export function collectedOf(b: Pick<Bill, 'amount' | 'status' | 'paidAmount'>): number;
+export function outstandingOf(b: Pick<Bill, 'type' | 'amount' | 'status' | 'paidAmount'>): number;
+export function isPartial(b: Pick<Bill, 'amount' | 'status' | 'paidAmount'>): boolean;
+export function byAge(a: Bill, b: Bill): number;
+export function allocatePayment(bills: (Bill & { id: string })[], amount: number, opts?: { preferCategory?: string }): { allocations: { billId: string; apply: number; settles: boolean }[]; leftover: number };
+export function paymentUpdate(b: Bill, apply: number, paidDate: string, today: string): { paidAmount: number; status: string; paidAt?: string };
+export function paymentEntry(amount: number, date: string, source: 'manual' | 'credit', note?: string): { amount: number; date: string; source: 'manual' | 'credit'; note?: string; at: string };
+export function applyCredit(amounts: number[], credit: number): { applied: number[]; remaining: number };

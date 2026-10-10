@@ -105,6 +105,7 @@ import { isValidPin, WrongPinError } from '../utils/signatureVault'
 const props = defineProps<{
   modelValue: string
   landlordId: string
+  allowSave?: boolean
 }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
@@ -151,7 +152,7 @@ const onSigned = (img: string) => {
   emit('update:modelValue', img)
   draft.value = img
   // 已有保險箱者不再重複詢問儲存，避免每次重簽都被打擾
-  if (!vault.hasVault.value) { wantSave.value = true; askSave.value = true }
+  if (props.allowSave !== false && !vault.hasVault.value) { wantSave.value = true; askSave.value = true }
 }
 
 const confirmSave = () => { askSave.value = false; openPin('set') }

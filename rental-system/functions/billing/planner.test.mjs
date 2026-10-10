@@ -331,3 +331,15 @@ test('first month is prorated from lease start to the day before the next paymen
   assert.equal(p2.bills[0].creditApplied, rent.amount)
   assert.equal(p2.creditBefore - p2.creditUsed, 7000 - rent.amount)
 })
+
+test('作廢後補單保留原件並使用新的穩定識別碼，不會重複補單', () => {
+  const input = fixture()
+  const original = buildPlan(input).plans.flatMap(p => p.bills)
+  input.bills = original.map(b => ({ ...b, status: 'cancelled', originalAmount: b.amount, amount: 0 }))
+  const replacement = buildPlan(input).plans.flatMap(p => p.bills)
+  assert.equal(replacement.length, original.length)
+  assert.ok(replacement.every(b => !original.some(o => o.id === b.id)))
+  assert.deepEqual(replacement.map(b => b.id), buildPlan(input).plans.flatMap(p => p.bills).map(b => b.id))
+  input.bills.push(...replacement)
+  assert.equal(buildPlan(input).plans.flatMap(p => p.bills).length, 0)
+})

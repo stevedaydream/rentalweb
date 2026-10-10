@@ -8,7 +8,7 @@
     "stop": "npx kill-port 8085 4000 4400 9099 9199",
     "dev": "vite",
     "dev:emulator": "firebase emulators:start --import=./emulator-data --export-on-exit=./emulator-data",
-    "test": "vitest run && node --test functions/billing/planner.test.mjs functions/signing/submission.test.mjs functions/line/line.test.cjs",
+    "test": "vitest run && node --test functions/billing/planner.test.mjs functions/signing/submission.test.mjs functions/line/line.test.cjs functions/admin/policy.test.cjs",
     "test:watch": "vitest",
     "test:billing:emulator": "firebase emulators:exec --only firestore --project demo-billing-review --config firebase.billing-test.json \"node --test functions/billing/service.emulator.test.mjs\"",
     "test:renewal:emulator": "firebase emulators:exec --only firestore --project demo-billing-review --config firebase.billing-test.json \"node --test functions/renewal/service.emulator.test.cjs\"",
@@ -18,7 +18,8 @@
     "analyze": "cross-env ANALYZE=true vite build",
     "lint": "eslint src --ext .ts,.vue",
     "lint:fix": "eslint src --ext .ts,.vue --fix",
-    "format": "prettier --write \"src/**/*.{ts,vue,css}\""
+    "format": "prettier --write \"src/**/*.{ts,vue,css}\"",
+    "test:admin:emulator": "firebase emulators:exec --only auth,firestore,storage --project demo-admin-review --config firebase.admin-test.json \"node --test functions/admin/service.emulator.test.cjs functions/admin/rules.emulator.test.cjs\""
   },
   "dependencies": {
     "@sentry/vue": "^10.45.0",
