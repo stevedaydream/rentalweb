@@ -24,9 +24,9 @@
       </button>
     </div>
 
-    <RouterLink :to="{ name: 'LandlordDataImport' }" class="flex items-center justify-between gap-3 rounded-2xl border border-gold-200 dark:border-gold-800 bg-gold-50 dark:bg-gold-950/20 p-4 hover:bg-gold-100 dark:hover:bg-gold-950/35 transition-colors">
-      <span class="flex items-center gap-3"><span class="material-symbols-outlined text-gold-600">upload_file</span><span><b class="block text-text-primary-light dark:text-white">資料匯入中心</b><small class="text-text-secondary-light">從舊系統接管建物、租客、租約與未結清帳款</small></span></span><span class="material-symbols-outlined text-gold-600">chevron_right</span>
-    </RouterLink>
+    <div v-if="activeTab === 'import'" id="settings-panel-import" role="tabpanel" aria-labelledby="settings-tab-import">
+      <DataImport />
+    </div>
 
     <!-- ===== 帳戶 ===== -->
     <div v-if="activeTab === 'account'" id="settings-panel-account" role="tabpanel" aria-labelledby="settings-tab-account" class="space-y-6">
@@ -717,7 +717,7 @@
 
 <script setup lang="ts">
 import ServicePageHeading from '../../components/ServicePageHeading.vue';
-import { ref, computed, watchEffect, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watchEffect, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import lineMenuItems from '../../../functions/line/menu-items.json';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../../stores/auth';
@@ -887,12 +887,14 @@ const accountDirty = computed(() => changed(['name', 'phone', 'idNumber', 'addre
 const billingDirty = computed(() => changed(['bankCode', 'bankAccount', 'bankAccountName', 'billSendDay', 'paymentDay']));
 
 // ── 分頁（記在網址，重新整理或從操作說明連過來都能停在同一頁） ──
-type SettingsTab = 'account' | 'billing' | 'line' | 'documents';
+const DataImport = defineAsyncComponent(() => import('./DataImport.vue'));
+type SettingsTab = 'account' | 'billing' | 'line' | 'documents' | 'import';
 const tabs: { id: SettingsTab; label: string; icon: string; dirty?: typeof accountDirty }[] = [
   { id: 'account', label: '帳戶', icon: 'person', dirty: accountDirty },
   { id: 'billing', label: '收款與帳單', icon: 'account_balance', dirty: billingDirty },
   { id: 'line', label: 'LINE', icon: 'chat' },
   { id: 'documents', label: '簽名與點交', icon: 'draw' },
+  { id: 'import', label: '資料匯入中心', icon: 'upload_file' },
 ];
 const route = useRoute();
 const router = useRouter();
